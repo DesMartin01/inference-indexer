@@ -158,14 +158,13 @@ export default function AboutPage() {
                     marginBottom: 16,
                     background: "#1a1a1a",
                     border: "1px solid #333",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
                   }}
                 >
-                  <span style={{ fontSize: 48, fontWeight: 700, color: "#8f8f96", fontFamily: "Inter, sans-serif" }}>
-                    FD
-                  </span>
+                  <img
+                    src="/images/frank-drebin.png"
+                    alt="Frank Drebin"
+                    style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                  />
                 </div>
                 <h3 style={{ fontSize: 16, fontWeight: 600, color: "#f2f2f2", marginBottom: 8 }}>Frank Drebin</h3>
                 <p style={{ fontSize: 13, color: "#8a8a8a", lineHeight: 1.6, marginBottom: 12 }}>
