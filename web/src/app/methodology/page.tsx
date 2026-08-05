@@ -41,7 +41,7 @@ export default function MethodologyPage() {
       <div
         style={{
           flex: 1,
-          maxWidth: 1100,
+          maxWidth: 1320,
           margin: "0 auto",
           padding: "40px 28px",
           display: "flex",
