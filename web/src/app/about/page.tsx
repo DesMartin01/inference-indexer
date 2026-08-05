@@ -76,7 +76,7 @@ export default function AboutPage() {
   return (
     <div style={{ background: "#0a0a0a", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
       <Header activePage="about" />
-      <div style={{ maxWidth: 1320, margin: "0 auto", padding: "44px 28px 0", flex: 1, width: "100%", display: "flex", gap: 48 }}>
+      <div style={{ maxWidth: 1320, width: "100%", margin: "0 auto", padding: "44px 28px 0", flex: 1, display: "flex", gap: 48 }}>
         {/* Main content */}
         <div style={{ maxWidth: 800, flex: 1 }}>
           <h1 style={{ fontSize: 28, fontWeight: 700, color: "#f2f2f2", marginBottom: 8, letterSpacing: "-0.01em" }}>
