@@ -118,7 +118,7 @@ export default function AboutPage() {
           {/* Team */}
           <div id="team" style={{ marginBottom: 40 }}>
             <h2 style={sectionHeading}>The Team</h2>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 8 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 20, marginBottom: 8 }}>
               {/* Des Martin */}
               <div style={cardBase}>
                 <div
