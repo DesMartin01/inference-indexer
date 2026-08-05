@@ -13,6 +13,7 @@ import { Header, Footer } from "@/components/Header";
 import ModelTable from "@/components/ModelTable";
 
 export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "AI Inference Pricing Index - 316 Models, 57 Providers | InferenceIndexer.ai",

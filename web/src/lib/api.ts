@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const SSR_SECRET = "inferenceindexer-ssr-2026";
 
 // Simple in-memory cache for API responses
 const cache = new Map<string, { data: unknown; ts: number }>();
@@ -14,6 +15,7 @@ async function fetchWithCache<T>(endpoint: string): Promise<T> {
 
   const res = await fetch(`${API_URL}${endpoint}`, {
     next: { revalidate: 60 },
+    headers: { "X-SSR-Secret": SSR_SECRET },
   });
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   const data = await res.json();
