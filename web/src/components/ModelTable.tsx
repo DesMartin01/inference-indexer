@@ -15,7 +15,7 @@ import {
 } from "@/lib/api";
 import { buildRowSpark } from "@/lib/charts";
 
-type SortKey = "name" | "provider" | "tier" | "input" | "output" | "blended" | "sit" | "c24" | "c7";
+type SortKey = "name" | "provider" | "tier" | "input" | "output" | "blended" | "sit" | "sources" | "c24" | "c7";
 type SortDir = "asc" | "desc";
 
 type ColKey = SortKey | "rank" | "trend";
@@ -28,12 +28,13 @@ const COLS: { key: ColKey; label: string; align: "left" | "right" }[] = [
   { key: "output", label: "Output $/M", align: "right" },
   { key: "blended", label: "Blended $/M", align: "right" },
   { key: "sit", label: "SIT Score", align: "right" },
+  { key: "sources", label: "Sources", align: "right" },
   { key: "c24", label: "24h", align: "right" },
   { key: "c7", label: "7d", align: "right" },
   { key: "trend", label: "7d trend", align: "left" },
 ];
 
-const GRID = "46px minmax(160px, 1.5fr) minmax(100px, 1fr) 100px 96px 104px 108px 104px 80px 80px 104px";
+const GRID = "46px minmax(160px, 1.5fr) minmax(100px, 1fr) 100px 96px 104px 108px 104px 72px 80px 80px 104px";
 
 interface Props {
   models: ModelSummary[];
@@ -80,6 +81,7 @@ export default function ModelTable({ models, totalCount }: Props) {
       const num = (k: string) =>
         k === "input" || k === "output" || k === "blended" || k === "c24" || k === "c7" || k === "sit";
       if (k === "sit") return ((a.sit_score ?? 0) - (b.sit_score ?? 0)) * sign;
+      if (k === "sources") return ((a.source_count ?? 1) - (b.source_count ?? 1)) * sign;
       if (num(k)) {
         const av = (a[k as keyof ModelSummary] as number) ?? 0;
         const bv = (b[k as keyof ModelSummary] as number) ?? 0;
@@ -474,14 +476,14 @@ export default function ModelTable({ models, totalCount }: Props) {
                   </div>
                   <div
                     role="cell"
-                    style={{
-                      fontSize: "13px",
-                      fontWeight: 500,
-                      color: pctColor(c24),
-                      padding: "0 10px",
-                      textAlign: "right",
-                      fontVariantNumeric: "tabular-nums",
-                    }}
+                    title={`${m.source_count ?? 1} provider${(m.source_count ?? 1) > 1 ? "s" : ""} offer this model`}
+                    style={{ fontSize: "13px", fontWeight: 500, color: (m.source_count ?? 1) > 1 ? "#c9c9c9" : "#5f5f5f", padding: "0 10px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}
+                  >
+                    {m.source_count ?? 1}
+                  </div>
+                  <div
+                    role="cell"
+                    style={{ fontSize: "13px", fontWeight: 500, color: pctColor(c24), padding: "0 10px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}
                   >
                     {formatPct(c24)}
                   </div>

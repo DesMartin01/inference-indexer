@@ -54,6 +54,7 @@ export interface ModelSummary {
   change_24h: number;
   change_7d: number;
   fetched_at: string;
+  source_count: number;
 }
 
 export interface ModelList {
@@ -105,6 +106,20 @@ export interface ModelHistory {
   days: number;
 }
 
+export interface ModelEndpoints {
+  model_id: string;
+  name: string;
+  endpoints: Array<{
+    provider: string;
+    input_price_per_m: number;
+    output_price_per_m: number;
+    blended_price_per_m: number;
+    context_length: number | null;
+    fetched_at: string;
+  }>;
+  count: number;
+}
+
 export async function getSITLatest(): Promise<SITLatest> {
   return fetchWithCache<SITLatest>("/v1/sit/composite/latest");
 }
@@ -131,6 +146,12 @@ export async function getModel(modelId: string): Promise<ModelDetail> {
 export async function getModelHistory(modelId: string, days: number = 30): Promise<ModelHistory> {
   const res = await fetch(`${API_URL}/v1/models/${modelId}/history?days=${days}`, { next: { revalidate: 60 } });
   if (!res.ok) throw new Error(`History not found: ${res.status}`);
+  return res.json();
+}
+
+export async function getModelEndpoints(modelId: string): Promise<ModelEndpoints> {
+  const res = await fetch(`${API_URL}/v1/models/${modelId}/endpoints`, { next: { revalidate: 60 } });
+  if (!res.ok) throw new Error(`Endpoints not found: ${res.status}`);
   return res.json();
 }
 

@@ -184,14 +184,47 @@ def get_rate_limit_headers(api_user, limits):
     }
 
 # ============================================
+# DATABASE MIGRATION: Update latest_prices view
+# ============================================
+
+def ensure_latest_prices_view():
+    """Recreate the latest_prices view to include source_count."""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE OR REPLACE VIEW latest_prices AS
+            SELECT DISTINCT ON (model_id)
+              model_id,
+              input_price_per_m,
+              output_price_per_m,
+              blended_price_per_m,
+              sit_score,
+              source,
+              source_count,
+              fetched_at
+            FROM price_snapshots
+            ORDER BY model_id, fetched_at DESC
+        """)
+        conn.commit()
+        cur.close()
+        conn.close()
+        print("  latest_prices view updated with source_count")
+    except Exception as e:
+        print(f"  WARN: Could not update latest_prices view: {e}")
+
+# ============================================
 # FASTAPI APP
 # ============================================
 
 app = FastAPI(
     title="InferenceIndexer API",
     description="Independent price index for AI inference",
-    version="1.0.0",
+    version="1.1.0",
 )
+
+# Update latest_prices view on startup to include source_count
+ensure_latest_prices_view()
 
 app.add_middleware(
     CORSMiddleware,
@@ -242,13 +275,14 @@ def calc_change_7d(conn, model_id, current_price):
 async def root():
     return {
         "name": "InferenceIndexer API",
-        "version": "1.0.0",
+        "version": "1.1.0",
         "docs": "/docs",
         "endpoints": [
             "/v1/sit/composite/latest",
             "/v1/sit/composite/history",
             "/v1/models",
             "/v1/models/{model_id}",
+            "/v1/models/{model_id}/endpoints",
             "/v1/models/{model_id}/history"
         ]
     }
@@ -427,7 +461,7 @@ async def get_models(
         SELECT m.id, m.name, m.provider, m.tier, m.context_length, m.aa_index_score,
                m.modality, m.is_reasoning,
                lp.input_price_per_m, lp.output_price_per_m, lp.blended_price_per_m,
-               lp.sit_score, lp.fetched_at
+               lp.sit_score, lp.fetched_at, lp.source_count
         FROM models m
         JOIN latest_prices lp ON m.id = lp.model_id
         WHERE m.is_active = TRUE AND lp.blended_price_per_m > 0
@@ -489,6 +523,7 @@ async def get_models(
             "blended_price_per_m": row[10],
             "sit_score": row[11],
             "fetched_at": row[12].isoformat() if row[12] else None,
+            "source_count": row[13] if row[13] else 1,
         })
     
     headers = get_rate_limit_headers(api_user, limits)
@@ -497,6 +532,79 @@ async def get_models(
             "count": total,
             "returned": len(models),
             "models": models,
+        },
+        headers=headers
+    )
+
+@app.get("/v1/models/{model_id:path}/endpoints")
+async def get_model_endpoints(
+    model_id: str,
+    request: Request,
+    authorization: Optional[str] = Header(None)
+):
+    """Returns all provider endpoints for a single model (multi-provider pricing)."""
+    # Strip trailing /endpoints if captured via :path
+    if model_id.endswith("/endpoints"):
+        model_id = model_id[:-10]
+    
+    api_user = get_api_user(authorization)
+    limits = check_rate_limit(api_user, is_ssr=request.headers.get("X-SSR-Secret") == SSR_SECRET)
+    
+    conn = get_db()
+    cur = conn.cursor()
+    
+    # Check model exists
+    cur.execute("SELECT id, name FROM models WHERE id = %s", (model_id,))
+    model = cur.fetchone()
+    if not model:
+        cur.close()
+        conn.close()
+        raise HTTPException(status_code=404, detail={
+            "error": {
+                "code": "not_found",
+                "message": f"Model '{model_id}' not found"
+            }
+        })
+    
+    # Get latest endpoints (within 24h)
+    cur.execute("""
+        SELECT DISTINCT ON (endpoint_provider)
+            endpoint_provider,
+            input_price_per_m,
+            output_price_per_m,
+            blended_price_per_m,
+            context_length,
+            fetched_at
+        FROM model_endpoints
+        WHERE model_id = %s AND fetched_at >= NOW() - INTERVAL '24 hours'
+        ORDER BY endpoint_provider, fetched_at DESC
+    """, (model_id,))
+    
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    
+    endpoints = []
+    for row in rows:
+        endpoints.append({
+            "provider": row[0],
+            "input_price_per_m": row[1],
+            "output_price_per_m": row[2],
+            "blended_price_per_m": row[3],
+            "context_length": row[4],
+            "fetched_at": row[5].isoformat() if row[5] else None,
+        })
+    
+    # Sort by blended price ascending (cheapest first)
+    endpoints.sort(key=lambda x: x["blended_price_per_m"] or 0)
+    
+    headers = get_rate_limit_headers(api_user, limits)
+    return JSONResponse(
+        content={
+            "model_id": model[0],
+            "name": model[1],
+            "endpoints": endpoints,
+            "count": len(endpoints),
         },
         headers=headers
     )

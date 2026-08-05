@@ -34,6 +34,7 @@ except ImportError:
 # ============================================
 
 OPENROUTER_API = "https://openrouter.ai/api/v1/models"
+OPENROUTER_ENDPOINTS_API = "https://openrouter.ai/api/v1/models/{}/endpoints"
 SOURCE_NAME = "openrouter"
 BLENDED_INPUT_WEIGHT = 0.4
 BLENDED_OUTPUT_WEIGHT = 0.6
@@ -104,6 +105,156 @@ def fetch_openrouter():
     
     print(f"  Fetched {len(models)} models total")
     return models
+
+def fetch_model_endpoints(model_id):
+    """Fetch all provider endpoints for a single model from OpenRouter.
+    Returns a list of endpoint dicts with provider name and pricing."""
+    url = OPENROUTER_ENDPOINTS_API.format(model_id)
+    headers = {}
+    openrouter_key = os.environ.get("OPENROUTER_API_KEY")
+    if openrouter_key:
+        headers["Authorization"] = f"Bearer {openrouter_key}"
+    
+    try:
+        resp = requests.get(url, headers=headers, timeout=15)
+        resp.raise_for_status()
+        data = resp.json()
+        # OpenRouter returns {"data": {"endpoints": [...]}}
+        if isinstance(data.get("data"), dict):
+            endpoints = data["data"].get("endpoints", [])
+        elif isinstance(data.get("data"), list):
+            endpoints = data["data"]
+        else:
+            endpoints = data.get("endpoints", [])
+        return endpoints
+    except Exception as e:
+        print(f"  WARN: Failed to fetch endpoints for {model_id}: {e}")
+        return []
+
+def compute_median(prices):
+    """Compute the median of a list of numbers."""
+    if not prices:
+        return 0.0
+    sorted_prices = sorted(prices)
+    n = len(sorted_prices)
+    if n == 1:
+        return sorted_prices[0]
+    mid = n // 2
+    if n % 2 == 0:
+        return round((sorted_prices[mid - 1] + sorted_prices[mid]) / 2, 6)
+    return round(sorted_prices[mid], 6)
+
+def normalize_endpoints(model_id, raw_endpoints):
+    """Normalize endpoint data from OpenRouter into per-provider price records."""
+    results = []
+    for ep in raw_endpoints:
+        pricing = ep.get("pricing", {})
+        prompt_str = pricing.get("prompt", "0")
+        completion_str = pricing.get("completion", "0")
+        
+        try:
+            prompt_per_token = float(prompt_str)
+            completion_per_token = float(completion_str)
+        except (ValueError, TypeError):
+            continue
+        
+        if prompt_per_token <= 0 and completion_per_token <= 0:
+            continue
+        
+        input_price = round(prompt_per_token * 1_000_000, 6)
+        output_price = round(completion_per_token * 1_000_000, 6)
+        blended = round((BLENDED_INPUT_WEIGHT * input_price) + (BLENDED_OUTPUT_WEIGHT * output_price), 6)
+        
+        provider_name = ep.get("provider_name", ep.get("name", "unknown"))
+        # Clean up provider name (take first part before |)
+        if "|" in provider_name:
+            provider_name = provider_name.split("|")[0].strip()
+        
+        results.append({
+            "endpoint_provider": provider_name,
+            "input_price_per_m": input_price,
+            "output_price_per_m": output_price,
+            "blended_price_per_m": blended,
+            "context_length": ep.get("context_length"),
+            "raw_data": ep,
+        })
+    return results
+
+def apply_median_pricing(models, fetch_endpoints=False):
+    """For models with multiple endpoints, compute median price.
+    
+    If fetch_endpoints=True, fetch from OpenRouter API (daily run).
+    If False, use existing endpoints from DB (hourly run).
+    """
+    if not fetch_endpoints:
+        # Hourly run: try to load cached endpoints from DB
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor()
+            for m in models:
+                cur.execute("""
+                    SELECT endpoint_provider, input_price_per_m, output_price_per_m, blended_price_per_m
+                    FROM model_endpoints
+                    WHERE model_id = %s AND fetched_at >= NOW() - INTERVAL '24 hours'
+                    ORDER BY fetched_at DESC
+                """, (m["model_id"],))
+                rows = cur.fetchall()
+                if rows and len(rows) > 1:
+                    blended_prices = [r[3] for r in rows if r[3] and r[3] > 0]
+                    input_prices = [r[1] for r in rows if r[1] and r[1] > 0]
+                    output_prices = [r[2] for r in rows if r[2] and r[2] > 0]
+                    if blended_prices:
+                        m["blended_price_per_m"] = compute_median(blended_prices)
+                        m["input_price_per_m"] = compute_median(input_prices) if input_prices else m["input_price_per_m"]
+                        m["output_price_per_m"] = compute_median(output_prices) if output_prices else m["output_price_per_m"]
+                        m["source_count"] = len(blended_prices)
+                    else:
+                        m["source_count"] = 1
+                else:
+                    m["source_count"] = 1 if not rows else len(rows)
+            cur.close()
+            conn.close()
+        except Exception as e:
+            print(f"  WARN: Could not load cached endpoints: {e}")
+            for m in models:
+                m["source_count"] = 1
+        return models
+    
+    # Daily run: fetch fresh endpoints from OpenRouter
+    print(f"\n[{datetime.now(timezone.utc).isoformat()}] Fetching endpoints for {len(models)} models...")
+    all_endpoint_data = []
+    multi_provider_count = 0
+    
+    for i, m in enumerate(models):
+        if (i + 1) % 50 == 0:
+            print(f"  Progress: {i+1}/{len(models)}")
+        
+        raw_endpoints = fetch_model_endpoints(m["model_id"])
+        normalized_eps = normalize_endpoints(m["model_id"], raw_endpoints)
+        
+        if len(normalized_eps) > 1:
+            multi_provider_count += 1
+            blended_prices = [ep["blended_price_per_m"] for ep in normalized_eps if ep["blended_price_per_m"] > 0]
+            input_prices = [ep["input_price_per_m"] for ep in normalized_eps if ep["input_price_per_m"] > 0]
+            output_prices = [ep["output_price_per_m"] for ep in normalized_eps if ep["output_price_per_m"] > 0]
+            
+            m["blended_price_per_m"] = compute_median(blended_prices)
+            m["input_price_per_m"] = compute_median(input_prices)
+            m["output_price_per_m"] = compute_median(output_prices)
+            m["source_count"] = len(normalized_eps)
+        else:
+            m["source_count"] = 1
+        
+        # Store endpoint data for DB insert
+        for ep in normalized_eps:
+            ep["model_id"] = m["model_id"]
+            all_endpoint_data.append(ep)
+        
+        # Rate limit: be gentle with OpenRouter
+        time.sleep(0.3)
+    
+    print(f"  Endpoints fetched. {multi_provider_count} models have multiple providers.")
+    return models, all_endpoint_data
 
 # ============================================
 # NORMALIZE
@@ -343,6 +494,28 @@ def upsert_models(conn, models):
     print(f"  Upserted {count} model records")
     return count
 
+def insert_endpoints(conn, endpoint_data):
+    """Insert endpoint data into model_endpoints table."""
+    cur = conn.cursor()
+    count = 0
+    for ep in endpoint_data:
+        cur.execute("""
+            INSERT INTO model_endpoints
+                (model_id, endpoint_provider, input_price_per_m, output_price_per_m,
+                 blended_price_per_m, context_length, source, raw_data)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        """, (
+            ep["model_id"], ep["endpoint_provider"],
+            ep["input_price_per_m"], ep["output_price_per_m"],
+            ep["blended_price_per_m"], ep.get("context_length"),
+            SOURCE_NAME, json.dumps(ep.get("raw_data", {}))
+        ))
+        count += 1
+    conn.commit()
+    cur.close()
+    print(f"  Inserted {count} endpoint records")
+    return count
+
 def insert_price_snapshots(conn, models):
     """Insert price snapshots for all models."""
     cur = conn.cursor()
@@ -377,13 +550,14 @@ def insert_price_snapshots(conn, models):
         cur.execute("""
             INSERT INTO price_snapshots 
                 (model_id, source, input_price_per_m, output_price_per_m, 
-                 blended_price_per_m, sit_score, raw_data, is_anomalous)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                 blended_price_per_m, sit_score, raw_data, is_anomalous, source_count)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (
             m["model_id"], SOURCE_NAME,
             m["input_price_per_m"], m["output_price_per_m"],
             m["blended_price_per_m"], m.get("sit_score"),
-            json.dumps(m["raw_data"]), is_anomalous
+            json.dumps(m["raw_data"]), is_anomalous,
+            m.get("source_count", 1)
         ))
         count += 1
     
@@ -494,6 +668,7 @@ def main():
     parser = argparse.ArgumentParser(description="InferenceIndexer data pipeline")
     parser.add_argument("--fetch-only", action="store_true", help="Fetch and print, don't store to DB")
     parser.add_argument("--sit-only", action="store_true", help="Calculate SIT from existing DB data")
+    parser.add_argument("--fetch-endpoints", action="store_true", help="Fetch per-provider endpoints from OpenRouter (daily run)")
     args = parser.parse_args()
     
     today = date.today()
@@ -504,6 +679,14 @@ def main():
     # Normalize
     normalized = [normalize_model(m) for m in raw_models]
     priced = filter_priced(normalized)
+    
+    # Apply median pricing (fetch endpoints if --fetch-endpoints, else use DB cache)
+    if args.fetch_endpoints:
+        print(f"\n[{datetime.now(timezone.utc).isoformat()}] Fetching provider endpoints (daily mode)...")
+        priced, endpoint_data = apply_median_pricing(priced, fetch_endpoints=True)
+    else:
+        priced = apply_median_pricing(priced, fetch_endpoints=False)
+        endpoint_data = []
     
     # Calculate tier averages and SIT scores
     tier_avgs = calculate_tier_averages(priced)
@@ -530,6 +713,8 @@ def main():
     
     try:
         upsert_models(conn, priced)
+        if endpoint_data:
+            insert_endpoints(conn, endpoint_data)
         insert_price_snapshots(conn, priced)
         insert_sit_values(conn, indices, today)
         print(f"\n✓ Pipeline complete at {datetime.now(timezone.utc).isoformat()}")

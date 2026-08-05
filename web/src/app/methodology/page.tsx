@@ -137,6 +137,46 @@ export default function MethodologyPage() {
                 </em>
               </div>
             </SubSection>
+
+            <SubSection n="2.3" title="Median Pricing (Multi-Provider Models)">
+              <p style={p}>
+                Many open-source models (e.g. GLM-5.2, Llama 4, DeepSeek V4) are hosted by multiple inference
+                providers at different prices. For these models, InferenceIndexer computes the{" "}
+                <strong style={{ color: "#e5e5e5" }}>median</strong> blended price across all available providers,
+                rather than using a single source.
+              </p>
+              <p style={{ ...p, marginBottom: 8 }}>Median price formula:</p>
+              <pre style={formulaStyle}>{`model_price = median(blended_price_1, blended_price_2, ..., blended_price_n)`}</pre>
+              <p style={p}>
+                The median is used instead of the mean or cheapest price because it is:
+              </p>
+              <ul style={bulletList}>
+                <li style={bulletItem}>
+                  <strong style={{ color: "#e5e5e5" }}>Robust to outliers:</strong> A single provider charging 10x
+                  the market rate does not skew the index.
+                </li>
+                <li style={bulletItem}>
+                  <strong style={{ color: "#e5e5e5" }}>Not gameable:</strong> A provider cannot manipulate the
+                  headline price by temporarily dropping to $0.01.
+                </li>
+                <li style={bulletItem}>
+                  <strong style={{ color: "#e5e5e5" }}>Realistic:</strong> The median represents what a user would
+                  realistically pay, with half the providers charging more and half charging less.
+                </li>
+              </ul>
+              <p style={p}>
+                For models with only one provider, the single available price is used. The number of providers
+                (Sources) is displayed for each model in the table and on the model detail page, where a full
+                provider comparison table shows all available prices.
+              </p>
+              <p style={p}>
+                Provider endpoints are fetched daily from OpenRouter&apos;s{" "}
+                <code style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: "#c9c9c9" }}>
+                  /api/v1/models/{"{id}"}/endpoints
+                </code>{" "}
+                endpoint. Hourly pipeline runs use the cached median from the most recent daily fetch.
+              </p>
+            </SubSection>
           </Section>
 
           {/* 3. Quality Tiers */}
