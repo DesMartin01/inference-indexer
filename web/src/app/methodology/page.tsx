@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { Header, Footer } from "@/components/Header";
 
 export const metadata = {
   title: "Methodology - SIT Standard Inference Token | InferenceIndexer.ai",
@@ -25,17 +25,7 @@ export const metadata = {
 export default function MethodologyPage() {
   return (
     <div style={{ background: "#0a0a0a", minHeight: "100vh" }}>
-      <header style={{ position: "sticky", top: 0, zIndex: 20, background: "#0a0a0a", borderBottom: "1px solid #222" }}>
-        <div style={{ maxWidth: 1320, margin: "0 auto", padding: "0 28px", height: 56, display: "flex", alignItems: "center", gap: 28 }}>
-          <Link href="/" style={{ fontSize: 15, fontWeight: 600, color: "#f2f2f2", textDecoration: "none" }}>InferenceIndexer<span style={{ color: "#C4A038" }}>.ai</span></Link>
-          <div style={{ flex: 1 }} />
-          <nav style={{ display: "flex", alignItems: "center", gap: 22 }}>
-            <Link href="/api-docs" style={{ fontSize: 12.5, color: "#8a8a8a", textDecoration: "none" }}>API</Link>
-            <Link href="/methodology" style={{ fontSize: 12.5, color: "#C4A038", textDecoration: "none" }}>Methodology</Link>
-            <Link href="/about" style={{ fontSize: 12.5, color: "#8a8a8a", textDecoration: "none" }}>About</Link>
-          </nav>
-        </div>
-      </header>
+      <Header activePage="methodology" />
       <div style={{ maxWidth: 800, margin: "0 auto", padding: "40px 28px" }}>
         <h1 style={{ fontSize: 32, fontWeight: 600, color: "#f2f2f2", marginBottom: 8 }}>Methodology</h1>
         <p style={{ fontSize: 13, color: "#5f5f5f", marginBottom: 32 }}>Version 0.1 - Last updated: August 3, 2026</p>

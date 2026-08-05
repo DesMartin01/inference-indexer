@@ -194,7 +194,7 @@ export default async function Home() {
               </span>
               <span
                 style={{
-                  fontFamily: "var(--font-jetbrains-mono), monospace",
+                  fontFamily: "Inter, sans-serif",
                   fontSize: "11px",
                   color: "#5f5f5f",
                 }}
@@ -217,7 +217,7 @@ export default async function Home() {
             >
               <span
                 style={{
-                  fontFamily: "var(--font-jetbrains-mono), monospace",
+                  fontFamily: "Inter, sans-serif",
                   fontSize: "48px",
                   fontWeight: 500,
                   lineHeight: 1,
@@ -243,7 +243,7 @@ export default async function Home() {
             <div style={{ marginTop: "14px", display: "flex", alignItems: "center", gap: "10px" }}>
               <span
                 style={{
-                  fontFamily: "var(--font-jetbrains-mono), monospace",
+                  fontFamily: "Inter, sans-serif",
                   fontSize: "18px",
                   fontWeight: 500,
                   color: pctColor(d1),
@@ -273,7 +273,7 @@ export default async function Home() {
                   </span>
                   <span
                     style={{
-                      fontFamily: "var(--font-jetbrains-mono), monospace",
+                      fontFamily: "Inter, sans-serif",
                       fontSize: "14px",
                       color: p.color,
                       fontVariantNumeric: "tabular-nums",
@@ -319,7 +319,7 @@ export default async function Home() {
                 <button
                   type="button"
                   style={{
-                    fontFamily: "var(--font-jetbrains-mono), monospace",
+                    fontFamily: "Inter, sans-serif",
                     fontSize: "11px",
                     padding: "3px 9px",
                     borderRadius: "3px",
@@ -333,7 +333,7 @@ export default async function Home() {
                 </button>
                 <span
                   style={{
-                    fontFamily: "var(--font-jetbrains-mono), monospace",
+                    fontFamily: "Inter, sans-serif",
                     fontSize: "11px",
                     color: "#5f5f5f",
                     marginLeft: "4px",
@@ -345,7 +345,7 @@ export default async function Home() {
               <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                 <span
                   style={{
-                    fontFamily: "var(--font-jetbrains-mono), monospace",
+                    fontFamily: "Inter, sans-serif",
                     fontSize: "11px",
                     color: "#5f5f5f",
                   }}
@@ -389,7 +389,7 @@ export default async function Home() {
                     textAlign: "left",
                     top: g.top,
                     transform: "translateY(-50%)",
-                    fontFamily: "var(--font-jetbrains-mono), monospace",
+                    fontFamily: "Inter, sans-serif",
                     fontSize: "10.5px",
                     color: "#6a6a6a",
                     pointerEvents: "none",
@@ -406,7 +406,7 @@ export default async function Home() {
                 justifyContent: "space-between",
                 marginTop: "2px",
                 paddingRight: "60px",
-                fontFamily: "var(--font-jetbrains-mono), monospace",
+                fontFamily: "Inter, sans-serif",
                 fontSize: "11px",
                 color: "#5f5f5f",
               }}
@@ -472,7 +472,7 @@ export default async function Home() {
                 <div style={{ marginTop: "12px", display: "flex", alignItems: "baseline", gap: "12px" }}>
                   <span
                     style={{
-                      fontFamily: "var(--font-jetbrains-mono), monospace",
+                      fontFamily: "Inter, sans-serif",
                       fontSize: "24px",
                       fontWeight: 500,
                       color: "#f2f2f2",
@@ -483,7 +483,7 @@ export default async function Home() {
                   </span>
                   <span
                     style={{
-                      fontFamily: "var(--font-jetbrains-mono), monospace",
+                      fontFamily: "Inter, sans-serif",
                       fontSize: "14px",
                       color: pctColor(change),
                       fontVariantNumeric: "tabular-nums",
@@ -515,7 +515,7 @@ export default async function Home() {
           </span>
           <span
             style={{
-              fontFamily: "var(--font-jetbrains-mono), monospace",
+              fontFamily: "Inter, sans-serif",
               fontSize: "14px",
               color: "#d6d6d6",
               fontVariantNumeric: "tabular-nums",
@@ -525,7 +525,7 @@ export default async function Home() {
           </span>
           <span
             style={{
-              fontFamily: "var(--font-jetbrains-mono), monospace",
+              fontFamily: "Inter, sans-serif",
               fontSize: "13px",
               color: pctColor(spread?.change_24h ?? 0),
             }}

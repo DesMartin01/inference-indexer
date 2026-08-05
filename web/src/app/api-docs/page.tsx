@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Header, Footer } from "@/components/Header";
 
 export const metadata = {
   title: "API Documentation - Free Inference Pricing API | InferenceIndexer.ai",
@@ -24,17 +25,7 @@ export const metadata = {
 export default function ApiDocsPage() {
   return (
     <div style={{ background: "#0a0a0a", minHeight: "100vh" }}>
-      <header style={{ position: "sticky", top: 0, zIndex: 20, background: "#0a0a0a", borderBottom: "1px solid #222" }}>
-        <div style={{ maxWidth: 1320, margin: "0 auto", padding: "0 28px", height: 56, display: "flex", alignItems: "center", gap: 28 }}>
-          <Link href="/" style={{ fontSize: 15, fontWeight: 600, color: "#f2f2f2", textDecoration: "none" }}>InferenceIndexer<span style={{ color: "#C4A038" }}>.ai</span></Link>
-          <div style={{ flex: 1 }} />
-          <nav style={{ display: "flex", alignItems: "center", gap: 22 }}>
-            <Link href="/api-docs" style={{ fontSize: 12.5, color: "#C4A038", textDecoration: "none" }}>API</Link>
-            <Link href="/methodology" style={{ fontSize: 12.5, color: "#8a8a8a", textDecoration: "none" }}>Methodology</Link>
-            <Link href="/about" style={{ fontSize: 12.5, color: "#8a8a8a", textDecoration: "none" }}>About</Link>
-          </nav>
-        </div>
-      </header>
+      <Header activePage="api" />
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "40px 28px" }}>
         <h1 style={{ fontSize: 32, fontWeight: 600, color: "#f2f2f2", marginBottom: 8 }}>API Documentation</h1>
         <p style={{ fontSize: 14, color: "#8a8a8a", marginBottom: 32 }}>Independent price index for AI inference. Get live pricing data for 316+ models across 57 providers.</p>
