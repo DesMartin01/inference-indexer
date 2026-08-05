@@ -14,7 +14,7 @@ async function fetchWithCache<T>(endpoint: string): Promise<T> {
   }
 
   const res = await fetch(`${API_URL}${endpoint}`, {
-    next: { revalidate: 60 },
+    cache: "no-store",
     headers: { "X-SSR-Secret": SSR_SECRET },
   });
   if (!res.ok) throw new Error(`API error: ${res.status}`);
@@ -138,19 +138,19 @@ export async function getModels(tier?: string, sort?: string, limit?: number, _r
 }
 
 export async function getModel(modelId: string): Promise<ModelDetail> {
-  const res = await fetch(`${API_URL}/v1/models/${modelId}`, { next: { revalidate: 60 } });
+  const res = await fetch(`${API_URL}/v1/models/${modelId}`, { cache: "no-store" });
   if (!res.ok) throw new Error(`Model not found: ${res.status}`);
   return res.json();
 }
 
 export async function getModelHistory(modelId: string, days: number = 30): Promise<ModelHistory> {
-  const res = await fetch(`${API_URL}/v1/models/${modelId}/history?days=${days}`, { next: { revalidate: 60 } });
+  const res = await fetch(`${API_URL}/v1/models/${modelId}/history?days=${days}`, { cache: "no-store" });
   if (!res.ok) throw new Error(`History not found: ${res.status}`);
   return res.json();
 }
 
 export async function getModelEndpoints(modelId: string): Promise<ModelEndpoints> {
-  const res = await fetch(`${API_URL}/v1/models/${modelId}/endpoints`, { next: { revalidate: 60 } });
+  const res = await fetch(`${API_URL}/v1/models/${modelId}/endpoints`, { cache: "no-store" });
   if (!res.ok) throw new Error(`Endpoints not found: ${res.status}`);
   return res.json();
 }
