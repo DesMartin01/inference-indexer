@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getModel, getModelHistory } from "@/lib/api";
+import { getModel, getModelHistory, providerFaviconUrl } from "@/lib/api";
 import { Sparkline } from "@/components/Sparkline";
 import { Header } from "@/components/Header";
 import type { Metadata } from "next";
@@ -166,7 +166,7 @@ export default async function ModelDetailPage({
   const sitPct = Math.min(sitScore * 100, 100);
   const tierColor = TIER_COLOR[model.tier] || FLAT;
 
-  const providerInitial = model.provider.replace(/[^A-Za-z0-9 ]/g, " ").trim().split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+  const providerFav = providerFaviconUrl(model.provider);
 
   return (
     <div style={{ background: "#0a0a0a", minHeight: "100vh", paddingBottom: 40 }}>
@@ -190,8 +190,14 @@ export default async function ModelDetailPage({
         <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 48, alignItems: "start", marginBottom: 36 }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 16 }}>
-              <span style={{ width: 44, height: 44, borderRadius: "50%", background: "#16161a", border: "1px solid #333", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'JetBrains Mono', monospace", fontSize: 16, fontWeight: 600, color: "#8f8f96" }}>
-                {providerInitial}
+              <span style={{ width: 44, height: 44, borderRadius: "50%", background: "#16161a", border: "1px solid #333", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                {providerFav ? (
+                  <img src={providerFav} alt={model.provider} width={28} height={28} style={{ width: "28px", height: "28px", objectFit: "contain" }} />
+                ) : (
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 16, fontWeight: 600, color: "#8f8f96" }}>
+                    {model.provider.charAt(0)}
+                  </span>
+                )}
               </span>
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>

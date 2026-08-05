@@ -11,6 +11,7 @@ import {
   tierColor,
   capitalizeTier,
   providerInitials,
+  providerFaviconUrl,
 } from "@/lib/api";
 import { buildRowSpark } from "@/lib/charts";
 
@@ -319,26 +320,36 @@ export default function ModelTable({ models, totalCount }: Props) {
                   </div>
                   <div role="cell" style={{ padding: "0 10px", display: "flex", alignItems: "center", gap: "9px", minWidth: 0 }}>
                     <span
-                      title={`${m.provider} — logo placeholder`}
-                      style={{
-                        width: "24px",
-                        height: "24px",
-                        borderRadius: "50%",
-                        background: "repeating-linear-gradient(135deg, #24242a 0 2px, #1c1c21 2px 4px)",
-                        border: "1px solid #33333a",
-                        flex: "none",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontFamily: "var(--font-jetbrains-mono), monospace",
-                        fontSize: "9.5px",
-                        letterSpacing: "-0.02em",
-                        color: "#8f8f96",
-                        overflow: "hidden",
-                      }}
-                    >
-                      {providerInitials(m.provider)}
-                    </span>
+                        style={{
+                          width: "24px",
+                          height: "24px",
+                          borderRadius: "50%",
+                          background: "#16161a",
+                          border: "1px solid #33333a",
+                          flex: "none",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          overflow: "hidden",
+                        }}
+                      >
+                        {(() => {
+                          const fav = providerFaviconUrl(m.provider);
+                          return fav ? (
+                            <img
+                              src={fav}
+                              alt={m.provider}
+                              width={16}
+                              height={16}
+                              style={{ width: "16px", height: "16px", objectFit: "contain" }}
+                            />
+                          ) : (
+                            <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: "9.5px", color: "#8f8f96" }}>
+                              {providerInitials(m.provider)}
+                            </span>
+                          );
+                        })()}
+                      </span>
                     <span style={{ display: "flex", flexDirection: "column", gap: "3px", minWidth: 0 }}>
                       <Link
                         href={`/models/${m.model_id}`}
