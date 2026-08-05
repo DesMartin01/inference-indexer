@@ -168,9 +168,6 @@ export function Footer({ models = 316, providers = 57, updatedAt = "" }: { model
           <Link href="/about" style={{ fontSize: "12px", color: "#7a7a7a", textDecoration: "none" }}>
             About
           </Link>
-          <a href="#contact" style={{ fontSize: "12px", color: "#7a7a7a", textDecoration: "none" }}>
-            Contact
-          </a>
           <a href="#privacy" style={{ fontSize: "12px", color: "#7a7a7a", textDecoration: "none" }}>
             Privacy Policy
           </a>

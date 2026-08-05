@@ -42,26 +42,33 @@ const goldLink: CSSProperties = {
   textDecoration: "none",
 };
 
+const tocItems = [
+  { id: "mission", label: "Mission" },
+  { id: "collaboration", label: "The Collaboration" },
+  { id: "team", label: "The Team" },
+  { id: "commitments", label: "Commitments" },
+];
+
 const commitments = [
   {
     title: "Independence",
-    body: "Not owned by any inference provider. Open methodology.",
+    body: "Not owned by any inference provider. Open methodology. Not a market participant.",
   },
   {
     title: "Transparency",
-    body: "All calculation methods published. Anyone can verify.",
+    body: "All calculation methods published. Data sources are public and verifiable. Every index calculation is reproducible.",
   },
   {
     title: "Accuracy",
-    body: "Hourly data refresh. Multiple source cross-check.",
+    body: "Prices fetched hourly from multiple sources. Anomaly detection flags any price movement over 50% in a single hour.",
   },
   {
     title: "Accessibility",
-    body: "Free API with generous limits. No paywall on core data.",
+    body: "The index is free to view. The API is free for 1,000 requests per day. Historical data with a free API key.",
   },
   {
     title: "Open Methodology",
-    body: "SIT calculation is public IP. The moat is data quality, not secrecy.",
+    body: "Any change to the SIT methodology triggers a 14-day public comment period. All changes are versioned and documented.",
   },
 ];
 
@@ -69,118 +76,162 @@ export default function AboutPage() {
   return (
     <div style={{ background: "#0a0a0a", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
       <Header activePage="about" />
-      <div style={{ maxWidth: 800, margin: "0 auto", padding: "60px 28px", flex: 1, width: "100%" }}>
-        <h1 style={{ fontSize: 32, fontWeight: 600, color: "#f2f2f2", marginBottom: 24, letterSpacing: "-0.01em" }}>
-          About
-        </h1>
+      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "44px 28px 0", flex: 1, width: "100%", display: "flex", gap: 48 }}>
+        {/* Main content */}
+        <div style={{ maxWidth: 800, flex: 1 }}>
+          <h1 style={{ fontSize: 28, fontWeight: 700, color: "#f2f2f2", marginBottom: 8, letterSpacing: "-0.01em" }}>
+            About
+          </h1>
+          <p style={{ fontSize: 14, color: "#8a8a8a", marginBottom: 40 }}>
+            The independent price index for AI inference. Built by one human and one agent.
+          </p>
 
-        <h2 style={sectionHeading}>Mission</h2>
-        <p style={bodyText}>
-          InferenceIndexer exists to bring price transparency to AI inference. As the number of model providers
-          explodes and pricing structures fragment, developers, investors, and researchers need a neutral, independent
-          reference point for what inference actually costs. We aim to be the CoinMarketCap of AI inference pricing.
-        </p>
-
-        <h2 style={sectionHeading}>The Collaboration</h2>
-        <p style={bodyText}>
-          This is a collaboration between Des Martin and Frank Drebin. Des provides the vision, market expertise, and
-          business strategy. Frank is an AI agent running on Hermes Agent (by Nous Research) who handles the data
-          pipeline, research, and infrastructure. One human, one agent, building something neither could alone.
-        </p>
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 32 }}>
-          <div style={cardBase}>
-            <div
-              style={{
-                width: 64,
-                height: 64,
-                borderRadius: "50%",
-                background: "#1a1a1a",
-                border: "1px solid #333",
-                marginBottom: 16,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 24,
-                color: "#8f8f96",
-              }}
-            >
-              DM
-            </div>
-            <h3 style={{ fontSize: 16, fontWeight: 600, color: "#f2f2f2", marginBottom: 8 }}>Des Martin</h3>
-            <p style={{ fontSize: 13, color: "#8a8a8a", lineHeight: 1.6 }}>
-              ex-Brave VP Marketing, NearForm CMO, Outlier Ventures CMO, Perkbox Marketing Director, Tensorix GTM.
-              Self-employed in Wicklow, Ireland. Brand: Agentic CMO.
+          {/* Mission */}
+          <div id="mission" style={{ marginBottom: 40 }}>
+            <h2 style={sectionHeading}>Mission</h2>
+            <p style={bodyText}>
+              InferenceIndexer exists to bring price transparency to AI inference. As the number of model providers
+              explodes and pricing structures fragment, developers, investors, and enterprises need a neutral, independent
+              reference point for what inference actually costs. The Standard Inference Token (SIT) is that reference: a
+              single, standardized unit that makes inference pricing comparable across 300+ models and 40+ providers.
             </p>
-            <a href="https://desmartin.io" style={{ display: "inline-block", marginTop: 12, fontSize: 13, ...goldLink }}>
-              desmartin.io →
-            </a>
-          </div>
-          <div style={cardBase}>
-            <div
-              style={{
-                width: 64,
-                height: 64,
-                borderRadius: "50%",
-                background: "#1a1a1a",
-                border: "1px solid #333",
-                marginBottom: 16,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 24,
-                color: "#8f8f96",
-              }}
-            >
-              FD
-            </div>
-            <h3 style={{ fontSize: 16, fontWeight: 600, color: "#f2f2f2", marginBottom: 8 }}>Frank Drebin</h3>
-            <p style={{ fontSize: 13, color: "#8a8a8a", lineHeight: 1.6 }}>
-              AI agent on Hermes Agent by Nous Research. Runs the data pipeline, API, research, and infrastructure for
-              InferenceIndexer. Named after Leslie Nielsen&apos;s character. Runs on a VPS in Dublin.
+            <p style={bodyText}>
+              We are building the CoinMarketCap of AI inference. Not an exchange. Not an aggregator. Not a routing
+              service. A price information layer that the entire industry can cite, trust, and build on.
             </p>
           </div>
-        </div>
 
-        <h2 style={sectionHeading}>Commitments</h2>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 32 }}>
-          {commitments.map((c) => (
-            <div key={c.title} style={cardBase}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                <span
+          {/* Collaboration */}
+          <div id="collaboration" style={{ marginBottom: 40 }}>
+            <h2 style={sectionHeading}>The Collaboration</h2>
+            <p style={bodyText}>
+              InferenceIndexer.ai is a collaboration between two very different skill sets: a seasoned technology
+              marketing executive who understands the inference market from the inside, and an AI agent that handles
+              the data pipeline, research, and technical execution.
+            </p>
+            <p style={bodyText}>
+              Des sets the vision, defines the methodology, and owns the commercial strategy. Frank runs the data
+              collection, market research, and infrastructure. One human, one agent, one product.
+            </p>
+          </div>
+
+          {/* Team */}
+          <div id="team" style={{ marginBottom: 40 }}>
+            <h2 style={sectionHeading}>The Team</h2>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 8 }}>
+              {/* Des Martin */}
+              <div style={cardBase}>
+                <div
                   style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: "50%",
-                    background: "#C4A038",
-                    display: "block",
-                    flexShrink: 0,
+                    width: "100%",
+                    aspectRatio: "1",
+                    borderRadius: 8,
+                    overflow: "hidden",
+                    marginBottom: 16,
+                    background: "#1a1a1a",
+                    border: "1px solid #333",
                   }}
-                />
-                <span style={{ fontSize: 15, fontWeight: 600, color: "#f2f2f2" }}>{c.title}</span>
+                >
+                  <img
+                    src="/images/des-martin.png"
+                    alt="Des Martin"
+                    style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                  />
+                </div>
+                <h3 style={{ fontSize: 16, fontWeight: 600, color: "#f2f2f2", marginBottom: 8 }}>Des Martin</h3>
+                <p style={{ fontSize: 13, color: "#8a8a8a", lineHeight: 1.6, marginBottom: 12 }}>
+                  Technology marketing executive based in Wicklow, Ireland. ex-Brave VP Marketing, NearForm CMO,
+                  Outlier Ventures CMO, Perkbox Marketing Director. Brand: Agentic CMO.
+                </p>
+                <a href="https://desmartin.io" style={{ display: "inline-block", fontSize: 13, ...goldLink }}>
+                  desmartin.io &rarr;
+                </a>
               </div>
-              <p style={{ fontSize: 14, color: "#c9c9c9", lineHeight: 1.7, margin: 0, paddingLeft: 16 }}>{c.body}</p>
+              {/* Frank Drebin */}
+              <div style={cardBase}>
+                <div
+                  style={{
+                    width: "100%",
+                    aspectRatio: "1",
+                    borderRadius: 8,
+                    overflow: "hidden",
+                    marginBottom: 16,
+                    background: "#1a1a1a",
+                    border: "1px solid #333",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <span style={{ fontSize: 48, fontWeight: 700, color: "#8f8f96", fontFamily: "Inter, sans-serif" }}>
+                    FD
+                  </span>
+                </div>
+                <h3 style={{ fontSize: 16, fontWeight: 600, color: "#f2f2f2", marginBottom: 8 }}>Frank Drebin</h3>
+                <p style={{ fontSize: 13, color: "#8a8a8a", lineHeight: 1.6, marginBottom: 12 }}>
+                  AI agent on Hermes Agent by Nous Research. Runs the data pipeline, API, research, and infrastructure
+                  for InferenceIndexer. Named after Leslie Nielsen&apos;s character. Runs on a VPS in Dublin.
+                </p>
+              </div>
             </div>
-          ))}
+          </div>
+
+          {/* Commitments */}
+          <div id="commitments" style={{ marginBottom: 40 }}>
+            <h2 style={sectionHeading}>Commitments</h2>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              {commitments.map((c) => (
+                <div key={c.title} style={cardBase}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                    <span
+                      style={{
+                        width: 6,
+                        height: 6,
+                        borderRadius: "50%",
+                        background: "#C4A038",
+                        display: "block",
+                        flexShrink: 0,
+                      }}
+                    />
+                    <span style={{ fontSize: 15, fontWeight: 600, color: "#f2f2f2" }}>{c.title}</span>
+                  </div>
+                  <p style={{ fontSize: 14, color: "#c9c9c9", lineHeight: 1.7, margin: 0, paddingLeft: 16 }}>{c.body}</p>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
 
-        <h2 style={sectionHeading}>Contact</h2>
-        <p style={{ fontSize: 15, color: "#c9c9c9", lineHeight: 1.7, marginBottom: 32 }}>
-          Email:{" "}
-          <a href="mailto:dm@desmartin.io" style={goldLink}>
-            dm@desmartin.io
-          </a>
-          <br />
-          Web:{" "}
-          <a href="https://desmartin.io" style={goldLink}>
-            desmartin.io
-          </a>
-          <br />
-          Domain:{" "}
-          <a href="https://inferenceindexer.ai" style={goldLink}>
-            inferenceindexer.ai
-          </a>
-        </p>
+        {/* Sticky TOC */}
+        <aside
+          style={{
+            width: 200,
+            flexShrink: 0,
+            position: "sticky",
+            top: 76,
+            height: "fit-content",
+          }}
+        >
+          <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", color: "#5f5f5f", marginBottom: 14 }}>
+            Contents
+          </div>
+          <nav style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {tocItems.map((item) => (
+              <a
+                key={item.id}
+                href={`#${item.id}`}
+                style={{
+                  fontSize: 13,
+                  color: "#8a8a8a",
+                  textDecoration: "none",
+                  fontFamily: "Inter, sans-serif",
+                }}
+              >
+                {item.label}
+              </a>
+            ))}
+          </nav>
+        </aside>
       </div>
       <Footer />
     </div>

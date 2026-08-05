@@ -55,11 +55,3 @@ We are committed to building the most comprehensive, transparent, and independen
 - **Open methodology.** Any change to the SIT methodology triggers a 14-day public comment period. All changes are versioned and documented.
 
 ---
-
-## Contact
-
-For press inquiries, partnership discussions, or methodology feedback:
-
-- **Email:** dm@desmartin.io
-- **Website:** [desmartin.io](https://desmartin.io)
-- **InferenceIndexer:** inferenceindexer.ai
