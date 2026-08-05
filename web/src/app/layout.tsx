@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
+import { Suspense } from "react";
 import "./globals.css";
 
 const inter = Inter({
@@ -22,6 +23,15 @@ export const metadata: Metadata = {
     "The Standard Inference Token (SIT) is a standardized unit for tracking AI inference prices across providers. 316 models, 57 providers, updated hourly.",
 };
 
+// Google Analytics
+const GA_ID = "G-8L4MLB262D";
+const gaScript = `
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', '${GA_ID}');
+`;
+
 export default function RootLayout({
   children,
 }: LayoutProps<"/">) {
@@ -30,7 +40,14 @@ export default function RootLayout({
       lang="en"
       className={`${inter.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full">{children}</body>
+      <head>
+        {/* Google Analytics */}
+        <script async src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`} />
+        <script dangerouslySetInnerHTML={{ __html: gaScript }} />
+      </head>
+      <body className="min-h-full">
+        <Suspense fallback={null}>{children}</Suspense>
+      </body>
     </html>
   );
 }

@@ -1,6 +1,29 @@
+"use client";
+
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useEffect } from "react";
 
 export function Header({ activePage = "" }: { activePage?: string }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [q, setQ] = useState("");
+
+  // Sync with URL query param when on homepage
+  useEffect(() => {
+    const urlQ = searchParams.get("q");
+    if (urlQ !== null) setQ(urlQ);
+  }, [searchParams]);
+
+  const handleSearch = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && q.trim()) {
+      router.push(`/?q=${encodeURIComponent(q.trim())}`);
+      // If already on homepage, scroll to table
+      const table = document.getElementById("model-table");
+      if (table) table.scrollIntoView({ behavior: "smooth" });
+    }
+  };
+
   return (
     <header
       style={{
@@ -58,16 +81,23 @@ export function Header({ activePage = "" }: { activePage?: string }) {
           >
             /
           </span>
-          <span
+          <input
+            type="text"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={handleSearch}
+            placeholder="Search 316 models..."
             style={{
               flex: 1,
-              color: "#6a6a6a",
+              color: "#c9c9c9",
               fontFamily: "Inter, sans-serif",
               fontSize: "12.5px",
+              background: "transparent",
+              border: "none",
+              outline: "none",
+              width: "100%",
             }}
-          >
-            Search 316 models...
-          </span>
+          />
         </div>
         <div style={{ flex: 1 }} />
         <nav style={{ display: "flex", alignItems: "center", gap: "22px" }}>
@@ -168,9 +198,12 @@ export function Footer({ models = 316, providers = 57, updatedAt = "" }: { model
           <Link href="/about" style={{ fontSize: "12px", color: "#7a7a7a", textDecoration: "none" }}>
             About
           </Link>
-          <a href="#privacy" style={{ fontSize: "12px", color: "#7a7a7a", textDecoration: "none" }}>
+          <Link href="/privacy" style={{ fontSize: "12px", color: "#7a7a7a", textDecoration: "none" }}>
             Privacy Policy
-          </a>
+          </Link>
+          <Link href="/terms" style={{ fontSize: "12px", color: "#7a7a7a", textDecoration: "none" }}>
+            Terms of Service
+          </Link>
         </div>
         <div
           style={{

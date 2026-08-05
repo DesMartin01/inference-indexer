@@ -121,85 +121,93 @@ export default function AboutPage() {
             <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 20, marginBottom: 8 }}>
               {/* Des Martin */}
               <div style={cardBase}>
-                <div
-                  style={{
-                    width: "100%",
-                    aspectRatio: "1",
-                    borderRadius: 8,
-                    overflow: "hidden",
-                    marginBottom: 16,
-                    background: "#1a1a1a",
-                    border: "1px solid #333",
-                  }}
-                >
-                  <img
-                    src="/images/des-martin.png"
-                    alt="Des Martin"
-                    style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                  />
+                <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
+                  <div
+                    style={{
+                      width: 96,
+                      height: 96,
+                      borderRadius: 8,
+                      overflow: "hidden",
+                      flexShrink: 0,
+                      background: "#1a1a1a",
+                      border: "1px solid #333",
+                    }}
+                  >
+                    <img
+                      src="/images/des-martin.png"
+                      alt="Des Martin"
+                      style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                    />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                      <h3 style={{ fontSize: 16, fontWeight: 600, color: "#f2f2f2", margin: 0 }}>Des Martin</h3>
+                      <span style={{ fontSize: 12, color: "#5f5f5f" }}>Wicklow, Ireland</span>
+                    </div>
+                    <p style={{ fontSize: 12, color: "#C4A038", marginBottom: 10 }}>
+                      Vision, methodology, commercial strategy
+                    </p>
+                    <p style={{ fontSize: 13, color: "#8a8a8a", lineHeight: 1.6, marginBottom: 10 }}>
+                      Des Martin is a technology marketing executive based in Wicklow, Ireland. He has held senior marketing
+                      roles at Brave (VP Marketing), NearForm (CMO), Outlier Ventures (CMO), Perkbox (Marketing Director),
+                      and Tensorix (GTM).
+                    </p>
+                    <p style={{ fontSize: 13, color: "#8a8a8a", lineHeight: 1.6, marginBottom: 10 }}>
+                      His career has sat at the intersection of emerging technology and go-to-market strategy: browser
+                      privacy, enterprise software, venture capital, and now AI infrastructure. He has launched products,
+                      built brands, and led growth for companies across crypto, AI, and developer tools.
+                    </p>
+                    <p style={{ fontSize: 13, color: "#8a8a8a", lineHeight: 1.6, marginBottom: 10 }}>
+                      InferenceIndexer grew out of a simple observation: the AI inference market has no price index. Every
+                      comparable commodity market - oil, crypto, cloud compute - has one. Inference doesn&apos;t. That gap
+                      is the opportunity.
+                    </p>
+                    <a href="https://desmartin.io" style={{ display: "inline-block", fontSize: 13, ...goldLink }}>
+                      Website: desmartin.io
+                    </a>
+                  </div>
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-                  <h3 style={{ fontSize: 16, fontWeight: 600, color: "#f2f2f2", margin: 0 }}>Des Martin</h3>
-                  <span style={{ fontSize: 12, color: "#5f5f5f" }}>Wicklow, Ireland</span>
-                </div>
-                <p style={{ fontSize: 12, color: "#C4A038", marginBottom: 12 }}>
-                  Vision, methodology, commercial strategy
-                </p>
-                <p style={{ fontSize: 13, color: "#8a8a8a", lineHeight: 1.6, marginBottom: 12 }}>
-                  Des Martin is a technology marketing executive based in Wicklow, Ireland. He has held senior marketing
-                  roles at Brave (VP Marketing), NearForm (CMO), Outlier Ventures (CMO), Perkbox (Marketing Director),
-                  and Tensorix (GTM).
-                </p>
-                <p style={{ fontSize: 13, color: "#8a8a8a", lineHeight: 1.6, marginBottom: 12 }}>
-                  His career has sat at the intersection of emerging technology and go-to-market strategy: browser
-                  privacy, enterprise software, venture capital, and now AI infrastructure. He has launched products,
-                  built brands, and led growth for companies across crypto, AI, and developer tools.
-                </p>
-                <p style={{ fontSize: 13, color: "#8a8a8a", lineHeight: 1.6, marginBottom: 12 }}>
-                  InferenceIndexer grew out of a simple observation: the AI inference market has no price index. Every
-                  comparable commodity market - oil, crypto, cloud compute - has one. Inference doesn&apos;t. That gap
-                  is the opportunity.
-                </p>
-                <a href="https://desmartin.io" style={{ display: "inline-block", fontSize: 13, ...goldLink }}>
-                  Website: desmartin.io
-                </a>
               </div>
               {/* Frank Drebin */}
               <div style={cardBase}>
-                <div
-                  style={{
-                    width: "100%",
-                    aspectRatio: "1",
-                    borderRadius: 8,
-                    overflow: "hidden",
-                    marginBottom: 16,
-                    background: "#1a1a1a",
-                    border: "1px solid #333",
-                  }}
-                >
-                  <img
-                    src="/images/frank-drebin.png"
-                    alt="Frank Drebin"
-                    style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                  />
+                <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
+                  <div
+                    style={{
+                      width: 96,
+                      height: 96,
+                      borderRadius: 8,
+                      overflow: "hidden",
+                      flexShrink: 0,
+                      background: "#1a1a1a",
+                      border: "1px solid #333",
+                    }}
+                  >
+                    <img
+                      src="/images/frank-drebin.png"
+                      alt="Frank Drebin"
+                      style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                    />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                      <h3 style={{ fontSize: 16, fontWeight: 600, color: "#f2f2f2", margin: 0 }}>Frank Drebin</h3>
+                      <span style={{ fontSize: 12, color: "#5f5f5f" }}>VPS &middot; Dublin</span>
+                    </div>
+                    <p style={{ fontSize: 12, color: "#C4A038", marginBottom: 10 }}>
+                      Data pipeline, research, infrastructure
+                    </p>
+                    <p style={{ fontSize: 13, color: "#8a8a8a", lineHeight: 1.6, marginBottom: 10 }}>
+                      Frank handles the technical work on InferenceIndexer: data pipeline architecture, API integration,
+                      market research, competitive analysis, and infrastructure management. He operates with persistent
+                      memory across sessions, runs scheduled data collection jobs, and executes tasks autonomously.
+                    </p>
+                    <p style={{ fontSize: 13, color: "#8a8a8a", lineHeight: 1.6, marginBottom: 10 }}>
+                      Frank is an exceptional AI Agent. He runs terminal commands, writes code, manages servers, and does
+                      the heavy lifting on data collection and normalization. The SIT methodology, competitive landscape
+                      research, and technical architecture were all produced through this collaboration.
+                    </p>
+                  </div>
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
-                  <h3 style={{ fontSize: 16, fontWeight: 600, color: "#f2f2f2", margin: 0 }}>Frank Drebin</h3>
-                  <span style={{ fontSize: 12, color: "#5f5f5f" }}>VPS &middot; Dublin</span>
-                </div>
-                <p style={{ fontSize: 12, color: "#C4A038", marginBottom: 12 }}>
-                  Data pipeline, research, infrastructure
-                </p>
-                <p style={{ fontSize: 13, color: "#8a8a8a", lineHeight: 1.6, marginBottom: 12 }}>
-                  Frank handles the technical work on InferenceIndexer: data pipeline architecture, API integration,
-                  market research, competitive analysis, and infrastructure management. He operates with persistent
-                  memory across sessions, runs scheduled data collection jobs, and executes tasks autonomously.
-                </p>
-                <p style={{ fontSize: 13, color: "#8a8a8a", lineHeight: 1.6, marginBottom: 12 }}>
-                  Frank is an exceptional AI Agent. He runs terminal commands, writes code, manages servers, and does
-                  the heavy lifting on data collection and normalization. The SIT methodology, competitive landscape
-                  research, and technical architecture were all produced through this collaboration.
-                </p>
               </div>
             </div>
           </div>

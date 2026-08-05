@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import type { ModelSummary } from "@/lib/api";
 import {
   formatPrice,
@@ -48,6 +49,13 @@ export default function ModelTable({ models, totalCount }: Props) {
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState(false);
   const [provider, setProvider] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+
+  // Pick up search query from URL (set by nav search bar)
+  useEffect(() => {
+    const urlQ = searchParams.get("q");
+    if (urlQ !== null) setQuery(urlQ);
+  }, [searchParams]);
 
   const pills: [string, string][] = [
     ["all", "All"],
@@ -132,7 +140,7 @@ export default function ModelTable({ models, totalCount }: Props) {
   return (
     <>
       {/* Filter pills + legend on same row */}
-      <section style={{ maxWidth: "1320px", margin: "0 auto", padding: "30px 28px 0" }}>
+      <section id="model-table" style={{ maxWidth: "1320px", margin: "0 auto", padding: "30px 28px 0" }}>
         <div
           style={{
             display: "flex",
