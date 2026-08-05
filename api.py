@@ -35,10 +35,14 @@ import uvicorn
 # ============================================
 
 RATE_LIMITS = {
-    "public": {"daily": 100, "per_minute": 10, "history_days": 7},
-    "free": {"daily": 1000, "per_minute": 30, "history_days": 30},
-    "paid": {"daily": 50000, "per_minute": 100, "history_days": 365},
+    "public": {"daily": 1000, "per_minute": 60, "history_days": 7},
+    "free": {"daily": 10000, "per_minute": 100, "history_days": 30},
+    "paid": {"daily": 50000, "per_minute": 200, "history_days": 365},
+    "ssr": {"daily": 100000, "per_minute": 500, "history_days": 365},  # For Next.js SSR
 }
+
+# Secret header for SSR requests to bypass public rate limits
+SSR_SECRET = "inferenceindexer-ssr-2026"
 
 BASE_DATE = date(2026, 8, 3)
 BASE_VALUE = 1000.0
@@ -96,9 +100,11 @@ def get_api_user(authorization: Optional[str]):
     
     return None
 
-def check_rate_limit(api_user):
+def check_rate_limit(api_user, is_ssr=False):
     """Check if the user has exceeded their rate limit."""
-    if not api_user:
+    if is_ssr:
+        plan = "ssr"
+    elif not api_user:
         plan = "public"
     else:
         plan = api_user.get("plan", "public")
@@ -251,7 +257,7 @@ async def root():
 async def get_sit_latest(request: Request, authorization: Optional[str] = Header(None)):
     """Returns the current SIT-Composite index value, including tier breakdowns."""
     api_user = get_api_user(authorization)
-    limits = check_rate_limit(api_user)
+    limits = check_rate_limit(api_user, is_ssr=request.headers.get("X-SSR-Secret") == SSR_SECRET)
     
     conn = get_db()
     cur = conn.cursor()
@@ -345,7 +351,7 @@ async def get_sit_history(
 ):
     """Returns historical SIT-Composite values."""
     api_user = get_api_user(authorization)
-    limits = check_rate_limit(api_user)
+    limits = check_rate_limit(api_user, is_ssr=request.headers.get("X-SSR-Secret") == SSR_SECRET)
     
     # Limit history based on plan
     max_days = limits["history_days"]
@@ -411,7 +417,7 @@ async def get_models(
 ):
     """Returns all tracked models with current pricing."""
     api_user = get_api_user(authorization)
-    limits = check_rate_limit(api_user)
+    limits = check_rate_limit(api_user, is_ssr=request.headers.get("X-SSR-Secret") == SSR_SECRET)
     
     conn = get_db()
     cur = conn.cursor()
@@ -508,7 +514,7 @@ async def get_model_history(
         model_id = model_id[:-8]
     
     api_user = get_api_user(authorization)
-    limits = check_rate_limit(api_user)
+    limits = check_rate_limit(api_user, is_ssr=request.headers.get("X-SSR-Secret") == SSR_SECRET)
     
     # Limit history based on plan
     max_days = limits["history_days"]
@@ -589,7 +595,7 @@ async def get_model(
             }
         })
     api_user = get_api_user(authorization)
-    limits = check_rate_limit(api_user)
+    limits = check_rate_limit(api_user, is_ssr=request.headers.get("X-SSR-Secret") == SSR_SECRET)
     
     conn = get_db()
     cur = conn.cursor()

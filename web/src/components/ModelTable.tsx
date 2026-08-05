@@ -128,7 +128,7 @@ export default function ModelTable({ models, totalCount }: Props) {
 
   return (
     <>
-      {/* Filter pills */}
+      {/* Filter pills + legend on same row */}
       <section style={{ maxWidth: "1320px", margin: "0 auto", padding: "30px 28px 0" }}>
         <div
           style={{
@@ -187,51 +187,30 @@ export default function ModelTable({ models, totalCount }: Props) {
               );
             })}
           </div>
-          {/* Search input */}
-          <input
-            type="text"
-            aria-label="Search models"
-            placeholder="Search models..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
+          <div
             style={{
-              maxWidth: "260px",
-              height: "30px",
-              padding: "0 10px",
-              border: "1px solid #262626",
-              borderRadius: "4px",
-              background: "#111112",
-              color: "#e5e5e5",
-              fontFamily: "Inter, sans-serif",
-              fontSize: "12.5px",
-              outline: "none",
+              display: "flex",
+              alignItems: "center",
+              gap: "14px",
+              fontSize: "11.5px",
+              color: "#6f6f6f",
+              flexWrap: "wrap",
             }}
-          />
-        </div>
-        <div
-          style={{
-            marginTop: "12px",
-            display: "flex",
-            alignItems: "center",
-            gap: "16px",
-            fontSize: "11.5px",
-            color: "#6f6f6f",
-            flexWrap: "wrap",
-          }}
-        >
-          <span style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-            <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", color: "#22c55e" }}>↓</span>
-            price down · cheaper
-          </span>
-          <span style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-            <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", color: "#ef4444" }}>↑</span>
-            price up
-          </span>
-          <span style={{ color: "#4a4a4a" }}>|</span>
-          <span title="SIT Score = model blended price / tier average. Below 1.0 = cheaper than tier average." style={{ cursor: "help" }}>
-            SIT Score = price ÷ tier avg · <span style={{ color: "#22c55e" }}>&lt;0.50</span> ·{" "}
-            <span style={{ color: "#c9c9c9" }}>0.50–1.00</span> · <span style={{ color: "#C4A038" }}>&gt;1.00</span>
-          </span>
+          >
+            <span style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+              <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", color: "#22c55e" }}>↓</span>
+              cheaper
+            </span>
+            <span style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+              <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", color: "#ef4444" }}>↑</span>
+              price up
+            </span>
+            <span style={{ color: "#4a4a4a" }}>|</span>
+            <span title="SIT Score = model blended price / tier average. Below 1.0 = cheaper than tier average." style={{ cursor: "help" }}>
+              SIT Score = price ÷ tier avg · <span style={{ color: "#22c55e" }}>&lt;0.50</span> ·{" "}
+              <span style={{ color: "#c9c9c9" }}>0.50–1.00</span> · <span style={{ color: "#C4A038" }}>&gt;1.00</span>
+            </span>
+          </div>
         </div>
       </section>
 
