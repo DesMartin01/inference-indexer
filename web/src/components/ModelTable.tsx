@@ -239,9 +239,6 @@ export default function ModelTable({ models, totalCount }: Props) {
             <div
               role="row"
               style={{
-                position: "sticky",
-                top: "56px",
-                zIndex: 10,
                 background: "#0a0a0a",
                 display: "grid",
                 gridTemplateColumns: GRID,
