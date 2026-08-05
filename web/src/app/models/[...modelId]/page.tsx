@@ -352,7 +352,7 @@ export default async function ModelDetailPage({
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
               <span style={{ fontSize: 12, color: "#8a8a8a" }}>SIT Score</span>
               <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14, fontWeight: 600, color: sitScore < 0.5 ? GREEN : sitScore <= 1.0 ? "#e5e5e5" : ACCENT }}>
-                {sitScore.toFixed(2)} ({(sitScore * 100).toFixed(0)}% of tier average)
+                {sitScore.toFixed(2)} ({(sitScore * 100).toFixed(0)}% of tier median)
               </span>
             </div>
             <div style={{ height: 8, background: "#1a1a1a", borderRadius: 4, overflow: "hidden" }}>
@@ -360,7 +360,7 @@ export default async function ModelDetailPage({
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "#5f5f5f" }}>
               <span>0.00 (free)</span>
-              <span>1.00 (tier average)</span>
+              <span>1.00 (tier median)</span>
             </div>
           </div>
 
@@ -368,12 +368,12 @@ export default async function ModelDetailPage({
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
             {model.comparisons.below_tier_avg_pct !== undefined && model.comparisons.below_tier_avg_pct > 0 && (
               <div style={{ fontSize: 13, color: GREEN }}>
-                {model.comparisons.below_tier_avg_pct}% below {model.tier} tier average ({money(model.tier_average_price)}/M)
+                {model.comparisons.below_tier_avg_pct}% below {model.tier} tier median ({money(model.tier_average_price)}/M)
               </div>
             )}
             {model.comparisons.above_tier_avg_pct !== undefined && model.comparisons.above_tier_avg_pct > 0 && (
               <div style={{ fontSize: 13, color: ACCENT }}>
-                {model.comparisons.above_tier_avg_pct}% above {model.tier} tier average ({money(model.tier_average_price)}/M)
+                {model.comparisons.above_tier_avg_pct}% above {model.tier} tier median ({money(model.tier_average_price)}/M)
               </div>
             )}
             {model.comparisons.above_composite_pct !== undefined && model.comparisons.above_composite_pct > 0 && (

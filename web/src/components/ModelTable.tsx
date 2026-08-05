@@ -209,8 +209,8 @@ export default function ModelTable({ models, totalCount }: Props) {
               price up
             </span>
             <span style={{ color: "#4a4a4a" }}>|</span>
-            <span title="SIT Score = model blended price / tier average. Below 1.0 = cheaper than tier average." style={{ cursor: "help" }}>
-              SIT Score = price ÷ tier avg · <span style={{ color: "#22c55e" }}>&lt;0.50</span> ·{" "}
+            <span title="SIT Score = model blended price / tier median. Below 1.0 = cheaper than tier median." style={{ cursor: "help" }}>
+              SIT Score = price ÷ tier median · <span style={{ color: "#22c55e" }}>&lt;0.50</span> ·{" "}
               <span style={{ color: "#c9c9c9" }}>0.50–1.00</span> · <span style={{ color: "#C4A038" }}>&gt;1.00</span>
             </span>
           </div>
@@ -461,7 +461,7 @@ export default function ModelTable({ models, totalCount }: Props) {
                   </div>
                   <div
                     role="cell"
-                    title={`${m.name}: ${formatPrice(m.blended_price_per_m)} vs ${capitalizeTier(m.tier)} tier avg`}
+                    title={`${m.name}: ${formatPrice(m.blended_price_per_m)} vs ${capitalizeTier(m.tier)} tier median`}
                     style={{
                       fontSize: "13.5px",
                       fontWeight: 600,

@@ -60,7 +60,7 @@ export default function MethodologyPage() {
             How the Standard Inference Token is defined, calculated, and governed.
           </p>
           <p style={{ fontFamily: "var(--font-jetbrains-mono), 'JetBrains Mono', monospace", fontSize: 12, color: "#8a8a8a", marginBottom: 40 }}>
-            Version 0.1 — Last updated: August 3, 2026
+            Version 0.2 — Last updated: August 5, 2026
           </p>
 
           {/* 1. Overview */}
@@ -253,19 +253,19 @@ export default function MethodologyPage() {
                 <tbody>
                   <tr>
                     <td style={{ ...tdStyle, color: "#C4A038" }}>SIT-Frontier</td>
-                    <td style={tdStyle}>Average blended price of all Frontier-tier models</td>
+                    <td style={tdStyle}>Median blended price of all Frontier-tier models</td>
                   </tr>
                   <tr>
                     <td style={{ ...tdStyle, color: "#C4A038" }}>SIT-Standard</td>
-                    <td style={tdStyle}>Average blended price of all Standard-tier models</td>
+                    <td style={tdStyle}>Median blended price of all Standard-tier models</td>
                   </tr>
                   <tr>
                     <td style={{ ...tdStyle, color: "#C4A038" }}>SIT-Budget</td>
-                    <td style={tdStyle}>Average blended price of all Budget-tier models</td>
+                    <td style={tdStyle}>Median blended price of all Budget-tier models</td>
                   </tr>
                   <tr>
                     <td style={{ ...tdStyle, color: "#C4A038" }}>SIT-Composite</td>
-                    <td style={tdStyle}>Blended index across all tiers</td>
+                    <td style={tdStyle}>Median blended price across all tiers</td>
                   </tr>
                   <tr>
                     <td style={{ ...tdStyle, color: "#C4A038" }}>SIT-Spread</td>
@@ -275,20 +275,44 @@ export default function MethodologyPage() {
               </table>
             </SubSection>
 
-            <SubSection n="4.2" title="Weighting Methodology">
-              <p style={{ ...p, marginBottom: 6 }}>
-                <span style={{ color: "#C4A038" }}>Phase 1 (Launch):</span> Equal weighting across all models within each
-                tier.
+            <SubSection n="4.2" title="Median Aggregation">
+              <p style={p}>
+                All SIT indices use the <strong style={{ color: "#e5e5e5" }}>median</strong> blended price across
+                models, not the arithmetic mean. This is consistent with the per-provider median used for multi-provider
+                models (Section 2.3).
               </p>
-              <pre style={formulaStyle}>{`SIT-Composite = Σ(blended_price_i × weight_i) / Σ(weight_i)
-where weight_i = 1.0 (equal weight)`}</pre>
+              <pre style={formulaStyle}>{`tier_index = median(blended_price_1, blended_price_2, ..., blended_price_n)
+SIT-Composite = median(blended_price for all models across all tiers)`}</pre>
+              <p style={p}>
+                Median is used instead of mean because AI inference prices are heavily right-skewed: a handful of
+                ultra-expensive models (e.g. o1-pro at $420/M) inflate the arithmetic mean far above what most models
+                actually cost. Using the frontier tier as an example (August 2026):
+              </p>
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={thStyle}>Statistic</th>
+                    <th style={thStyle}>Frontier Tier</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td style={tdStyle}>Mean blended price</td>
+                    <td style={tdStyle}>$38.17/M</td>
+                  </tr>
+                  <tr>
+                    <td style={tdStyle}>Median blended price</td>
+                    <td style={tdStyle}>$20.00/M</td>
+                  </tr>
+                </tbody>
+              </table>
+              <p style={p}>
+                The mean is 91% higher than the median due to a few outlier models. The median gives a more accurate
+                picture of what a typical model in each tier costs.
+              </p>
               <p style={{ ...p, marginTop: 16, marginBottom: 6 }}>
-                <span style={{ color: "#C4A038" }}>Phase 2 (3–6 months):</span> Capacity-weighted. Models weighted by
-                context window and provider size.
-              </p>
-              <p style={{ ...p, marginBottom: 6 }}>
-                <span style={{ color: "#C4A038" }}>Phase 3 (6–12 months):</span> Volume-weighted. Models weighted by
-                actual API transaction volume, sourced from provider-reported volumes and OpenRouter routing volumes.
+                <span style={{ color: "#C4A038" }}>Phase 2 (3-6 months):</span> Volume-weighted median. Models weighted
+                by actual API transaction volume, sourced from provider-reported volumes and OpenRouter routing volumes.
               </p>
             </SubSection>
 
@@ -523,7 +547,7 @@ where weight_i = 1.0 (equal weight)`}</pre>
                   accepts this imprecision as the cost of standardization.
                 </li>
                 <li style={numberedItem}>
-                  <strong style={{ color: "#e5e5e5" }}>Volume data:</strong> Phase 1 uses equal weighting because
+                  <strong style={{ color: "#e5e5e5" }}>Volume data:</strong> Phase 1 uses unweighted median because
                   real-world transaction volumes are not publicly available. The index may over-represent niche models.
                 </li>
                 <li style={numberedItem}>
@@ -559,14 +583,14 @@ where weight_i = 1.0 (equal weight)`}</pre>
             <p style={{ ...p, marginTop: 16, marginBottom: 4 }}>
               <span style={{ color: "#C4A038", fontSize: 13 }}>Text format:</span>
             </p>
-            <pre style={codeStyle}>{`InferenceIndexer SIT-Composite, August 3, 2026.
+            <pre style={codeStyle}>{`InferenceIndexer SIT-Composite, August 5, 2026.
 Available at: https://inferenceindexer.ai`}</pre>
 
             <p style={{ ...p, marginTop: 16, marginBottom: 4 }}>
               <span style={{ color: "#C4A038", fontSize: 13 }}>Academic format:</span>
             </p>
             <pre style={codeStyle}>{`InferenceIndexer (2026). Standard Inference Token
-Methodology, v0.1.
+Methodology, v0.2.
 Retrieved from https://inferenceindexer.ai/methodology`}</pre>
 
             <p style={{ ...p, marginTop: 16, marginBottom: 4 }}>
@@ -577,7 +601,7 @@ Retrieved from https://inferenceindexer.ai/methodology`}</pre>
   author = {InferenceIndexer},
   year   = {2026},
   url    = {https://inferenceindexer.ai/methodology},
-  note   = {Version 0.1}
+  note   = {Version 0.2}
 }`}</pre>
           </Section>
         </main>

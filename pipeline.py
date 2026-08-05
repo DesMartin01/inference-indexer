@@ -340,20 +340,34 @@ def filter_priced(models):
 # SIT CALCULATION
 # ============================================
 
+def _median(values):
+    """Compute the median of a sorted list of numbers."""
+    s = sorted(values)
+    n = len(s)
+    mid = n // 2
+    if n % 2 == 0:
+        return (s[mid - 1] + s[mid]) / 2
+    return s[mid]
+
+
 def calculate_tier_averages(models):
-    """Calculate the average blended price per tier."""
+    """Calculate the median blended price per tier.
+
+    Median is robust to outliers (e.g. o1-pro at $420/M skews the frontier
+    tier mean to $38 vs a median of $20). Using median for the tier average
+    makes SIT scores more meaningful: SIT 1.0 = at the median tier price.
+    """
     tier_prices = {}
     for m in models:
         tier = m["tier"]
         if tier not in tier_prices:
             tier_prices[tier] = []
         tier_prices[tier].append(m["blended_price_per_m"])
-    
+
     tier_avgs = {}
     for tier, prices in tier_prices.items():
-        avg = sum(prices) / len(prices)
-        tier_avgs[tier] = round(avg, 6)
-    
+        tier_avgs[tier] = round(_median(prices), 6)
+
     return tier_avgs
 
 def calculate_sit_scores(models, tier_avgs):
@@ -367,11 +381,15 @@ def calculate_sit_scores(models, tier_avgs):
     return models
 
 def calculate_composite_price(models):
-    """Calculate the SIT-Composite price: equal-weighted average of all model blended prices."""
+    """Calculate the SIT-Composite price: median of all model blended prices.
+
+    Median is used instead of mean to stay robust to ultra-expensive outliers
+    (e.g. o1-pro at $420/M) that would inflate the composite.
+    """
     prices = [m["blended_price_per_m"] for m in models if m["blended_price_per_m"] > 0]
     if not prices:
         return 0.0
-    return round(sum(prices) / len(prices), 6)
+    return round(_median(prices), 6)
 
 def calculate_tier_indices(models):
     """Calculate SIT index values for each tier and the composite."""
@@ -382,10 +400,10 @@ def calculate_tier_indices(models):
         tier_models = [m for m in models if m["tier"] == tier and m["blended_price_per_m"] > 0]
         if tier_models:
             prices = [m["blended_price_per_m"] for m in tier_models]
-            avg = sum(prices) / len(prices)
+            median_price = _median(prices)
             providers = set(m["provider"] for m in tier_models)
             results[tier] = {
-                "price": round(avg, 6),
+                "price": round(median_price, 6),
                 "model_count": len(tier_models),
                 "provider_count": len(providers),
             }
@@ -635,7 +653,7 @@ def print_summary(models, tier_avgs, indices):
     for tier in ["frontier", "standard", "budget", "micro"]:
         count = tier_counts.get(tier, 0)
         avg = tier_avgs.get(tier, 0)
-        print(f"  {tier:10s}: {count:4d} models, avg blended ${avg:.4f}/M")
+        print(f"  {tier:10s}: {count:4d} models, median blended ${avg:.4f}/M")
     
     print(f"\nSIT-Composite: ${indices['composite']['price']:.4f}/M")
     print(f"  Models: {indices['composite']['model_count']}")
