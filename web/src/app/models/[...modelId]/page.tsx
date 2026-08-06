@@ -55,13 +55,14 @@ export async function generateMetadata({ params }: { params: Promise<{ modelId: 
   const provider = model.provider;
   const blended = money(model.blended_price_per_m);
   const tier = model.tier.charAt(0).toUpperCase() + model.tier.slice(1);
-  const sitScore = model.sit_score.toFixed(2);
+  const sitScore = model.sit_score != null ? model.sit_score : null;
+  const sitScoreDisplay = sitScore != null ? String(sitScore) : "N/A";
 
   // Title: "GPT-5.6 Luna Price - $0.40/M | InferenceIndexer"
   const title = `${name} Price - ${blended}/M | InferenceIndexer`;
 
   // Description: "GPT-5.6 Luna inference pricing: input $0.10/M, output $0.60/M, blended $0.40/M. SIT Score 0.01 (Frontier tier). Compare API costs across providers."
-  const description = `${name} by ${provider} inference pricing: input ${money(model.input_price_per_m)}/M, output ${money(model.output_price_per_m)}/M, blended ${blended}/M. SIT Score ${sitScore} (${tier} tier). Compare AI inference costs across providers.`;
+  const description = `${name} by ${provider} inference pricing: input ${money(model.input_price_per_m)}/M, output ${money(model.output_price_per_m)}/M, blended ${blended}/M. SIT Score ${sitScoreDisplay} (${tier} tier). Compare AI inference costs across providers.`;
 
   const url = `https://inferenceindexer.ai/models/${modelId}`;
 
@@ -170,7 +171,8 @@ export default async function ModelDetailPage({
   }
 
   const sitScore = model.sit_score;
-  const sitPct = Math.min(sitScore * 100, 100);
+  const hasSitScore = sitScore != null;
+  const sitPct = hasSitScore ? Math.min(sitScore / 2, 100) : 0; // Scale: 200=full bar, 100=median
   const tierColor = TIER_COLOR[model.tier] || FLAT;
 
   const providerFav = providerFaviconUrl(model.provider);
@@ -233,7 +235,7 @@ export default async function ModelDetailPage({
 
         {/* Price Card */}
         <div style={{ background: "#16161a", border: "1px solid #2a2a2a", borderRadius: 8, padding: "24px 28px", marginBottom: 28 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 32, marginBottom: 24 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 32, marginBottom: 24 }}>
             <div>
               <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", color: "#6a6a6a", marginBottom: 8 }}>Input</div>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 22, fontWeight: 500, color: "#c9c9c9" }}>
@@ -252,6 +254,18 @@ export default async function ModelDetailPage({
                 {money(model.blended_price_per_m)}<span style={{ fontSize: 14, color: "#8a8a8a" }}> /M</span>
               </div>
             </div>
+            <div>
+              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", color: "#7ec47e", marginBottom: 8 }}>
+                SIT-Adjusted {model.reasoning_multiplier > 1 ? `(${model.reasoning_multiplier}x)` : ""}
+              </div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 28, fontWeight: 500, color: "#7ec47e" }}>
+                {model.sit_adjusted_price != null ? `$${model.sit_adjusted_price.toFixed(4)}` : "N/A"}<span style={{ fontSize: 14, color: "#8a8a8a" }}> /M</span>
+              </div>
+            </div>
+          </div>
+          <div style={{ fontSize: 11, color: "#5f5f5f", marginTop: 4 }}>
+            SIT-Adjusted = (Blended × Reasoning Multiplier) ÷ AA Score. Lower = better value per unit of intelligence.
+            {model.sit_adjusted_price == null && " No AA score available for this model."}
           </div>
           <div style={{ display: "flex", gap: 26, flexWrap: "wrap", borderTop: "1px solid #232327", paddingTop: 16 }}>
             <PeriodChange label="24h" value={model.change_24h} />
@@ -350,17 +364,17 @@ export default async function ModelDetailPage({
           {/* SIT Score Bar */}
           <div style={{ marginBottom: 20 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-              <span style={{ fontSize: 12, color: "#8a8a8a" }}>SIT Score</span>
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14, fontWeight: 600, color: sitScore < 0.5 ? GREEN : sitScore <= 1.0 ? "#e5e5e5" : ACCENT }}>
-                {sitScore.toFixed(2)} ({(sitScore * 100).toFixed(0)}% of tier median)
+              <span style={{ fontSize: 12, color: "#8a8a8a" }}>SIT Score (100 = tier median)</span>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14, fontWeight: 600, color: hasSitScore ? (sitScore < 100 ? GREEN : sitScore <= 100 ? "#e5e5e5" : ACCENT) : "#5f5f5f" }}>
+                {hasSitScore ? `${sitScore} (${sitScore < 100 ? `${(100 - sitScore)}% below` : `${(sitScore - 100)}% above`} tier median)` : "N/A (no AA score)"}
               </span>
             </div>
             <div style={{ height: 8, background: "#1a1a1a", borderRadius: 4, overflow: "hidden" }}>
-              <div style={{ width: `${sitPct}%`, height: "100%", background: sitScore < 0.5 ? GREEN : sitScore <= 1.0 ? "#5b8def" : ACCENT, borderRadius: 4 }} />
+              <div style={{ width: `${sitPct}%`, height: "100%", background: hasSitScore ? (sitScore < 100 ? GREEN : sitScore <= 100 ? "#5b8def" : ACCENT) : "#333", borderRadius: 4 }} />
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "#5f5f5f" }}>
-              <span>0.00 (free)</span>
-              <span>1.00 (tier median)</span>
+              <span>1 (cheapest)</span>
+              <span>100 (tier median)</span>
             </div>
           </div>
 

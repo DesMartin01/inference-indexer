@@ -50,6 +50,7 @@ export interface ModelSummary {
   input_price_per_m: number;
   output_price_per_m: number;
   blended_price_per_m: number;
+  sit_adjusted_price: number | null;
   sit_score: number;
   change_24h: number;
   change_7d: number;
@@ -77,6 +78,8 @@ export interface ModelDetail {
   input_price_per_m: number;
   output_price_per_m: number;
   blended_price_per_m: number;
+  sit_adjusted_price: number | null;
+  reasoning_multiplier: number;
   sit_score: number;
   change_24h: number;
   change_7d: number;
@@ -178,8 +181,9 @@ export function pctColor(n: number): string {
   return n < 0 ? "#22c55e" : n > 0 ? "#ef4444" : "#7a7a7a";
 }
 
-export function sitColor(s: number): string {
-  return s < 0.5 ? "#22c55e" : s <= 1.0 ? "#e5e5e5" : "#C4A038";
+export function sitColor(s: number | null | undefined): string {
+  if (!s) return "#5f5f5f"; // No SIT score (no AA score)
+  return s < 100 ? "#22c55e" : s <= 100 ? "#e5e5e5" : "#C4A038";
 }
 
 export function tierColor(tier: string): string {

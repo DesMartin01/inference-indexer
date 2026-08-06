@@ -3,17 +3,34 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect } from "react";
+import { createClient } from "@/lib/supabase/client";
 
 export function Header({ activePage = "" }: { activePage?: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [q, setQ] = useState("");
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [userEmail, setUserEmail] = useState("");
 
   // Sync with URL query param when on homepage
   useEffect(() => {
     const urlQ = searchParams.get("q");
     if (urlQ !== null) setQ(urlQ);
   }, [searchParams]);
+
+  // Check auth state
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setLoggedIn(!!session);
+      setUserEmail(session?.user?.email || "");
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setLoggedIn(!!session);
+      setUserEmail(session?.user?.email || "");
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   const handleSearch = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && q.trim()) {
@@ -132,18 +149,29 @@ export function Header({ activePage = "" }: { activePage?: string }) {
             About
           </Link>
           <span style={{ width: "1px", height: "14px", background: "#222", display: "block" }} />
-          <a
-            href="#login"
-            style={{ fontSize: "12.5px", color: "#8a8a8a", textDecoration: "none" }}
-          >
-            Login
-          </a>
-          <a
-            href="#signup"
-            style={{ fontSize: "12.5px", color: "#C4A038", textDecoration: "none" }}
-          >
-            Sign Up
-          </a>
+          {loggedIn ? (
+            <Link
+              href="/dashboard"
+              style={{ fontSize: "12.5px", color: "#C4A038", textDecoration: "none" }}
+            >
+              Dashboard
+            </Link>
+          ) : (
+            <>
+              <Link
+                href="/login"
+                style={{ fontSize: "12.5px", color: "#8a8a8a", textDecoration: "none" }}
+              >
+                Login
+              </Link>
+              <Link
+                href="/signup"
+                style={{ fontSize: "12.5px", color: "#C4A038", textDecoration: "none" }}
+              >
+                Sign Up
+              </Link>
+            </>
+          )}
           <span style={{ width: "1px", height: "14px", background: "#222", display: "block" }} />
           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
             <span

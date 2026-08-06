@@ -188,7 +188,7 @@ def get_rate_limit_headers(api_user, limits):
 # ============================================
 
 def ensure_latest_prices_view():
-    """Recreate the latest_prices view to include source_count."""
+    """Recreate the latest_prices view to include SIT-adjusted columns."""
     try:
         conn = get_db()
         cur = conn.cursor()
@@ -200,6 +200,8 @@ def ensure_latest_prices_view():
               output_price_per_m,
               blended_price_per_m,
               sit_score,
+              reasoning_multiplier,
+              sit_adjusted_price,
               source,
               source_count,
               fetched_at
@@ -209,7 +211,7 @@ def ensure_latest_prices_view():
         conn.commit()
         cur.close()
         conn.close()
-        print("  latest_prices view updated with source_count")
+        print("  latest_prices view updated with SIT-adjusted columns")
     except Exception as e:
         print(f"  WARN: Could not update latest_prices view: {e}")
 
@@ -220,7 +222,7 @@ def ensure_latest_prices_view():
 app = FastAPI(
     title="InferenceIndexer API",
     description="Independent price index for AI inference",
-    version="1.1.0",
+    version="1.2.0",
 )
 
 # Update latest_prices view on startup to include source_count
@@ -461,7 +463,8 @@ async def get_models(
         SELECT m.id, m.name, m.provider, m.tier, m.context_length, m.aa_index_score,
                m.modality, m.is_reasoning,
                lp.input_price_per_m, lp.output_price_per_m, lp.blended_price_per_m,
-               lp.sit_score, lp.fetched_at, lp.source_count
+               lp.sit_score, lp.reasoning_multiplier, lp.sit_adjusted_price,
+               lp.fetched_at, lp.source_count
         FROM models m
         JOIN latest_prices lp ON m.id = lp.model_id
         WHERE m.is_active = TRUE AND lp.blended_price_per_m > 0
@@ -522,8 +525,10 @@ async def get_models(
             "output_price_per_m": row[9],
             "blended_price_per_m": row[10],
             "sit_score": row[11],
-            "fetched_at": row[12].isoformat() if row[12] else None,
-            "source_count": row[13] if row[13] else 1,
+            "reasoning_multiplier": row[12] if row[12] else 1.0,
+            "sit_adjusted_price": row[13],
+            "fetched_at": row[14].isoformat() if row[14] else None,
+            "source_count": row[15] if row[15] else 1,
         })
     
     headers = get_rate_limit_headers(api_user, limits)
@@ -653,6 +658,8 @@ async def get_model_history(
             output_price_per_m,
             blended_price_per_m,
             sit_score,
+            reasoning_multiplier,
+            sit_adjusted_price,
             fetched_at
         FROM price_snapshots
         WHERE model_id = %s
@@ -672,7 +679,9 @@ async def get_model_history(
             "output_price_per_m": row[2],
             "blended_price_per_m": row[3],
             "sit_score": row[4],
-            "fetched_at": row[5].isoformat() if row[5] else None,
+            "reasoning_multiplier": row[5] if row[5] else 1.0,
+            "sit_adjusted_price": row[6],
+            "fetched_at": row[7].isoformat() if row[7] else None,
         })
     
     headers = get_rate_limit_headers(api_user, limits)
@@ -712,7 +721,8 @@ async def get_model(
         SELECT m.id, m.name, m.provider, m.tier, m.context_length, m.aa_index_score,
                m.modality, m.tokenizer, m.is_reasoning, m.created_at,
                lp.input_price_per_m, lp.output_price_per_m, lp.blended_price_per_m,
-               lp.sit_score, lp.source, lp.fetched_at
+               lp.sit_score, lp.reasoning_multiplier, lp.sit_adjusted_price,
+               lp.source, lp.fetched_at
         FROM models m
         JOIN latest_prices lp ON m.id = lp.model_id
         WHERE m.id = %s
@@ -731,18 +741,18 @@ async def get_model(
             }
         })
     
-    # Get 24h change
-    change_24h = calc_change_24h(conn, model_id, row[13])
-    change_7d = calc_change_7d(conn, model_id, row[13])
+    # Get 24h change (use blended price, not sit_score which may be null)
+    change_24h = calc_change_24h(conn, model_id, row[12])
+    change_7d = calc_change_7d(conn, model_id, row[12])
     
-    # Get tier average for comparison
+    # Get tier median price from SIT index (consistent with homepage headline)
     cur.execute("""
-        SELECT AVG(lp.blended_price_per_m)
-        FROM models m
-        JOIN latest_prices lp ON m.id = lp.model_id
-        WHERE m.tier = %s AND lp.blended_price_per_m > 0
+        SELECT sit_price FROM sit_index_values
+        WHERE tier = %s
+        ORDER BY date DESC LIMIT 1
     """, (row[3],))
-    tier_avg = cur.fetchone()[0]
+    tier_avg_result = cur.fetchone()
+    tier_avg = tier_avg_result[0] if tier_avg_result else None
     
     # Get composite price for comparison
     cur.execute("""
@@ -757,12 +767,14 @@ async def get_model(
     conn.close()
     
     # Build comparison
-    blended = row[13]
+    blended = row[12]  # blended_price_per_m
+    reasoning_multiplier = row[14] if row[14] else 1.0
+    sit_adjusted = row[15]
     comparisons = {}
-    if tier_avg and tier_avg > 0:
+    if tier_avg and tier_avg > 0 and blended is not None:
         comparisons["below_tier_avg_pct"] = round(((tier_avg - blended) / tier_avg) * 100, 1) if blended < tier_avg else 0
         comparisons["above_tier_avg_pct"] = round(((blended - tier_avg) / tier_avg) * 100, 1) if blended > tier_avg else 0
-    if composite_price and composite_price > 0:
+    if composite_price and composite_price > 0 and blended is not None:
         comparisons["above_composite_pct"] = round(((blended - composite_price) / composite_price) * 100, 1) if blended > composite_price else 0
     
     # Tier ranking
@@ -802,14 +814,16 @@ async def get_model(
             "output_price_per_m": row[11],
             "blended_price_per_m": row[12],
             "sit_score": row[13],
+            "reasoning_multiplier": reasoning_multiplier,
+            "sit_adjusted_price": sit_adjusted,
             "change_24h": change_24h,
             "change_7d": change_7d,
             "tier_average_price": round(tier_avg, 4) if tier_avg else None,
             "tier_rank": tier_rank,
             "tier_total_models": tier_total,
             "comparisons": comparisons,
-            "source": row[14],
-            "fetched_at": row[15].isoformat() if row[15] else None,
+            "source": row[16],
+            "fetched_at": row[17].isoformat() if row[17] else None,
         },
         headers=headers
     )
@@ -850,6 +864,74 @@ async def signup(email: str):
     conn.close()
     
     return {"api_key": new_key, "plan": "free", "message": "API key created"}
+
+# ============================================
+# AUTH: USER INFO & KEY MANAGEMENT
+# ============================================
+
+@app.get("/v1/auth/me")
+async def get_me(authorization: str = Header(None)):
+    """Get current user info including API key, plan, and usage."""
+    if not authorization or not authorization.startswith("Bearer "):
+        return JSONResponse(status_code=401, content={"error": "Missing or invalid authorization header"})
+    
+    token = authorization.replace("Bearer ", "").strip()
+    conn = get_db()
+    cur = conn.cursor()
+    
+    try:
+        cur.execute("""
+            SELECT email, api_key, plan, request_count, rate_limit_per_day
+            FROM api_users WHERE api_key = %s
+        """, (token,))
+        row = cur.fetchone()
+        
+        if not row:
+            return JSONResponse(status_code=401, content={"error": "Invalid API key"})
+        
+        return {
+            "email": row[0],
+            "api_key": row[1],
+            "plan": row[2],
+            "request_count": row[3],
+            "rate_limit_per_day": row[4],
+        }
+    finally:
+        cur.close()
+        conn.close()
+
+@app.post("/v1/auth/regenerate-key")
+async def regenerate_key(authorization: str = Header(None)):
+    """Generate a new API key, invalidating the old one."""
+    if not authorization or not authorization.startswith("Bearer "):
+        return JSONResponse(status_code=401, content={"error": "Missing or invalid authorization header"})
+    
+    token = authorization.replace("Bearer ", "").strip()
+    conn = get_db()
+    cur = conn.cursor()
+    
+    try:
+        # Verify the old key exists
+        cur.execute("SELECT id FROM api_users WHERE api_key = %s", (token,))
+        if not cur.fetchone():
+            return JSONResponse(status_code=401, content={"error": "Invalid API key"})
+        
+        # Generate new key
+        new_key = generate_api_key()
+        cur.execute("""
+            UPDATE api_users SET api_key = %s WHERE api_key = %s
+            RETURNING api_key
+        """, (new_key, token))
+        row = cur.fetchone()
+        conn.commit()
+        
+        if not row:
+            return JSONResponse(status_code=500, content={"error": "Failed to regenerate key"})
+        
+        return {"api_key": row[0], "message": "New API key generated. Old key is no longer valid."}
+    finally:
+        cur.close()
+        conn.close()
 
 # ============================================
 # HEALTH CHECK

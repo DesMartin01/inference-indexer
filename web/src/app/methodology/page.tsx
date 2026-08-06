@@ -60,7 +60,7 @@ export default function MethodologyPage() {
             How the Standard Inference Token is defined, calculated, and governed.
           </p>
           <p style={{ fontFamily: "var(--font-jetbrains-mono), 'JetBrains Mono', monospace", fontSize: 12, color: "#8a8a8a", marginBottom: 40 }}>
-            Version 0.2 — Last updated: August 5, 2026
+            Version 0.3 — Last updated: August 5, 2026
           </p>
 
           {/* 1. Overview */}
@@ -242,7 +242,7 @@ export default function MethodologyPage() {
           {/* 4. Index Calculation */}
           <Section n="4" title="Index Calculation" id="calculation">
             <SubSection n="4.1" title="Tier Indices">
-              <p style={p}>Each quality tier has its own composite index:</p>
+              <p style={p}>Each quality tier has its own composite index, tracking the median blended price per million tokens:</p>
               <table style={tableStyle}>
                 <thead>
                   <tr>
@@ -265,7 +265,7 @@ export default function MethodologyPage() {
                   </tr>
                   <tr>
                     <td style={{ ...tdStyle, color: "#C4A038" }}>SIT-Composite</td>
-                    <td style={tdStyle}>Median blended price across all tiers</td>
+                    <td style={tdStyle}>Median blended price across all tiers (headline spot price)</td>
                   </tr>
                   <tr>
                     <td style={{ ...tdStyle, color: "#C4A038" }}>SIT-Spread</td>
@@ -275,7 +275,60 @@ export default function MethodologyPage() {
               </table>
             </SubSection>
 
-            <SubSection n="4.2" title="Median Aggregation">
+            <SubSection n="4.2" title="SIT-Adjusted Price">
+              <p style={p}>
+                The SIT is adjusted for two factors that raw per-token pricing misses:
+              </p>
+              <ul style={bulletList}>
+                <li style={bulletItem}>
+                  <strong style={{ color: "#e5e5e5" }}>Reasoning overhead.</strong> Reasoning models generate
+                  hidden thinking tokens before producing an answer. These tokens are billed at the output
+                  rate but never seen by the user. SIT applies a multiplier based on the model&apos;s tier and
+                  reasoning classification, estimating how many total output tokens the model generates
+                  relative to its visible answer.
+                </li>
+                <li style={bulletItem}>
+                  <strong style={{ color: "#e5e5e5" }}>Intelligence.</strong> A cheaper model that is less
+                  capable is not better value. SIT divides by the Artificial Analysis Intelligence Index
+                  score so the price reflects cost per unit of intelligence.
+                </li>
+              </ul>
+              <p style={{ ...p, marginTop: 16 }}>The formula:</p>
+              <pre style={formulaStyle}>{`SIT-Adjusted Price = (Blended Price × Reasoning Multiplier) / AA Intelligence Index Score
+
+SIT Score = round(SIT-Adjusted Price / Tier Median SIT-Adjusted Price × 100)
+  100 = tier median, lower = cheaper, minimum = 1
+SIT-Composite = Median of all SIT-Adjusted Prices in tier`}</pre>
+              <p style={p}>
+                Where:
+              </p>
+              <ul style={bulletList}>
+                <li style={bulletItem}>
+                  <span style={mutedMono}>Blended Price</span> = 0.4 × input + 0.6 × output (per million tokens)
+                </li>
+                <li style={bulletItem}>
+                  <span style={mutedMono}>Reasoning Multiplier</span> = 1.0 for non-reasoning models; tier-based
+                  estimate for reasoning models (frontier: 4.0, standard: 3.0, budget: 2.5, micro: 2.0)
+                </li>
+                <li style={bulletItem}>
+                  <span style={mutedMono}>AA Intelligence Index</span> = Artificial Analysis Intelligence Index
+                  v4.1, an independent third-party benchmark
+                </li>
+              </ul>
+              <p style={{ ...p, marginTop: 16 }}>
+                Lower SIT = cheaper per unit of intelligence, accounting for reasoning overhead. A score of
+                100 means the model is at the tier median. Scores below 100 are cheaper than the median;
+                above 100 are more expensive. The minimum score is 1. Models without an AA Intelligence
+                Index score do not receive a SIT score.
+              </p>
+              <p style={{ ...p, marginTop: 16, marginBottom: 6 }}>
+                <span style={{ color: "#C4A038" }}>Planned: v0.4</span> will replace tier-based reasoning
+                multipliers with per-model token consumption data scraped from Artificial Analysis, which
+                publishes actual reasoning token counts per benchmark task.
+              </p>
+            </SubSection>
+
+            <SubSection n="4.3" title="Median Aggregation">
               <p style={p}>
                 All SIT indices use the <strong style={{ color: "#e5e5e5" }}>median</strong> blended price across
                 models, not the arithmetic mean. This is consistent with the per-provider median used for multi-provider
@@ -316,7 +369,7 @@ SIT-Composite = median(blended_price for all models across all tiers)`}</pre>
               </p>
             </SubSection>
 
-            <SubSection n="4.3" title="Calculation Frequency">
+            <SubSection n="4.4" title="Calculation Frequency">
               <table style={tableStyle}>
                 <thead>
                   <tr>
@@ -341,7 +394,7 @@ SIT-Composite = median(blended_price for all models across all tiers)`}</pre>
               </table>
             </SubSection>
 
-            <SubSection n="4.4" title="Base Date and Rebaselining">
+            <SubSection n="4.5" title="Base Date and Rebaselining">
               <ul style={bulletList}>
                 <li style={bulletItem}>
                   Base date: <span style={mutedMono}>August 3, 2026</span>

@@ -44,6 +44,18 @@ TIER_FRONTIER = 50
 TIER_STANDARD = 30
 TIER_BUDGET = 15
 
+# Reasoning token multipliers (conservative estimates per tier)
+# Applied to reasoning models to account for hidden thinking tokens.
+# Multiplier = 1 + (avg_reasoning_tokens / avg_answer_tokens)
+# These are fallback estimates until per-model token usage data is scraped from AA.
+REASONING_MULTIPLIERS = {
+    "frontier": 4.0,   # DeepSeek V4 Flash, Claude Opus 5: heavy reasoners
+    "standard": 3.0,   # Mid-tier reasoning models
+    "budget": 2.5,     # Smaller reasoning models, less overhead
+    "micro": 2.0,      # Minimal reasoning
+}
+NON_REASONING_MULTIPLIER = 1.0
+
 # Base date for index rebaselining
 BASE_DATE = date(2026, 8, 3)
 BASE_VALUE = 1000.0
@@ -83,6 +95,30 @@ def assign_tier(aa_score, blended_price=None):
         if blended_price > 0.15:
             return "budget"
     return "micro"
+
+def get_reasoning_multiplier(tier, is_reasoning):
+    """Get the reasoning token multiplier for a model.
+    
+    Returns 1.0 for non-reasoning models.
+    For reasoning models, returns a tier-based estimate of how many
+    extra tokens the model generates (thinking + answer) relative to
+    just the answer.
+    """
+    if not is_reasoning:
+        return NON_REASONING_MULTIPLIER
+    return REASONING_MULTIPLIERS.get(tier, NON_REASONING_MULTIPLIER)
+
+def calculate_sit_adjusted_price(blended_price, reasoning_multiplier, aa_score):
+    """Calculate the SIT-adjusted price.
+    
+    SIT-Adjusted = (Blended Price * Reasoning Multiplier) / AA Intelligence Index Score
+    
+    This gives cost per unit of intelligence, accounting for reasoning overhead.
+    Lower is better. For models without an AA score, returns None.
+    """
+    if not aa_score or aa_score <= 0:
+        return None
+    return round((blended_price * reasoning_multiplier) / aa_score, 6)
 
 # ============================================
 # FETCH FROM OPENROUTER
@@ -314,6 +350,14 @@ def normalize_model(raw):
     # Reasoning
     is_reasoning = raw.get("reasoning") is not None and raw.get("reasoning") != False
     
+    # Reasoning multiplier (tier-based estimate)
+    reasoning_multiplier = get_reasoning_multiplier(tier, is_reasoning)
+    
+    # SIT-adjusted price (cost per unit of intelligence)
+    sit_adjusted_price = calculate_sit_adjusted_price(
+        blended_price_per_m, reasoning_multiplier, aa_score
+    )
+    
     return {
         "model_id": model_id,
         "name": name,
@@ -324,6 +368,8 @@ def normalize_model(raw):
         "modality": modality,
         "tokenizer": arch.get("tokenizer"),
         "is_reasoning": is_reasoning,
+        "reasoning_multiplier": reasoning_multiplier,
+        "sit_adjusted_price": sit_adjusted_price,
         "input_price_per_m": input_price_per_m,
         "output_price_per_m": output_price_per_m,
         "blended_price_per_m": blended_price_per_m,
@@ -371,20 +417,44 @@ def calculate_tier_averages(models):
     return tier_avgs
 
 def calculate_sit_scores(models, tier_avgs):
-    """Calculate SIT score for each model = model blended price / tier average."""
+    """Calculate SIT score for each model.
+    
+    SIT Score = (model's SIT-adjusted price / tier median SIT-adjusted price) * 100
+    A score of 100 = at the tier median. Lower = cheaper per unit of intelligence.
+    Minimum score is 1. Models without an AA score get no SIT score (None).
+    """
+    # Compute tier medians using ONLY models with SIT-adjusted prices
+    tier_adjusted_prices = {}
     for m in models:
-        tier_avg = tier_avgs.get(m["tier"])
-        if tier_avg and tier_avg > 0:
-            m["sit_score"] = round(m["blended_price_per_m"] / tier_avg, 4)
+        tier = m["tier"]
+        if tier not in tier_adjusted_prices:
+            tier_adjusted_prices[tier] = []
+        adj = m.get("sit_adjusted_price")
+        if adj and adj > 0:
+            tier_adjusted_prices[tier].append(adj)
+    
+    tier_adjusted_medians = {}
+    for tier, prices in tier_adjusted_prices.items():
+        if prices:
+            tier_adjusted_medians[tier] = _median(prices)
+    
+    for m in models:
+        tier_median = tier_adjusted_medians.get(m["tier"])
+        adj = m.get("sit_adjusted_price")
+        if tier_median and tier_median > 0 and adj and adj > 0:
+            ratio = adj / tier_median
+            score = round(ratio * 100)
+            m["sit_score"] = max(score, 1)
         else:
+            # No AA score = no SIT score
             m["sit_score"] = None
     return models
 
 def calculate_composite_price(models):
-    """Calculate the SIT-Composite price: median of all model blended prices.
-
-    Median is used instead of mean to stay robust to ultra-expensive outliers
-    (e.g. o1-pro at $420/M) that would inflate the composite.
+    """Calculate the SIT-Composite price: median blended price across all models.
+    
+    This is the spot price headline number (what inference costs per million tokens).
+    Median is used to stay robust to ultra-expensive outliers.
     """
     prices = [m["blended_price_per_m"] for m in models if m["blended_price_per_m"] > 0]
     if not prices:
@@ -395,7 +465,7 @@ def calculate_tier_indices(models):
     """Calculate SIT index values for each tier and the composite."""
     results = {}
     
-    # Per-tier
+    # Per-tier (spot price = median blended price)
     for tier in ["frontier", "standard", "budget", "micro"]:
         tier_models = [m for m in models if m["tier"] == tier and m["blended_price_per_m"] > 0]
         if tier_models:
@@ -568,12 +638,15 @@ def insert_price_snapshots(conn, models):
         cur.execute("""
             INSERT INTO price_snapshots 
                 (model_id, source, input_price_per_m, output_price_per_m, 
-                 blended_price_per_m, sit_score, raw_data, is_anomalous, source_count)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                 blended_price_per_m, sit_score, reasoning_multiplier, 
+                 sit_adjusted_price, raw_data, is_anomalous, source_count)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (
             m["model_id"], SOURCE_NAME,
             m["input_price_per_m"], m["output_price_per_m"],
             m["blended_price_per_m"], m.get("sit_score"),
+            m.get("reasoning_multiplier", 1.0),
+            m.get("sit_adjusted_price"),
             json.dumps(m["raw_data"]), is_anomalous,
             m.get("source_count", 1)
         ))
@@ -663,18 +736,24 @@ def print_summary(models, tier_avgs, indices):
         print(f"\nSIT-Spread: ${indices['spread']['price']:.4f}/M")
     
     # Top 10 cheapest by SIT Score
-    scored = [m for m in models if m.get("sit_score") is not None]
+    scored = [m for m in models if m.get("sit_score") is not None and isinstance(m.get("sit_score"), int)]
     scored.sort(key=lambda x: x["sit_score"])
     
-    print(f"\nTop 10 by SIT Score (cheapest for tier):")
-    print(f"  {'Model':<40} {'Tier':<10} {'Blended $/M':<12} {'SIT Score':<10}")
+    print(f"\nTop 10 by SIT Score (cheapest for tier, adjusted, 100=median):")
+    print(f"  {'Model':<40} {'Tier':<10} {'Blended $/M':<12} {'R.Mult':<7} {'Adj $/M':<10} {'SIT':>6}")
     for m in scored[:10]:
-        print(f"  {m['name'][:40]:<40} {m['tier']:<10} ${m['blended_price_per_m']:<11.4f} {m['sit_score']:.4f}")
+        rm = m.get("reasoning_multiplier", 1.0)
+        adj = m.get("sit_adjusted_price")
+        adj_str = f"${adj:.6f}" if adj else "N/A"
+        print(f"  {m['name'][:40]:<40} {m['tier']:<10} ${m['blended_price_per_m']:<11.4f} {rm:<7.1f} {adj_str:<10} {m['sit_score']:>6}")
     
     # Top 5 most expensive by SIT Score
     print(f"\nTop 5 most expensive (by SIT Score):")
     for m in scored[-5:]:
-        print(f"  {m['name'][:40]:<40} {m['tier']:<10} ${m['blended_price_per_m']:<11.4f} {m['sit_score']:.4f}")
+        rm = m.get("reasoning_multiplier", 1.0)
+        adj = m.get("sit_adjusted_price")
+        adj_str = f"${adj:.6f}" if adj else "N/A"
+        print(f"  {m['name'][:40]:<40} {m['tier']:<10} ${m['blended_price_per_m']:<11.4f} {rm:<7.1f} {adj_str:<10} {m['sit_score']}")
     
     print("\n" + "=" * 60)
 

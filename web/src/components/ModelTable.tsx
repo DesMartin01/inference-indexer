@@ -16,7 +16,7 @@ import {
 } from "@/lib/api";
 import { buildRowSpark } from "@/lib/charts";
 
-type SortKey = "name" | "provider" | "tier" | "input" | "output" | "blended" | "sit" | "sources" | "c24" | "c7";
+type SortKey = "name" | "provider" | "tier" | "input" | "output" | "blended" | "sitadj" | "sit" | "sources" | "c24" | "c7";
 type SortDir = "asc" | "desc";
 
 type ColKey = SortKey | "rank" | "trend";
@@ -28,6 +28,7 @@ const COLS: { key: ColKey; label: string; align: "left" | "right" }[] = [
   { key: "input", label: "Input $/M", align: "right" },
   { key: "output", label: "Output $/M", align: "right" },
   { key: "blended", label: "Blended $/M", align: "right" },
+  { key: "sitadj", label: "SIT $/M", align: "right" },
   { key: "sit", label: "SIT Score", align: "right" },
   { key: "sources", label: "Sources", align: "right" },
   { key: "c24", label: "24h", align: "right" },
@@ -35,7 +36,7 @@ const COLS: { key: ColKey; label: string; align: "left" | "right" }[] = [
   { key: "trend", label: "7d trend", align: "left" },
 ];
 
-const GRID = "46px minmax(160px, 1.5fr) minmax(100px, 1fr) 100px 96px 104px 108px 104px 72px 80px 80px 104px";
+const GRID = "46px minmax(180px, 2fr) minmax(88px, 0.7fr) 100px 96px 104px 108px 96px 104px 64px 72px 72px 96px";
 
 interface Props {
   models: ModelSummary[];
@@ -86,13 +87,36 @@ export default function ModelTable({ models, totalCount }: Props) {
     list = list.slice().sort((a, b) => {
       const k = sort;
       const sign = dir === "asc" ? 1 : -1;
-      const num = (k: string) =>
-        k === "input" || k === "output" || k === "blended" || k === "c24" || k === "c7" || k === "sit";
-      if (k === "sit") return ((a.sit_score ?? 0) - (b.sit_score ?? 0)) * sign;
+      // Map sort keys to actual model field names
+      const fieldMap: Record<string, string> = {
+        input: "input_price_per_m",
+        output: "output_price_per_m",
+        blended: "blended_price_per_m",
+        sitadj: "sit_adjusted_price",
+        c24: "change_24h",
+        c7: "change_7d",
+      };
+      if (k === "sit") {
+        // Null scores sort last regardless of direction
+        if (a.sit_score == null && b.sit_score == null) return 0;
+        if (a.sit_score == null) return 1;
+        if (b.sit_score == null) return -1;
+        return (a.sit_score - b.sit_score) * sign;
+      }
+      if (k === "sitadj") {
+        // Null adjusted prices sort last regardless of direction
+        const av = a.sit_adjusted_price;
+        const bv = b.sit_adjusted_price;
+        if (av == null && bv == null) return 0;
+        if (av == null) return 1;
+        if (bv == null) return -1;
+        return (av - bv) * sign;
+      }
       if (k === "sources") return ((a.source_count ?? 1) - (b.source_count ?? 1)) * sign;
-      if (num(k)) {
-        const av = (a[k as keyof ModelSummary] as number) ?? 0;
-        const bv = (b[k as keyof ModelSummary] as number) ?? 0;
+      const fieldName = fieldMap[k];
+      if (fieldName) {
+        const av = (a[fieldName as keyof ModelSummary] as number) ?? 0;
+        const bv = (b[fieldName as keyof ModelSummary] as number) ?? 0;
         return (av - bv) * sign;
       }
       return String(a[k as keyof ModelSummary] ?? "").localeCompare(String(b[k as keyof ModelSummary] ?? "")) * sign;
@@ -101,9 +125,14 @@ export default function ModelTable({ models, totalCount }: Props) {
     return list;
   }, [models, sort, dir, variant, query, provider]);
 
-  // Compute global ranking by SIT score
+  // Compute global ranking by SIT score (nulls last)
   const ranked = useMemo(() => {
-    return models.slice().sort((a, b) => (a.sit_score ?? 0) - (b.sit_score ?? 0));
+    return models.slice().sort((a, b) => {
+      if (a.sit_score == null && b.sit_score == null) return 0;
+      if (a.sit_score == null) return 1;
+      if (b.sit_score == null) return -1;
+      return a.sit_score - b.sit_score;
+    });
   }, [models]);
 
   const rankOf = (m: ModelSummary) => {
@@ -217,10 +246,16 @@ export default function ModelTable({ models, totalCount }: Props) {
               price up
             </span>
             <span style={{ color: "#4a4a4a" }}>|</span>
-            <span title="SIT Score = model blended price / tier median. Below 1.0 = cheaper than tier median." style={{ cursor: "help" }}>
-              SIT Score = price ÷ tier median · <span style={{ color: "#22c55e" }}>&lt;0.50</span> ·{" "}
-              <span style={{ color: "#c9c9c9" }}>0.50–1.00</span> · <span style={{ color: "#C4A038" }}>&gt;1.00</span>
+            <span title="SIT Score = adjusted price ÷ tier median × 100. Below 100 = cheaper than tier median." style={{ cursor: "help" }}>
+              SIT Score = adjusted price ÷ tier median · <span style={{ color: "#22c55e" }}>&lt;100</span> · <span style={{ color: "#C4A038" }}>&gt;100</span>
             </span>
+            <span style={{ color: "#5f5f5f" }}>|</span>
+            <span title="SIT $/M = quality-adjusted price per million tokens. Lower = better value per unit of intelligence.">
+              <span style={{ color: "#7ec47e" }}>SIT $/M</span> = quality-adjusted price (lower = better value)
+            </span>
+          </div>
+          <div style={{ fontSize: 11.5, color: "#5f5f5f", marginTop: 6, marginLeft: 2 }}>
+            Models without an AA Intelligence Index score show "N/A" for SIT Score. Sort by Blended $/M to compare them directly.
           </div>
         </div>
       </section>
@@ -245,7 +280,7 @@ export default function ModelTable({ models, totalCount }: Props) {
           </span>
         </div>
         <div style={{ overflowX: "auto" }}>
-          <div role="table" aria-label="AI model inference prices" style={{ minWidth: "1180px" }}>
+          <div role="table" aria-label="AI model inference prices" style={{ minWidth: "1220px" }}>
             {/* Header */}
             <div
               role="row"
@@ -469,7 +504,21 @@ export default function ModelTable({ models, totalCount }: Props) {
                   </div>
                   <div
                     role="cell"
-                    title={`${m.name}: ${formatPrice(m.blended_price_per_m)} vs ${capitalizeTier(m.tier)} tier median`}
+                    title={m.sit_adjusted_price != null ? `${m.name}: SIT-adjusted $${m.sit_adjusted_price.toFixed(4)}/M (quality-adjusted, lower = better value)` : `${m.name}: no AA score, SIT-adjusted price not available`}
+                    style={{
+                      fontSize: "13px",
+                      fontWeight: 500,
+                      color: m.sit_adjusted_price != null ? "#7ec47e" : "#5f5f5f",
+                      padding: "0 10px",
+                      textAlign: "right",
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  >
+                    {m.sit_adjusted_price != null ? formatPrice(m.sit_adjusted_price) : "N/A"}
+                  </div>
+                  <div
+                    role="cell"
+                    title={`${m.name}: SIT score ${s || "N/A"} (${capitalizeTier(m.tier)} tier, 100 = median)`}
                     style={{
                       fontSize: "13.5px",
                       fontWeight: 600,
@@ -480,7 +529,7 @@ export default function ModelTable({ models, totalCount }: Props) {
                       cursor: "help",
                     }}
                   >
-                    {s.toFixed(2)}
+                    {s != null ? s : "N/A"}
                   </div>
                   <div
                     role="cell"
