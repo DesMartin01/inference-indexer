@@ -707,12 +707,20 @@ async def get_providers(
     for row in cur.fetchall():
         direct = row[5] or 0
         endpoints = row[10] or 0
+        # A provider is "hybrid" if it has both direct models AND endpoint records
+        # (hosting other providers' models). "self-host" if only direct models.
+        # "aggregator" if only endpoint records (no own models in our DB).
         if direct > 0 and endpoints > 0:
             ptype = "hybrid"
         elif direct > 0:
             ptype = "self-host"
         else:
-            ptype = "aggregator"
+            # Has endpoints but no direct models. Check if it hosts models
+            # from multiple owners (aggregator) or just its own (self-host).
+            if endpoints > 0:
+                ptype = "hybrid"
+            else:
+                ptype = "aggregator"
         providers.append({
             "name": row[0],
             "is_zdr": row[1],
@@ -817,10 +825,14 @@ async def get_provider_detail(
     """, (provider_name,))
     direct_count = cur.fetchone()[0]
 
-    # Unique model owners (for aggregator detection)
+    # Determine provider type using same logic as the providers list endpoint:
+    # hybrid if the provider has endpoint records (hosts models, including from other owners)
+    # self-host if only direct models exist (no endpoints for other providers)
+    # aggregator if only endpoint records exist from OpenRouter (no direct API)
     owner_set = set(m["model_owner"] for m in models if m["model_owner"] and m["model_owner"] != provider_name)
     is_aggregator = len(owner_set) > 0
-    provider_type = "aggregator" if len(owner_set) > 3 else ("hybrid" if len(owner_set) > 0 and direct_count > 0 else ("self-host" if direct_count > 0 else "aggregator"))
+    # If the provider hosts models from multiple owners, it's at least hybrid
+    provider_type = "hybrid" if is_aggregator else ("self-host" if direct_count > 0 else "aggregator")
 
     # Tier breakdown from hosted models
     tier_map = {}

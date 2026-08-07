@@ -56,6 +56,7 @@ SILICONFLOW_API = "https://api.siliconflow.cn/v1/models"
 PERPLEXITY_API = "https://api.perplexity.ai/v1/models"
 OPENAI_DIRECT_API = "https://api.openai.com/v1/models"
 ANTHROPIC_DIRECT_API = "https://api.anthropic.com/v1/models"
+TENSORX_API = "https://api.tensorx.ai/v1/models"
 HYPERBOLIC_API = "https://api.hyperbolic.xyz/v1/models"
 # Additional no-auth providers
 AIML_API = "https://api.aimlapi.com/v1/models"
@@ -789,6 +790,7 @@ def get_provider_api_key(provider_name):
         "hyperbolic": "HYPERBOLIC_API_KEY",
         "deepseek_direct": "DEEPSEEK_API_KEY",
         "moonshot_direct": "MOONSHOT_API_KEY",
+        "tensorx": "TENSORX_API_KEY",
     }
     env_var = env_map.get(provider_name.lower(), f"{provider_name.upper()}_API_KEY")
 
@@ -1786,6 +1788,52 @@ def fetch_moonshot_direct():
     return endpoints, new_models
 
 
+# ============================================
+# TENSORX DIRECT API CONNECTOR (auth)
+# ============================================
+
+def fetch_tensorx_direct():
+    """Fetch model catalog from TensorX's API.
+
+    Returns (endpoints, new_models).
+    Requires API key. TensorX is an aggregator/proxy hosting models from
+    Z-AI, DeepSeek, Qwen, Moonshot, Minimax and others.
+    No pricing in /v1/models - catalog only.
+    """
+    print(f"[{datetime.now(timezone.utc).isoformat()}] Fetching TensorX direct API...")
+
+    data = fetch_with_auth(TENSORX_API, "tensorx")
+    if data is None:
+        return [], []
+
+    models = data.get("data", []) if isinstance(data, dict) else data
+    print(f"  TensorX API returned {len(models)} models")
+
+    endpoints = []
+    new_models = []
+    skipped = 0
+
+    for m in models:
+        model_id = m.get("id", "")
+        if not model_id:
+            continue
+
+        # TensorX model IDs already use provider/model format (e.g. z-ai/glm-5.2)
+        canonical_id = model_id if "/" in model_id else f"tensorx/{model_id}"
+
+        new_models.append({
+            "model_id": canonical_id,
+            "name": model_id.split("/")[-1].replace("-", " ").title() if "/" in model_id else model_id,
+            "provider": "TensorX",
+            "context_length": m.get("context_length") or m.get("context_window"),
+            "is_reasoning": "reasoning" in model_id.lower() or "kimi" in model_id.lower() or "deepseek-r" in model_id.lower(),
+            "modality": "text",
+        })
+
+    print(f"  Catalog models: {len(new_models)}, Skipped: {skipped}")
+    return endpoints, new_models
+
+
 def apply_median_pricing(models, fetch_endpoints=False):
     """For models with multiple endpoints, compute median price.
     
@@ -2498,6 +2546,9 @@ def main():
     
     moonshot_direct_endpoints, moonshot_direct_new_models = fetch_moonshot_direct()
     
+    # TensorX direct (aggregator/proxy - catalog only, no pricing in API)
+    tensorx_endpoints, tensorx_new_models = fetch_tensorx_direct()
+    
     # Calculate tier averages and SIT scores
     tier_avgs = calculate_tier_averages(priced)
     priced = calculate_sit_scores(priced, tier_avgs)
@@ -2563,6 +2614,8 @@ def main():
             upsert_venice_models(conn, deepseek_direct_new_models, priced)
         if moonshot_direct_new_models:
             upsert_venice_models(conn, moonshot_direct_new_models, priced)
+        if tensorx_new_models:
+            upsert_venice_models(conn, tensorx_new_models, priced)
         
         if endpoint_data:
             insert_endpoints(conn, endpoint_data)

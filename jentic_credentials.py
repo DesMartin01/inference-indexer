@@ -34,6 +34,7 @@ PROVIDER_CONFIG = {
     "hyperbolic": ("hyperbolic.xyz", "hyperbolic", "v1", "Authorization", "header"),
     "deepseek": ("deepseek.com", "deepseek", "v1", "Authorization", "header"),
     "moonshot": ("moonshot.cn", "moonshot", "v1", "Authorization", "header"),
+    "tensorx": ("tensorx.ai", "tensorx", "v1", "Authorization", "header"),
 }
 
 
