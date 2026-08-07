@@ -52,8 +52,8 @@ const COLS_TIER: { key: ColKey; label: string; align: "left" | "right" }[] = [
   { key: "trend", label: "7d trend", align: "left" },
 ];
 
-const GRID_ALL = "30px minmax(130px, 1fr) 68px 60px 72px 72px 92px 92px 96px 48px 56px 56px 76px";
-const GRID_TIER = "30px minmax(130px, 1fr) 68px 60px 72px 72px 92px 92px 96px 48px 56px 56px 76px";
+const GRID_ALL = "30px minmax(130px, 220px) 68px 60px 72px 72px 92px 92px 96px 48px 56px 56px 1fr";
+const GRID_TIER = "30px minmax(130px, 220px) 68px 60px 72px 72px 92px 92px 96px 48px 56px 56px 1fr";
 
 interface Props {
   models: ModelSummary[];
