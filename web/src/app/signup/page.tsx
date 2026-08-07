@@ -32,7 +32,12 @@ export default function SignupPage() {
     });
 
     if (error) {
-      setError(error.message);
+      // Handle common Supabase auth errors with friendly messages
+      let msg = error.message;
+      if (msg.includes("rate limit")) {
+        msg = "Too many signups attempted. Please try again in a few minutes, or contact us directly for an API key.";
+      }
+      setError(msg);
       setLoading(false);
       return;
     }

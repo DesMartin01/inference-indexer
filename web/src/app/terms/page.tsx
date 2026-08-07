@@ -5,7 +5,7 @@ export const metadata = {
   title: "Terms of Service - InferenceIndexer.ai",
   description:
     "Terms of Service for InferenceIndexer.ai. Acceptable use, API rate limits, data licensing, disclaimer of financial advice, and limitation of liability.",
-  alternates: { canonical: "https://inferenceindexer.ai/terms" },
+  alternates: { canonical: "https://www.inferenceindexer.ai/terms" },
 };
 
 const h2: CSSProperties = {

@@ -5,7 +5,7 @@ export const metadata = {
   title: "Privacy Policy - InferenceIndexer.ai",
   description:
     "How InferenceIndexer.ai collects, uses, and protects data. Google Analytics, API usage tracking, cookie policy, and data retention.",
-  alternates: { canonical: "https://inferenceindexer.ai/privacy" },
+  alternates: { canonical: "https://www.inferenceindexer.ai/privacy" },
 };
 
 const h2: CSSProperties = {

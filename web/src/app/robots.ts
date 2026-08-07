@@ -7,7 +7,7 @@ export default function robots(): MetadataRoute.Robots {
       allow: "/",
       disallow: ["/api/"],
     },
-    sitemap: "https://inferenceindexer.ai/sitemap.xml",
-    host: "https://inferenceindexer.ai",
+    sitemap: "https://www.inferenceindexer.ai/sitemap.xml",
+    host: "https://www.inferenceindexer.ai",
   };
 }

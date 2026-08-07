@@ -64,7 +64,7 @@ export async function generateMetadata({ params }: { params: Promise<{ modelId: 
   // Description: "GPT-5.6 Luna inference pricing: input $0.10/M, output $0.60/M, blended $0.40/M. SIT Score 0.01 (Frontier tier). Compare API costs across providers."
   const description = `${name} by ${provider} inference pricing: input ${money(model.input_price_per_m)}/M, output ${money(model.output_price_per_m)}/M, blended ${blended}/M. SIT Score ${sitScoreDisplay} (${tier} tier). Compare AI inference costs across providers.`;
 
-  const url = `https://inferenceindexer.ai/models/${modelId}`;
+  const url = `https://www.inferenceindexer.ai/models/${modelId}`;
 
   return {
     title,
@@ -256,7 +256,7 @@ export default async function ModelDetailPage({
             </div>
             <div>
               <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", color: "#7ec47e", marginBottom: 8 }}>
-                SIT-Adjusted {model.reasoning_multiplier > 1 ? `(${model.reasoning_multiplier}x)` : ""}
+                Cost / IQ
               </div>
               <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 28, fontWeight: 500, color: "#7ec47e" }}>
                 {model.sit_adjusted_price != null ? `$${model.sit_adjusted_price.toFixed(4)}` : "N/A"}<span style={{ fontSize: 14, color: "#8a8a8a" }}> /M</span>
@@ -264,7 +264,7 @@ export default async function ModelDetailPage({
             </div>
           </div>
           <div style={{ fontSize: 11, color: "#5f5f5f", marginTop: 4 }}>
-            SIT-Adjusted = (Blended × Reasoning Multiplier) ÷ AA Score. Lower = better value per unit of intelligence.
+            Quality-adjusted price = Blended Price × (40 ÷ AA Intelligence Score). Represents the cost of producing GPT-4-Turbo-equivalent inference tokens. Lower = better value per unit of intelligence. Not a transactional price.
             {model.sit_adjusted_price == null && " No AA score available for this model."}
           </div>
           <div style={{ display: "flex", gap: 26, flexWrap: "wrap", borderTop: "1px solid #232327", paddingTop: 16 }}>

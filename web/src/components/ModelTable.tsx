@@ -20,7 +20,8 @@ type SortKey = "name" | "provider" | "tier" | "input" | "output" | "blended" | "
 type SortDir = "asc" | "desc";
 
 type ColKey = SortKey | "rank" | "trend";
-const COLS: { key: ColKey; label: string; align: "left" | "right" }[] = [
+
+const COLS_ALL: { key: ColKey; label: string; align: "left" | "right" }[] = [
   { key: "rank", label: "#", align: "right" },
   { key: "name", label: "Model", align: "left" },
   { key: "provider", label: "Provider", align: "left" },
@@ -28,7 +29,6 @@ const COLS: { key: ColKey; label: string; align: "left" | "right" }[] = [
   { key: "input", label: "Input $/M", align: "right" },
   { key: "output", label: "Output $/M", align: "right" },
   { key: "blended", label: "Blended $/M", align: "right" },
-  { key: "sitadj", label: "SIT $/M", align: "right" },
   { key: "sit", label: "SIT Score", align: "right" },
   { key: "sources", label: "Sources", align: "right" },
   { key: "c24", label: "24h", align: "right" },
@@ -36,7 +36,24 @@ const COLS: { key: ColKey; label: string; align: "left" | "right" }[] = [
   { key: "trend", label: "7d trend", align: "left" },
 ];
 
-const GRID = "46px minmax(180px, 2fr) minmax(88px, 0.7fr) 100px 96px 104px 108px 96px 104px 64px 72px 72px 96px";
+const COLS_TIER: { key: ColKey; label: string; align: "left" | "right" }[] = [
+  { key: "rank", label: "#", align: "right" },
+  { key: "name", label: "Model", align: "left" },
+  { key: "provider", label: "Provider", align: "left" },
+  { key: "tier", label: "Tier", align: "left" },
+  { key: "input", label: "Input $/M", align: "right" },
+  { key: "output", label: "Output $/M", align: "right" },
+  { key: "blended", label: "Blended $/M", align: "right" },
+  { key: "sitadj", label: "Cost / IQ", align: "right" },
+  { key: "sit", label: "SIT Score", align: "right" },
+  { key: "sources", label: "Sources", align: "right" },
+  { key: "c24", label: "24h", align: "right" },
+  { key: "c7", label: "7d", align: "right" },
+  { key: "trend", label: "7d trend", align: "left" },
+];
+
+const GRID_ALL = "32px minmax(160px, 1fr) 72px 64px 80px 80px 76px 88px 52px 60px 60px 80px";
+const GRID_TIER = "32px minmax(160px, 1fr) 72px 64px 80px 80px 76px 82px 88px 52px 60px 60px 80px";
 
 interface Props {
   models: ModelSummary[];
@@ -46,11 +63,31 @@ interface Props {
 export default function ModelTable({ models, totalCount }: Props) {
   const [sort, setSort] = useState<SortKey>("sit");
   const [dir, setDir] = useState<SortDir>("asc");
-  const [variant, setVariant] = useState("all");
+  const [variant, setVariant] = useState("frontier");
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState(false);
   const [provider, setProvider] = useState<string | null>(null);
+  const [zdrOnly, setZdrOnly] = useState(false);
+  const [euOnly, setEuOnly] = useState(false);
   const searchParams = useSearchParams();
+
+  // Dynamic columns and grid based on tier filter
+  const showCostIQ = variant !== "all";
+  const COLS = showCostIQ ? COLS_TIER : COLS_ALL;
+  const GRID = showCostIQ ? GRID_TIER : GRID_ALL;
+
+  // When tier filter changes, switch default sort:
+  // "all" = sort by blended price (SIT Score not cross-tier comparable)
+  // specific tier = sort by SIT Score (within-tier ranking)
+  useEffect(() => {
+    if (variant === "all") {
+      setSort("blended");
+      setDir("asc");
+    } else {
+      setSort("sit");
+      setDir("asc");
+    }
+  }, [variant]);
 
   // Pick up search query from URL (set by nav search bar)
   useEffect(() => {
@@ -66,14 +103,25 @@ export default function ModelTable({ models, totalCount }: Props) {
     ["micro", "Micro"],
   ];
 
+  // ZDR and EU Infra flags come from the providers table via the API
   const matchVariant = (m: ModelSummary): boolean => {
     if (variant === "all") return true;
     return m.tier.toLowerCase() === variant;
   };
 
+  const matchZdr = (m: ModelSummary): boolean => {
+    if (!zdrOnly) return true;
+    return m.is_zdr === true;
+  };
+
+  const matchEu = (m: ModelSummary): boolean => {
+    if (!euOnly) return true;
+    return m.is_eu_sovereign === true;
+  };
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    let list = models.filter(matchVariant);
+    let list = models.filter(matchVariant).filter(matchZdr).filter(matchEu);
     if (provider) list = list.filter((m) => m.provider === provider);
     if (q) {
       list = list.filter(
@@ -123,7 +171,7 @@ export default function ModelTable({ models, totalCount }: Props) {
     });
 
     return list;
-  }, [models, sort, dir, variant, query, provider]);
+  }, [models, sort, dir, variant, query, provider, zdrOnly, euOnly]);
 
   // Compute global ranking by SIT score (nulls last)
   const ranked = useMemo(() => {
@@ -168,6 +216,9 @@ export default function ModelTable({ models, totalCount }: Props) {
 
   return (
     <>
+      <style dangerouslySetInnerHTML={{ __html: `
+        .ii-tip-wrap:hover .ii-tip { display: block !important; }
+      `}} />
       {/* Filter pills + legend on same row */}
       <section id="model-table" style={{ maxWidth: "1320px", margin: "0 auto", padding: "30px 28px 0" }}>
         <div
@@ -226,6 +277,46 @@ export default function ModelTable({ models, totalCount }: Props) {
                 </button>
               );
             })}
+            <button
+              type="button"
+              onClick={() => setZdrOnly((v) => !v)}
+              aria-pressed={zdrOnly}
+              title="Filter to providers that guarantee zero data retention (no training on inputs, no logging)"
+              style={{
+                fontFamily: "Inter, sans-serif",
+                fontSize: "12px",
+                padding: "5px 11px",
+                borderRadius: "4px",
+                cursor: "pointer",
+                background: zdrOnly ? "#C4A038" : "transparent",
+                color: zdrOnly ? "#0a0a0a" : "#9a9a9a",
+                border: `1px solid ${zdrOnly ? "#C4A038" : "#2f2f2f"}`,
+                transition: "border-color 120ms, color 120ms",
+                marginLeft: "8px",
+              }}
+            >
+              ZDR
+            </button>
+            <button
+              type="button"
+              onClick={() => setEuOnly((v) => !v)}
+              aria-pressed={euOnly}
+              title="Filter to EU-domiciled providers not subject to US CLOUD Act"
+              style={{
+                fontFamily: "Inter, sans-serif",
+                fontSize: "12px",
+                padding: "5px 11px",
+                borderRadius: "4px",
+                cursor: "pointer",
+                background: euOnly ? "#C4A038" : "transparent",
+                color: euOnly ? "#0a0a0a" : "#9a9a9a",
+                border: `1px solid ${euOnly ? "#C4A038" : "#2f2f2f"}`,
+                transition: "border-color 120ms, color 120ms",
+                marginLeft: "8px",
+              }}
+            >
+              EU Infra
+            </button>
           </div>
           <div
             style={{
@@ -246,16 +337,18 @@ export default function ModelTable({ models, totalCount }: Props) {
               price up
             </span>
             <span style={{ color: "#4a4a4a" }}>|</span>
-            <span title="SIT Score = adjusted price ÷ tier median × 100. Below 100 = cheaper than tier median." style={{ cursor: "help" }}>
-              SIT Score = adjusted price ÷ tier median · <span style={{ color: "#22c55e" }}>&lt;100</span> · <span style={{ color: "#C4A038" }}>&gt;100</span>
+            <span style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+              <span style={{ color: "#C4A038" }}>●</span> Frontier
             </span>
-            <span style={{ color: "#5f5f5f" }}>|</span>
-            <span title="SIT $/M = quality-adjusted price per million tokens. Lower = better value per unit of intelligence.">
-              <span style={{ color: "#7ec47e" }}>SIT $/M</span> = quality-adjusted price (lower = better value)
+            <span style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+              <span style={{ color: "#5b8def" }}>●</span> Standard
             </span>
-          </div>
-          <div style={{ fontSize: 11.5, color: "#5f5f5f", marginTop: 6, marginLeft: 2 }}>
-            Models without an AA Intelligence Index score show "N/A" for SIT Score. Sort by Blended $/M to compare them directly.
+            <span style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+              <span style={{ color: "#22c55e" }}>●</span> Budget
+            </span>
+            <span style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+              <span style={{ color: "#7a7a7a" }}>●</span> Micro
+            </span>
           </div>
         </div>
       </section>
@@ -280,7 +373,7 @@ export default function ModelTable({ models, totalCount }: Props) {
           </span>
         </div>
         <div style={{ overflowX: "auto" }}>
-          <div role="table" aria-label="AI model inference prices" style={{ minWidth: "1220px" }}>
+          <div role="table" aria-label="AI model inference prices" style={{ minWidth: showCostIQ ? "1200px" : "1100px" }}>
             {/* Header */}
             <div
               role="row"
@@ -291,6 +384,9 @@ export default function ModelTable({ models, totalCount }: Props) {
                 alignItems: "center",
                 height: "34px",
                 borderBottom: "1px solid #2a2a2a",
+                overflow: "visible",
+                position: "relative",
+                zIndex: 10,
               }}
             >
               {COLS.map((c) => {
@@ -316,8 +412,38 @@ export default function ModelTable({ models, totalCount }: Props) {
                       height: "34px",
                       lineHeight: "34px",
                       boxShadow: active ? "inset 0 -1px 0 #C4A038" : "none",
+                      overflow: "visible",
+                      position: "relative",
                     }}
                   >
+                    {c.key === "sitadj" && (
+                      <span className="ii-tip-wrap" style={{ position: "relative", display: "inline-flex", cursor: "help", marginLeft: "3px" }}>
+                        <span style={{ width: "11px", height: "11px", borderRadius: "50%", border: "1px solid #5f5f5f", color: "#5f5f5f", fontSize: "8px", lineHeight: "10px", textAlign: "center", fontFamily: "Inter, sans-serif" }}>i</span>
+                        <span className="ii-tip" style={{
+                          display: "none", position: "absolute", top: "140%", left: "50%",
+                          transform: "translateX(-50%)", background: "#1a1a1a", color: "#e0e0e0",
+                          border: "1px solid #C4A038", padding: "8px 12px", borderRadius: "6px",
+                          fontSize: "12px", lineHeight: "1.5", whiteSpace: "normal", width: "260px",
+                          zIndex: 9999, pointerEvents: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.5)", textAlign: "left",
+                        }}>
+                          Cost / IQ = Blended Price x (40 / AA Intelligence Score). Represents the cost of producing GPT-4-Turbo-equivalent inference tokens. Lower = better value per unit of intelligence. Not a transactional price.
+                        </span>
+                      </span>
+                    )}
+                    {c.key === "sit" && (
+                      <span className="ii-tip-wrap" style={{ position: "relative", display: "inline-flex", cursor: "help", marginLeft: "3px" }}>
+                        <span style={{ width: "11px", height: "11px", borderRadius: "50%", border: "1px solid #5f5f5f", color: "#5f5f5f", fontSize: "8px", lineHeight: "10px", textAlign: "center", fontFamily: "Inter, sans-serif" }}>i</span>
+                        <span className="ii-tip" style={{
+                          display: "none", position: "absolute", top: "140%", left: "50%",
+                          transform: "translateX(-50%)", background: "#1a1a1a", color: "#e0e0e0",
+                          border: "1px solid #C4A038", padding: "8px 12px", borderRadius: "6px",
+                          fontSize: "12px", lineHeight: "1.5", whiteSpace: "normal", width: "260px",
+                          zIndex: 9999, pointerEvents: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.5)", textAlign: "left",
+                        }}>
+                          SIT Score is tier-relative (100 = your tier's median). Lower = cheaper than your tier's median. Colors match tier: gold = Frontier, blue = Standard, green = Budget, grey = Micro. Scores are NOT comparable across tiers.
+                        </span>
+                      </span>
+                    )}
                     {c.label + arrow}
                   </div>
                 );
@@ -325,7 +451,7 @@ export default function ModelTable({ models, totalCount }: Props) {
             </div>
             {/* Rows */}
             {visible.map((m) => {
-              const s = m.sit_score ?? 0;
+              const s = m.sit_score;
               const c24 = m.change_24h ?? 0;
               const c7 = m.change_7d ?? 0;
               const tColor = tierColor(m.tier);
@@ -363,11 +489,11 @@ export default function ModelTable({ models, totalCount }: Props) {
                   >
                     {rankOf(m)}
                   </div>
-                  <div role="cell" style={{ padding: "0 10px", display: "flex", alignItems: "center", gap: "9px", minWidth: 0 }}>
+                  <div role="cell" style={{ padding: "0 6px", display: "flex", alignItems: "center", gap: "7px", minWidth: 0 }}>
                     <span
                         style={{
-                          width: "24px",
-                          height: "24px",
+                          width: "20px",
+                          height: "20px",
                           borderRadius: "50%",
                           background: "#16161a",
                           border: "1px solid #33333a",
@@ -384,9 +510,9 @@ export default function ModelTable({ models, totalCount }: Props) {
                             <img
                               src={fav}
                               alt={m.provider}
-                              width={16}
-                              height={16}
-                              style={{ width: "16px", height: "16px", objectFit: "contain" }}
+                              width={14}
+                              height={14}
+                              style={{ width: "14px", height: "14px", objectFit: "contain" }}
                             />
                           ) : (
                             <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: "9.5px", color: "#8f8f96" }}>
@@ -423,28 +549,23 @@ export default function ModelTable({ models, totalCount }: Props) {
                       </span>
                     </span>
                   </div>
-                  <div role="cell" style={{ padding: "0 10px", minWidth: 0 }}>
-                    <button
-                      type="button"
-                      onClick={() => setProvider(m.provider)}
-                      title={`Filter to ${m.provider}`}
+                  <div role="cell" style={{ padding: "0 6px", minWidth: 0 }}>
+                    <Link
+                      href={`/providers/${encodeURIComponent(m.provider)}`}
                       style={{
                         fontFamily: "Inter, sans-serif",
                         fontSize: "12.5px",
                         color: "#8a8a8a",
-                        background: "transparent",
-                        border: 0,
-                        padding: 0,
-                        cursor: "pointer",
+                        textDecoration: "none",
+                        display: "inline-block",
                         maxWidth: "100%",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
-                        textAlign: "left",
                       }}
                     >
                       {m.provider}
-                    </button>
+                    </Link>
                   </div>
                   <div role="cell" style={{ padding: "0 10px" }}>
                     <span
@@ -502,27 +623,30 @@ export default function ModelTable({ models, totalCount }: Props) {
                   >
                     {formatPrice(m.blended_price_per_m)}
                   </div>
+                  {showCostIQ && (
+                    <div
+                      role="cell"
+                      title={m.sit_adjusted_price != null ? `${m.name}: Cost / IQ $${m.sit_adjusted_price.toFixed(4)}/M (quality-adjusted, not transactional)` : `${m.name}: no AA Intelligence Index score`}
+                      style={{
+                        fontSize: "13px",
+                        fontWeight: 500,
+                        color: m.sit_adjusted_price != null ? "#7ec47e" : "#5f5f5f",
+                        padding: "0 10px",
+                        textAlign: "right",
+                        fontVariantNumeric: "tabular-nums",
+                        cursor: "help",
+                      }}
+                    >
+                      {m.sit_adjusted_price != null ? `$${m.sit_adjusted_price.toFixed(4)}` : "N/A"}
+                    </div>
+                  )}
                   <div
                     role="cell"
-                    title={m.sit_adjusted_price != null ? `${m.name}: SIT-adjusted $${m.sit_adjusted_price.toFixed(4)}/M (quality-adjusted, lower = better value)` : `${m.name}: no AA score, SIT-adjusted price not available`}
-                    style={{
-                      fontSize: "13px",
-                      fontWeight: 500,
-                      color: m.sit_adjusted_price != null ? "#7ec47e" : "#5f5f5f",
-                      padding: "0 10px",
-                      textAlign: "right",
-                      fontVariantNumeric: "tabular-nums",
-                    }}
-                  >
-                    {m.sit_adjusted_price != null ? formatPrice(m.sit_adjusted_price) : "N/A"}
-                  </div>
-                  <div
-                    role="cell"
-                    title={`${m.name}: SIT score ${s || "N/A"} (${capitalizeTier(m.tier)} tier, 100 = median)`}
+                    title={s != null ? `${m.name}: SIT Score ${s} (${capitalizeTier(m.tier)} tier, 100 = tier median. Lower = cheaper than median. Score is tier-relative, not comparable across tiers.)` : `${m.name}: no AA Intelligence Index score, SIT Score not available`}
                     style={{
                       fontSize: "13.5px",
                       fontWeight: 600,
-                      color: sitColor(s),
+                      color: s != null ? tColor : "#5f5f5f",
                       padding: "0 10px",
                       textAlign: "right",
                       fontVariantNumeric: "tabular-nums",

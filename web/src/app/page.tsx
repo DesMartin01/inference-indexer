@@ -19,12 +19,12 @@ export const metadata: Metadata = {
   title: "AI Inference Pricing Index - 316 Models, 57 Providers | InferenceIndexer.ai",
   description:
     "The Standard Inference Token (SIT) tracks AI inference prices across 316 models and 57 providers. Live pricing, SIT scores, price history charts, and a free API. The CoinMarketCap of AI inference.",
-  alternates: { canonical: "https://inferenceindexer.ai" },
+  alternates: { canonical: "https://www.inferenceindexer.ai" },
   openGraph: {
     title: "InferenceIndexer.ai - AI Inference Price Index",
     description:
       "Live AI inference pricing for 316+ models. SIT-Composite index, tier rankings, price history, and free API access.",
-    url: "https://inferenceindexer.ai",
+    url: "https://www.inferenceindexer.ai",
     siteName: "InferenceIndexer.ai",
     type: "website",
   },
@@ -65,7 +65,7 @@ export default async function Home() {
   const tiers = latest?.tiers;
   const spread = latest?.spread;
   const models = modelsData?.models ?? [];
-  const totalCount = modelsData?.count ?? models.length;
+  const totalCount = modelsData?.returned ?? models.length;
 
   // Build sparkline from history
   const histVals =
@@ -129,7 +129,7 @@ export default async function Home() {
             "@type": "Dataset",
             name: "InferenceIndexer SIT-Composite - AI Inference Price Index",
             description: `Independent price index for AI inference. ${composite ? `SIT-Composite: $${composite.price_per_m.toFixed(2)}/M tokens across ${composite.models} models from ${composite.providers} providers.` : "316+ models, 57 providers, updated hourly."}`,
-            url: "https://inferenceindexer.ai",
+            url: "https://www.inferenceindexer.ai",
             creator: {
               "@type": "Organization",
               name: "InferenceIndexer.ai",
@@ -137,11 +137,11 @@ export default async function Home() {
             temporalCoverage: "2026-08-04/..",
             keywords: ["AI inference", "pricing", "LLM", "API cost", "per million tokens", "SIT"],
             isAccessibleForFree: true,
-            license: "https://inferenceindexer.ai/methodology",
+            license: "https://www.inferenceindexer.ai/methodology",
             distribution: {
               "@type": "DataDownload",
               encodingFormat: "application/json",
-              contentUrl: "https://inferenceindexer.ai/api-docs",
+              contentUrl: "https://www.inferenceindexer.ai/api-docs",
             },
           }),
         }}
@@ -180,6 +180,9 @@ export default async function Home() {
           }}
         >
           <div>
+            <p style={{ margin: "0 0 10px", fontSize: "13px", color: "#C4A038", fontWeight: 500, letterSpacing: "0.01em" }}>
+              Independent price index for AI inference
+            </p>
             <div style={{ display: "flex", alignItems: "baseline", gap: "10px" }}>
               <span
                 style={{
@@ -199,7 +202,7 @@ export default async function Home() {
                   color: "#5f5f5f",
                 }}
               >
-                / DAILY CLOSE
+                / LIVE
               </span>
             </div>
             <a
@@ -293,8 +296,8 @@ export default async function Home() {
                 color: "#8a8a8a",
               }}
             >
-              The Standard Inference Token (SIT) is a standardized unit for tracking AI inference
-              prices across providers. Normalized 40/60 input/output weighting.
+              The Standard Inference Token (SIT)-Composite tracks the cost of producing
+              one million GPT-4-Turbo-equivalent inference tokens, the commodity unit for AI compute.
             </p>
             <Link
               href="/methodology"
@@ -339,7 +342,7 @@ export default async function Home() {
                     marginLeft: "4px",
                   }}
                 >
-                  {sparkVals.length}-day daily close
+                  {sparkVals.length}-day live spot
                 </span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
@@ -425,6 +428,9 @@ export default async function Home() {
 
       {/* Tier cards */}
       <section style={{ maxWidth: "1320px", margin: "0 auto", padding: "26px 28px 0" }}>
+        <h2 style={{ margin: "0 0 14px", fontSize: "14px", fontWeight: 500, color: "#8a8a8a", letterSpacing: "0.02em" }}>
+          What does a typical model cost?
+        </h2>
         <div
           style={{
             display: "grid",

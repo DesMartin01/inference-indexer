@@ -4,11 +4,11 @@ export const metadata = {
   title: "Methodology - SIT Standard Inference Token | InferenceIndexer.ai",
   description:
     "How the Standard Inference Token (SIT) is calculated. Blended pricing formula, quality tier definitions, index weighting, data sources, and governance. Open methodology for AI inference price tracking.",
-  alternates: { canonical: "https://inferenceindexer.ai/methodology" },
+  alternates: { canonical: "https://www.inferenceindexer.ai/methodology" },
   openGraph: {
     title: "SIT Methodology - How AI Inference Prices Are Calculated",
     description: "Open methodology: blended pricing, quality tiers, index calculation, data sources, and governance.",
-    url: "https://inferenceindexer.ai/methodology",
+    url: "https://www.inferenceindexer.ai/methodology",
     siteName: "InferenceIndexer.ai",
   },
   keywords: [
@@ -32,6 +32,7 @@ const TOC_ITEMS: { n: string; title: string; href: string }[] = [
   { n: "7", title: "Governance", href: "#governance" },
   { n: "8", title: "Limitations", href: "#limitations" },
   { n: "9", title: "Citing the SIT", href: "#citing" },
+  { n: "10", title: "References", href: "#references" },
 ];
 
 export default function MethodologyPage() {
@@ -60,15 +61,15 @@ export default function MethodologyPage() {
             How the Standard Inference Token is defined, calculated, and governed.
           </p>
           <p style={{ fontFamily: "var(--font-jetbrains-mono), 'JetBrains Mono', monospace", fontSize: 12, color: "#8a8a8a", marginBottom: 40 }}>
-            Version 0.3 — Last updated: August 5, 2026
+            Version 0.4 — Last updated: August 6, 2026
           </p>
 
           {/* 1. Overview */}
           <Section n="1" title="Overview" id="overview">
             <p style={p}>
-              The Standard Inference Token (SIT) is a standardized unit of AI inference output that enables price
-              comparison across models and providers. It is to AI inference what WTI is to crude oil: a single, trusted
-              reference point.
+              The Standard Inference Token (SIT) tracks the marginal cost of producing AI inference tokens
+              at a defined quality standard. The SIT-Composite tracks the cost of producing one million
+              GPT-4-Turbo-equivalent inference tokens, the commodity unit for AI compute.
             </p>
             <p style={p}>The SIT serves four purposes:</p>
             <ul style={bulletList}>
@@ -242,7 +243,7 @@ export default function MethodologyPage() {
           {/* 4. Index Calculation */}
           <Section n="4" title="Index Calculation" id="calculation">
             <SubSection n="4.1" title="Tier Indices">
-              <p style={p}>Each quality tier has its own composite index, tracking the median blended price per million tokens:</p>
+              <p style={p}>Each quality tier has its own index, tracking the median blended price per million tokens across all models in that tier. The SIT-Composite covers all tiers using usage-weighting (see Section 4.3):</p>
               <table style={tableStyle}>
                 <thead>
                   <tr>
@@ -265,7 +266,7 @@ export default function MethodologyPage() {
                   </tr>
                   <tr>
                     <td style={{ ...tdStyle, color: "#C4A038" }}>SIT-Composite</td>
-                    <td style={tdStyle}>Median blended price across all tiers (headline spot price)</td>
+                    <td style={tdStyle}>Usage-weighted mean of top 50 models by token volume (headline spot price)</td>
                   </tr>
                   <tr>
                     <td style={{ ...tdStyle, color: "#C4A038" }}>SIT-Spread</td>
@@ -275,30 +276,37 @@ export default function MethodologyPage() {
               </table>
             </SubSection>
 
-            <SubSection n="4.2" title="SIT-Adjusted Price">
+            <SubSection n="4.2" title="Quality-Adjusted Price (Cost / IQ)">
               <p style={p}>
-                The SIT is adjusted for two factors that raw per-token pricing misses:
+                <strong style={{ color: "#C4A038" }}>The Quality-Adjusted Price is not a transactional price.</strong> It is a
+                normalized index value for cross-model comparison. The actual price you pay a provider is the Blended
+                Price. The Quality-Adjusted Price normalizes that price for intelligence so models of different
+                capability levels can be compared on a like-for-like basis.
+              </p>
+              <p style={{ ...p, marginTop: 16 }}>
+                The quality adjustment uses a transparent benchmark ratio:
               </p>
               <ul style={bulletList}>
                 <li style={bulletItem}>
-                  <strong style={{ color: "#e5e5e5" }}>Reasoning overhead.</strong> Reasoning models generate
-                  hidden thinking tokens before producing an answer. These tokens are billed at the output
-                  rate but never seen by the user. SIT applies a multiplier based on the model&apos;s tier and
-                  reasoning classification, estimating how many total output tokens the model generates
-                  relative to its visible answer.
+                  <strong style={{ color: "#e5e5e5" }}>Quality gate.</strong> Only models scoring at or above the
+                  GPT-4-Turbo baseline (AA Intelligence Index &gt;= 35) are included in the SIT-Composite basket.
+                  Models below this threshold are tracked but excluded from the headline number.
                 </li>
                 <li style={bulletItem}>
-                  <strong style={{ color: "#e5e5e5" }}>Intelligence.</strong> A cheaper model that is less
-                  capable is not better value. SIT divides by the Artificial Analysis Intelligence Index
-                  score so the price reflects cost per unit of intelligence.
+                  <strong style={{ color: "#e5e5e5" }}>Intelligence adjustment.</strong> Prices are adjusted by the
+                  ratio of the GPT-4-Turbo reference score (40) to the model&apos;s own Artificial Analysis Intelligence
+                  Index score. A model scoring higher than GPT-4-Turbo will have a lower adjusted price (cheaper per
+                  unit of intelligence). Lower is better.
                 </li>
               </ul>
               <p style={{ ...p, marginTop: 16 }}>The formula:</p>
-              <pre style={formulaStyle}>{`SIT-Adjusted Price = (Blended Price × Reasoning Multiplier) / AA Intelligence Index Score
+              <pre style={formulaStyle}>{`Quality-Adjusted Price = Blended Price × (40 / AA Intelligence Score)
 
-SIT Score = round(SIT-Adjusted Price / Tier Median SIT-Adjusted Price × 100)
+SIT Score = round(Quality-Adjusted Price / Tier Median × 100)
   100 = tier median, lower = cheaper, minimum = 1
-SIT-Composite = Median of all SIT-Adjusted Prices in tier`}</pre>
+
+SIT-Composite = Σ(weight_i × price_i) / Σ(weight_i)
+  for top 50 models by token volume, AA score >= 35 only`}</pre>
               <p style={p}>
                 Where:
               </p>
@@ -307,8 +315,9 @@ SIT-Composite = Median of all SIT-Adjusted Prices in tier`}</pre>
                   <span style={mutedMono}>Blended Price</span> = 0.4 × input + 0.6 × output (per million tokens)
                 </li>
                 <li style={bulletItem}>
-                  <span style={mutedMono}>Reasoning Multiplier</span> = 1.0 for non-reasoning models; tier-based
-                  estimate for reasoning models (frontier: 4.0, standard: 3.0, budget: 2.5, micro: 2.0)
+                  <span style={mutedMono}>40</span> = GPT-4-Turbo (Jan 2024) reference score on AA Intelligence Index v4.1.
+                  Models scoring 40 are at GPT-4-Turbo parity. The reference is based on the benchmark thresholds
+                  defined in the SIT standard (MMLU &gt;= 86%, HumanEval &gt;= 67%, GSM8K &gt;= 92%).
                 </li>
                 <li style={bulletItem}>
                   <span style={mutedMono}>AA Intelligence Index</span> = Artificial Analysis Intelligence Index
@@ -316,56 +325,38 @@ SIT-Composite = Median of all SIT-Adjusted Prices in tier`}</pre>
                 </li>
               </ul>
               <p style={{ ...p, marginTop: 16 }}>
-                Lower SIT = cheaper per unit of intelligence, accounting for reasoning overhead. A score of
-                100 means the model is at the tier median. Scores below 100 are cheaper than the median;
-                above 100 are more expensive. The minimum score is 1. Models without an AA Intelligence
-                Index score do not receive a SIT score.
-              </p>
-              <p style={{ ...p, marginTop: 16, marginBottom: 6 }}>
-                <span style={{ color: "#C4A038" }}>Planned: v0.4</span> will replace tier-based reasoning
-                multipliers with per-model token consumption data scraped from Artificial Analysis, which
-                publishes actual reasoning token counts per benchmark task.
+                Lower Cost / IQ = cheaper per unit of intelligence. A SIT Score of 100 means the model is at the
+                tier median. Scores below 100 are cheaper than the median; above 100 are more expensive. The minimum
+                score is 1. Models without an AA Intelligence Index score do not receive a SIT score and are excluded
+                from the composite basket.
               </p>
             </SubSection>
 
-            <SubSection n="4.3" title="Median Aggregation">
+            <SubSection n="4.3" title="Usage Weighting">
               <p style={p}>
-                All SIT indices use the <strong style={{ color: "#e5e5e5" }}>median</strong> blended price across
-                models, not the arithmetic mean. This is consistent with the per-provider median used for multi-provider
-                models (Section 2.3).
+                The SIT-Composite uses a <strong style={{ color: "#e5e5e5" }}>usage-weighted mean</strong> of the
+                top 50 models by weekly token volume on OpenRouter. This ensures the headline number reflects what
+                developers actually pay for inference, not a raw average skewed by hundreds of niche models.
               </p>
-              <pre style={formulaStyle}>{`tier_index = median(blended_price_1, blended_price_2, ..., blended_price_n)
-SIT-Composite = median(blended_price for all models across all tiers)`}</pre>
               <p style={p}>
-                Median is used instead of mean because AI inference prices are heavily right-skewed: a handful of
-                ultra-expensive models (e.g. o1-pro at $420/M) inflate the arithmetic mean far above what most models
-                actually cost. Using the frontier tier as an example (August 2026):
+                Per-model median pricing (Section 2.3) is still used for the Blended Price column in the table.
+                The usage weighting only applies to the SIT-Composite index calculation.
               </p>
-              <table style={tableStyle}>
-                <thead>
-                  <tr>
-                    <th style={thStyle}>Statistic</th>
-                    <th style={thStyle}>Frontier Tier</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td style={tdStyle}>Mean blended price</td>
-                    <td style={tdStyle}>$38.17/M</td>
-                  </tr>
-                  <tr>
-                    <td style={tdStyle}>Median blended price</td>
-                    <td style={tdStyle}>$20.00/M</td>
-                  </tr>
-                </tbody>
-              </table>
+              <pre style={formulaStyle}>{`weight_i = model_i_tokens / Σ(all top-50 model tokens)
+
+SIT-Composite = Σ(weight_i × blended_price_i) / Σ(weight_i)`}</pre>
               <p style={p}>
-                The mean is 91% higher than the median due to a few outlier models. The median gives a more accurate
-                picture of what a typical model in each tier costs.
+                Usage data is sourced from{" "}
+                <a href="https://openrouter.ai/rankings" style={{ color: "#C4A038", textDecoration: "none" }}>
+                  OpenRouter Rankings
+                </a>{" "}
+                (weekly view). The basket is refreshed every Monday at 06:00 UTC. Between refreshes, the
+                weights remain fixed so price changes are measured like-for-like.
               </p>
-              <p style={{ ...p, marginTop: 16, marginBottom: 6 }}>
-                <span style={{ color: "#C4A038" }}>Phase 2 (3-6 months):</span> Volume-weighted median. Models weighted
-                by actual API transaction volume, sourced from provider-reported volumes and OpenRouter routing volumes.
+              <p style={p}>
+                Per-tier indices (Frontier, Standard, Budget, Micro) use a simple median across all models
+                in that tier. This answers: "What does a typical model in this tier cost?" The
+                SIT-Composite uses usage-weighting to answer: "What do people actually pay for inference?"
               </p>
             </SubSection>
 
@@ -385,6 +376,10 @@ SIT-Composite = median(blended_price for all models across all tiers)`}</pre>
                   <tr>
                     <td style={tdStyle}>Daily</td>
                     <td style={tdStyle}>Calculate SIT indices, publish at 00:00 UTC</td>
+                  </tr>
+                  <tr>
+                    <td style={tdStyle}>Weekly</td>
+                    <td style={tdStyle}>Refresh usage weights from OpenRouter Rankings (Mondays 06:00 UTC)</td>
                   </tr>
                   <tr>
                     <td style={tdStyle}>Monthly</td>
@@ -442,7 +437,11 @@ SIT-Composite = median(blended_price for all models across all tiers)`}</pre>
                 </tr>
                 <tr>
                   <td style={{ ...tdStyle, color: "#C4A038" }}>SIT-EU-Sovereign</td>
-                  <td style={tdStyle}>EU-hosted, zero data retention</td>
+                  <td style={tdStyle}>EU-hosted only (jurisdiction)</td>
+                </tr>
+                <tr>
+                  <td style={{ ...tdStyle, color: "#C4A038" }}>SIT-ZDR</td>
+                  <td style={tdStyle}>Zero data retention guaranteed (provider does not store or train on inputs)</td>
                 </tr>
                 <tr>
                   <td style={{ ...tdStyle, color: "#C4A038" }}>SIT-Open</td>
@@ -461,6 +460,14 @@ SIT-Composite = median(blended_price for all models across all tiers)`}</pre>
             <p style={p}>
               The SIT-Composite is always the headline number. Variant indices allow users to track specific segments of
               the inference market.
+            </p>
+            <p style={{ ...p, marginTop: 16, fontSize: "12.5px", color: "#8a8a8a" }}>
+              <strong style={{ color: "#C4A038" }}>ZDR and EU Infra status:</strong> Provider classifications for
+              SIT-ZDR and SIT-EU-Sovereign are based on publicly available provider documentation as of August 2026.
+              ZDR (Zero Data Retention) includes providers that do not store or train on user inputs by default on
+              their standard API. EU-Sovereign includes providers domiciled in the EU/EEA that are not subject to the
+              US CLOUD Act. Many providers offer ZDR or EU hosting only on enterprise plans; these are not classified
+              as ZDR or EU-Sovereign here. Provider policies change; classifications are reviewed quarterly.
             </p>
           </Section>
 
@@ -600,8 +607,9 @@ SIT-Composite = median(blended_price for all models across all tiers)`}</pre>
                   accepts this imprecision as the cost of standardization.
                 </li>
                 <li style={numberedItem}>
-                  <strong style={{ color: "#e5e5e5" }}>Volume data:</strong> Phase 1 uses unweighted median because
-                  real-world transaction volumes are not publicly available. The index may over-represent niche models.
+                  <strong style={{ color: "#e5e5e5" }}>Volume data:</strong> Usage weights are sourced from
+                  OpenRouter Rankings, which covers a subset of all inference traffic. Models not available on
+                  OpenRouter are excluded from the composite basket.
                 </li>
                 <li style={numberedItem}>
                   <strong style={{ color: "#e5e5e5" }}>Aggregator dependency:</strong> Many prices are sourced via
@@ -620,11 +628,11 @@ SIT-Composite = median(blended_price for all models across all tiers)`}</pre>
 
             <SubSection n="8.2" title="Future Enhancements">
               <ul style={bulletList}>
-                <li style={bulletItem}>Volume weighting with real API call volumes</li>
                 <li style={bulletItem}>Latency-adjusted pricing (tokens/second as a factor)</li>
                 <li style={bulletItem}>Cache pricing tracked separately</li>
                 <li style={bulletItem}>Batch pricing tracked separately</li>
                 <li style={bulletItem}>Regional pricing (US, EU, Asia)</li>
+                <li style={bulletItem}>Direct provider API usage data (beyond OpenRouter)</li>
               </ul>
             </SubSection>
           </Section>
@@ -637,14 +645,14 @@ SIT-Composite = median(blended_price for all models across all tiers)`}</pre>
               <span style={{ color: "#C4A038", fontSize: 13 }}>Text format:</span>
             </p>
             <pre style={codeStyle}>{`InferenceIndexer SIT-Composite, August 5, 2026.
-Available at: https://inferenceindexer.ai`}</pre>
+Available at: https://www.inferenceindexer.ai`}</pre>
 
             <p style={{ ...p, marginTop: 16, marginBottom: 4 }}>
               <span style={{ color: "#C4A038", fontSize: 13 }}>Academic format:</span>
             </p>
             <pre style={codeStyle}>{`InferenceIndexer (2026). Standard Inference Token
-Methodology, v0.2.
-Retrieved from https://inferenceindexer.ai/methodology`}</pre>
+Methodology, v0.4.
+Retrieved from https://www.inferenceindexer.ai/methodology`}</pre>
 
             <p style={{ ...p, marginTop: 16, marginBottom: 4 }}>
               <span style={{ color: "#C4A038", fontSize: 13 }}>BibTeX:</span>
@@ -653,9 +661,37 @@ Retrieved from https://inferenceindexer.ai/methodology`}</pre>
   title  = {InferenceIndexer: Standard Inference Token Methodology},
   author = {InferenceIndexer},
   year   = {2026},
-  url    = {https://inferenceindexer.ai/methodology},
-  note   = {Version 0.2}
+  url    = {https://www.inferenceindexer.ai/methodology},
+  note   = {Version 0.4}
 }`}</pre>
+          </Section>
+          {/* 10. References */}
+          <Section n="10" title="References" id="references">
+            <ul style={bulletList}>
+              <li style={bulletItem}>
+                <a href="https://www.emergentmind.com/topics/standard-inference-token-sit" style={{ color: "#C4A038", textDecoration: "none" }}>
+                  Standard Inference Token (SIT)
+                </a>
+                {" "}— Xing, Z. (23 Mar 2026) and Cunningham, M. (27 Feb 2026). EmergentMind topic summary.
+                Defines SIT as a quality-gated inference token (MMLU &gt;= 86%, HumanEval &gt;= 67%, GSM8K &gt;= 92%)
+                and the Token Price Index (TPI) as a volume-weighted, quality-adjusted mean of spot prices. Our
+                quality gate and adjusted price formula are adapted from this framework.
+              </li>
+              <li style={bulletItem}>
+                <a href="https://artificialanalysis.ai/" style={{ color: "#C4A038", textDecoration: "none" }}>
+                  Artificial Analysis Intelligence Index
+                </a>
+                {" "}— Independent third-party benchmark for LLM intelligence scoring. Intelligence Index v4.1
+                covers 257 models across 9 sub-evaluations. Used as the quality metric in our SIT formula.
+              </li>
+              <li style={bulletItem}>
+                <a href="https://openrouter.ai/" style={{ color: "#C4A038", textDecoration: "none" }}>
+                  OpenRouter API
+                </a>
+                {" "}— Primary pricing data source. 400+ models from 70+ providers. Hourly price refresh.
+                Rankings endpoint provides weekly usage data for composite weighting.
+              </li>
+            </ul>
           </Section>
         </main>
 

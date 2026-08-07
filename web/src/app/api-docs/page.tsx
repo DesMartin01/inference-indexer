@@ -5,11 +5,11 @@ export const metadata = {
   title: "API Documentation - Free Inference Pricing API | InferenceIndexer.ai",
   description:
     "Free API for AI inference pricing data. Access SIT-Composite index, model pricing, price history, and SIT scores for 316+ models. 100 requests/day free, no credit card required.",
-  alternates: { canonical: "https://inferenceindexer.ai/api-docs" },
+  alternates: { canonical: "https://www.inferenceindexer.ai/api-docs" },
   openGraph: {
     title: "InferenceIndexer API - Free AI Pricing Data",
     description: "Access live inference pricing for 316+ models via free API. SIT scores, price history, tier rankings.",
-    url: "https://inferenceindexer.ai/api-docs",
+    url: "https://www.inferenceindexer.ai/api-docs",
     siteName: "InferenceIndexer.ai",
   },
   keywords: [
@@ -588,7 +588,7 @@ function ErrorsSection() {
   "error": {
     "code": "rate_limit_exceeded",
     "message": "Rate limit of 1000 requests/day exceeded. Resets at 2026-08-04T00:00:00Z.",
-    "documentation_url": "https://inferenceindexer.ai/api/docs#rate-limits"
+    "documentation_url": "https://www.inferenceindexer.ai/api/docs#rate-limits"
   }
 }`}</CodeBlock>
     </Section>

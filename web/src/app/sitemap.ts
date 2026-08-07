@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-const BASE_URL = "https://inferenceindexer.ai";
+const BASE_URL = "https://www.inferenceindexer.ai";
 
 interface ModelSummary {
   model_id: string;

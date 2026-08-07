@@ -5,7 +5,7 @@ const SSR_SECRET = "inferenceindexer-ssr-2026";
 
 // Simple in-memory cache for API responses
 const cache = new Map<string, { data: unknown; ts: number }>();
-const CACHE_TTL = 60_000; // 1 minute
+const CACHE_TTL = 30_000; // 30 seconds
 
 async function fetchWithCache<T>(endpoint: string): Promise<T> {
   const cached = cache.get(endpoint);
@@ -56,6 +56,8 @@ export interface ModelSummary {
   change_7d: number;
   fetched_at: string;
   source_count: number;
+  is_zdr: boolean;
+  is_eu_sovereign: boolean;
 }
 
 export interface ModelList {
@@ -140,21 +142,100 @@ export async function getModels(tier?: string, sort?: string, limit?: number, _r
   return fetchWithCache<ModelList>(`/v1/models${qs ? `?${qs}` : ""}`);
 }
 
+const SSR_HEADERS = { "X-SSR-Secret": SSR_SECRET };
+
 export async function getModel(modelId: string): Promise<ModelDetail> {
-  const res = await fetch(`${API_URL}/v1/models/${modelId}`, { cache: "no-store" });
+  const res = await fetch(`${API_URL}/v1/models/${modelId}`, { cache: "no-store", headers: SSR_HEADERS });
   if (!res.ok) throw new Error(`Model not found: ${res.status}`);
   return res.json();
 }
 
 export async function getModelHistory(modelId: string, days: number = 30): Promise<ModelHistory> {
-  const res = await fetch(`${API_URL}/v1/models/${modelId}/history?days=${days}`, { cache: "no-store" });
+  const res = await fetch(`${API_URL}/v1/models/${modelId}/history?days=${days}`, { cache: "no-store", headers: SSR_HEADERS });
   if (!res.ok) throw new Error(`History not found: ${res.status}`);
   return res.json();
 }
 
 export async function getModelEndpoints(modelId: string): Promise<ModelEndpoints> {
-  const res = await fetch(`${API_URL}/v1/models/${modelId}/endpoints`, { cache: "no-store" });
+  const res = await fetch(`${API_URL}/v1/models/${modelId}/endpoints`, { cache: "no-store", headers: SSR_HEADERS });
   if (!res.ok) throw new Error(`Endpoints not found: ${res.status}`);
+  return res.json();
+}
+
+// ============================================
+// PROVIDERS
+// ============================================
+
+export interface ProviderSummary {
+  name: string;
+  is_zdr: boolean;
+  is_eu_sovereign: boolean;
+  zdr_notes: string;
+  eu_notes: string;
+  model_count: number;
+  avg_price: number | null;
+  min_price: number | null;
+  max_price: number | null;
+  with_aa: number;
+  endpoint_count: number;
+  provider_type: string;
+}
+
+export interface ProviderList {
+  count: number;
+  providers: ProviderSummary[];
+}
+
+export interface ProviderModel {
+  model_id: string;
+  name: string;
+  model_owner: string;
+  tier: string;
+  context_length: number | null;
+  aa_index_score: number | null;
+  modality: string | null;
+  is_reasoning: boolean;
+  input_price_per_m: number;
+  output_price_per_m: number;
+  blended_price_per_m: number;
+  sit_score: number | null;
+  sit_adjusted_price: number | null;
+  fetched_at: string;
+  source: string;
+  hosting_type: string;
+  quantization: string;
+  is_zdr: boolean;
+  is_eu_sovereign: boolean;
+}
+
+export interface ProviderTierBreakdown {
+  count: number;
+  avg_price: number;
+  min_price: number;
+  max_price: number;
+}
+
+export interface ProviderDetail {
+  name: string;
+  is_zdr: boolean;
+  is_eu_sovereign: boolean;
+  zdr_notes: string;
+  eu_notes: string;
+  model_count: number;
+  direct_model_count: number;
+  provider_type: string;
+  owners: string[];
+  models: ProviderModel[];
+  tiers: Record<string, ProviderTierBreakdown>;
+}
+
+export async function getProviders(): Promise<ProviderList> {
+  return fetchWithCache<ProviderList>("/v1/providers");
+}
+
+export async function getProviderDetail(providerName: string): Promise<ProviderDetail> {
+  const res = await fetch(`${API_URL}/v1/providers/${encodeURIComponent(providerName)}`, { cache: "no-store", headers: SSR_HEADERS });
+  if (!res.ok) throw new Error(`Provider not found: ${res.status}`);
   return res.json();
 }
 

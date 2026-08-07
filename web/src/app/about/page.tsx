@@ -5,11 +5,11 @@ export const metadata = {
   title: "About - Independent AI Inference Price Index | InferenceIndexer.ai",
   description:
     "InferenceIndexer is an independent price reporting agency for AI inference, built by Des Martin and Frank Drebin. Not owned by any provider. Open methodology. Free API access.",
-  alternates: { canonical: "https://inferenceindexer.ai/about" },
+  alternates: { canonical: "https://www.inferenceindexer.ai/about" },
   openGraph: {
     title: "About InferenceIndexer.ai - Independent AI Pricing Index",
     description: "Independent AI inference price index. Built by Des Martin and Frank Drebin. Open methodology, free API.",
-    url: "https://inferenceindexer.ai/about",
+    url: "https://www.inferenceindexer.ai/about",
     siteName: "InferenceIndexer.ai",
   },
 };
@@ -106,7 +106,7 @@ export default function AboutPage() {
             <h2 style={sectionHeading}>The Collaboration</h2>
             <p style={bodyText}>
               InferenceIndexer.ai is a collaboration between two very different skill sets: a seasoned technology
-              marketing executive who understands the inference market from the inside, and a CTO that handles the data
+              marketing executive who understands the inference market from the inside, and an Agent that handles the data
               pipeline, research, and technical execution.
             </p>
             <p style={bodyText}>

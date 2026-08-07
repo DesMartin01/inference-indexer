@@ -65,6 +65,9 @@ export function Header({ activePage = "" }: { activePage?: string }) {
         <Link
           href="/"
           style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "7px",
             fontSize: "15px",
             fontWeight: 600,
             letterSpacing: "-0.01em",
@@ -73,6 +76,8 @@ export function Header({ activePage = "" }: { activePage?: string }) {
             whiteSpace: "nowrap",
           }}
         >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/profile-icon.png" alt="InferenceIndexer" width={20} height={20} style={{ borderRadius: "3px" }} />
           InferenceIndexer<span style={{ color: "#C4A038" }}>.ai</span>
         </Link>
         <div
@@ -118,6 +123,16 @@ export function Header({ activePage = "" }: { activePage?: string }) {
         </div>
         <div style={{ flex: 1 }} />
         <nav style={{ display: "flex", alignItems: "center", gap: "22px" }}>
+          <Link
+            href="/providers"
+            style={{
+              fontSize: "12.5px",
+              color: activePage === "providers" ? "#C4A038" : "#8a8a8a",
+              textDecoration: "none",
+            }}
+          >
+            Providers
+          </Link>
           <Link
             href="/api-docs"
             style={{
@@ -172,27 +187,6 @@ export function Header({ activePage = "" }: { activePage?: string }) {
               </Link>
             </>
           )}
-          <span style={{ width: "1px", height: "14px", background: "#222", display: "block" }} />
-          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <span
-              style={{
-                width: "6px",
-                height: "6px",
-                borderRadius: "50%",
-                background: "#22c55e",
-                display: "block",
-              }}
-            />
-            <span
-              style={{
-                fontFamily: "var(--font-jetbrains-mono), monospace",
-                fontSize: "11px",
-                color: "#7a7a7a",
-              }}
-            >
-              LIVE
-            </span>
-          </div>
         </nav>
       </div>
     </header>
@@ -213,10 +207,15 @@ export function Footer({ models = 316, providers = 57, updatedAt = "" }: { model
           gap: "10px",
         }}
       >
-        <div style={{ fontSize: "12px", color: "#8a8a8a" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "7px", fontSize: "12px", color: "#8a8a8a" }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/profile-icon.png" alt="InferenceIndexer" width={16} height={16} style={{ borderRadius: "2px" }} />
           InferenceIndexer.ai · Independent price index for AI inference
         </div>
         <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
+          <Link href="/providers" style={{ fontSize: "12px", color: "#7a7a7a", textDecoration: "none" }}>
+            Providers
+          </Link>
           <Link href="/methodology" style={{ fontSize: "12px", color: "#7a7a7a", textDecoration: "none" }}>
             Methodology
           </Link>
@@ -232,6 +231,17 @@ export function Footer({ models = 316, providers = 57, updatedAt = "" }: { model
           <Link href="/terms" style={{ fontSize: "12px", color: "#7a7a7a", textDecoration: "none" }}>
             Terms of Service
           </Link>
+          <a
+            href="https://x.com/inferenceindex"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "12px", color: "#7a7a7a", textDecoration: "none" }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style={{ opacity: 0.7 }}>
+              <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+            </svg>
+            @inferenceindex
+          </a>
         </div>
         <div
           style={{
