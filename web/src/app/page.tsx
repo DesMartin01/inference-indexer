@@ -195,15 +195,6 @@ export default async function Home() {
               >
                 Standard Inference Token (SIT)
               </span>
-              <span
-                style={{
-                  fontFamily: "Inter, sans-serif",
-                  fontSize: "11px",
-                  color: "#5f5f5f",
-                }}
-              >
-                / LIVE
-              </span>
             </div>
             <a
               href="#"
@@ -342,7 +333,7 @@ export default async function Home() {
                     marginLeft: "4px",
                   }}
                 >
-                  {sparkVals.length}-day live spot
+                  {sparkVals.length}-day spot
                 </span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
