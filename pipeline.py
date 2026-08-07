@@ -1261,8 +1261,19 @@ def fetch_fireworks_direct():
         input_price = pricing.get("input") or pricing.get("prompt")
         output_price = pricing.get("output") or pricing.get("completion")
 
+        # Store model as catalog entry (even without pricing)
+        canonical_id = model_id if "/" in model_id else f"fireworks/{model_id}"
+        new_models.append({
+            "model_id": canonical_id,
+            "name": model_id.split("/")[-1].replace("-", " "),
+            "provider": "Fireworks",
+            "context_length": m.get("context_length"),
+            "is_reasoning": "reasoning" in model_id.lower(),
+            "modality": "text",
+        })
+
         if input_price is None or output_price is None:
-            # Skip models without pricing (embeddings, image gen, etc.)
+            # No pricing in API - catalog only (pricing comes from OpenRouter)
             skipped += 1
             continue
 
@@ -1277,8 +1288,6 @@ def fetch_fireworks_direct():
         input_price = round(input_price, 6)
         output_price = round(output_price, 6)
         blended = round((BLENDED_INPUT_WEIGHT * input_price) + (BLENDED_OUTPUT_WEIGHT * output_price), 6)
-
-        canonical_id = model_id if "/" in model_id else f"fireworks/{model_id}"
 
         endpoints.append({
             "endpoint_provider": "Fireworks",
@@ -1296,16 +1305,23 @@ def fetch_fireworks_direct():
             },
         })
 
-        new_models.append({
+        endpoints.append({
+            "endpoint_provider": "Fireworks",
             "model_id": canonical_id,
-            "name": model_id.split("/")[-1].replace("-", " "),
-            "provider": model_id.split("/")[0] if "/" in model_id else "Fireworks",
+            "input_price_per_m": input_price,
+            "output_price_per_m": output_price,
+            "blended_price_per_m": blended,
             "context_length": m.get("context_length"),
-            "is_reasoning": "reasoning" in model_id.lower(),
-            "modality": "text",
+            "source": "fireworks_direct",
+            "raw_data": {
+                "fireworks_id": model_id,
+                "owned_by": m.get("owned_by", "fireworks"),
+                "hosting_type": "self-hosted",
+                "description": m.get("description", ""),
+            },
         })
 
-    print(f"  Models with pricing: {len(endpoints)}, Skipped: {skipped}")
+    print(f"  Models with pricing: {len(endpoints)}, Catalog only: {skipped}")
     return endpoints, new_models
 
 
