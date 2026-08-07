@@ -1847,10 +1847,11 @@ def apply_median_pricing(models, fetch_endpoints=False):
             cur = conn.cursor()
             for m in models:
                 cur.execute("""
-                    SELECT endpoint_provider, input_price_per_m, output_price_per_m, blended_price_per_m
+                    SELECT DISTINCT ON (endpoint_provider)
+                        endpoint_provider, input_price_per_m, output_price_per_m, blended_price_per_m
                     FROM model_endpoints
                     WHERE model_id = %s AND fetched_at >= NOW() - INTERVAL '24 hours'
-                    ORDER BY fetched_at DESC
+                    ORDER BY endpoint_provider, fetched_at DESC
                 """, (m["model_id"],))
                 rows = cur.fetchall()
                 if rows and len(rows) > 1:
