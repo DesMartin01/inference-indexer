@@ -1222,11 +1222,17 @@ async def get_provider_detail(
     # in model_endpoints). We UNION those so the provider page isn't empty.
     cur.execute("""
         WITH hosted AS (
-            SELECT DISTINCT ON (me.model_id)
+            SELECT DISTINCT ON (me.model_id, quant_key)
                 me.model_id, m.name, m.provider as model_owner, m.tier, m.context_length,
                 m.aa_index_score, m.modality, m.is_reasoning,
                 me.input_price_per_m, me.output_price_per_m, me.blended_price_per_m,
-                lp.sit_score, lp.sit_adjusted_price, me.fetched_at, me.source, me.raw_data
+                lp.sit_score, lp.sit_adjusted_price, me.fetched_at, me.source, me.raw_data,
+                COALESCE(
+                    NULLIF(me.raw_data->>'openrelay_id', ''),
+                    NULLIF(me.raw_data->>'quantization', ''),
+                    'default'
+                ) AS quant_key,
+                COALESCE(NULLIF(me.raw_data->>'quantization',''), '') AS quantization
             FROM model_endpoints me
             JOIN models m ON me.model_id = m.id
             LEFT JOIN latest_prices lp ON me.model_id = lp.model_id
@@ -1234,14 +1240,20 @@ async def get_provider_detail(
               AND m.is_active = TRUE
               AND me.blended_price_per_m > 0
               AND m.id NOT LIKE '%%:batch'
-            ORDER BY me.model_id, me.fetched_at DESC
+            ORDER BY me.model_id, quant_key, me.fetched_at DESC
         ),
         owned AS (
-            SELECT DISTINCT ON (me.model_id)
+            SELECT DISTINCT ON (me.model_id, quant_key)
                 me.model_id, m.name, m.provider as model_owner, m.tier, m.context_length,
                 m.aa_index_score, m.modality, m.is_reasoning,
                 me.input_price_per_m, me.output_price_per_m, me.blended_price_per_m,
-                lp.sit_score, lp.sit_adjusted_price, me.fetched_at, me.source, me.raw_data
+                lp.sit_score, lp.sit_adjusted_price, me.fetched_at, me.source, me.raw_data,
+                COALESCE(
+                    NULLIF(me.raw_data->>'openrelay_id', ''),
+                    NULLIF(me.raw_data->>'quantization', ''),
+                    'default'
+                ) AS quant_key,
+                COALESCE(NULLIF(me.raw_data->>'quantization',''), '') AS quantization
             FROM models m
             JOIN model_endpoints me ON m.id = me.model_id
             LEFT JOIN latest_prices lp ON m.id = lp.model_id
@@ -1250,19 +1262,19 @@ async def get_provider_detail(
               AND me.blended_price_per_m > 0
               AND m.id NOT LIKE '%%:batch'
               AND me.endpoint_provider != %s
-            ORDER BY me.model_id, me.fetched_at DESC
+            ORDER BY me.model_id, quant_key, me.fetched_at DESC
         )
-        SELECT DISTINCT ON (model_id)
+        SELECT DISTINCT ON (model_id, quant_key)
             model_id, name, model_owner, tier, context_length,
             aa_index_score, modality, is_reasoning,
             input_price_per_m, output_price_per_m, blended_price_per_m,
-            sit_score, sit_adjusted_price, fetched_at, source, raw_data
+            sit_score, sit_adjusted_price, fetched_at, source, raw_data, quantization
         FROM (
             SELECT * FROM hosted
             UNION ALL
             SELECT * FROM owned
         ) combined
-        ORDER BY model_id, fetched_at DESC
+        ORDER BY model_id, quant_key, fetched_at DESC
     """, (provider_name, provider_name, provider_name))
 
     models = []
@@ -1291,7 +1303,7 @@ async def get_provider_detail(
             "fetched_at": row[13].isoformat() if row[13] else None,
             "source": row[14] or "",
             "hosting_type": raw.get("hosting_type", ""),
-            "quantization": raw.get("quantization", ""),
+            "quantization": (row[16] or raw.get("quantization", "")) or "",
             "is_zdr": prow[1] or False,
             "is_eu_sovereign": prow[2] or False,
         })

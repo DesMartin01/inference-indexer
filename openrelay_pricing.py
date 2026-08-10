@@ -142,6 +142,11 @@ def fetch_openrelay_pricing(timeout: int = 30):
         canonical_id = OPENRELAY_MODEL_MAP.get(r["model_id"], r["model_id"])
         assert canonical_id is not None
         blended = round(0.4 * r["input"] + 0.6 * r["output"], 6)
+        # NVFP4 (and similar quantized) variants are distinct deployments of
+        # the same model at different prices. Expose the quantization so the
+        # provider detail page can show them as separate rows (QUANT column).
+        qid = r["model_id"]
+        quantization = "nvfp4" if "nvfp4" in qid.lower() else "fp4" if "fp4" in qid.lower() else None
         endpoints.append(
             {
                 "endpoint_provider": "OpenRelay",
@@ -154,6 +159,7 @@ def fetch_openrelay_pricing(timeout: int = 30):
                 "raw_data": {
                     "openrelay_id": r["model_id"],
                     "cached_input_per_m": round(r["cached"], 6) if r["cached"] else None,
+                    "quantization": quantization,
                 },
             }
         )
