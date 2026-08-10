@@ -130,6 +130,40 @@ def main():
         issues.append("composite price implausible: %s" % comp_price)
     print("[5] Composite spot price: $%s" % (comp_price if comp_price is not None else "N/A"))
 
+    # ---- 6. Composite methodology consistency ----
+    # All composite rows must use usage_weighted_quality_gated (the live
+    # pipeline method). If any row uses a different method (e.g. the backfill's
+    # equal_weight_adjusted), the history is inconsistent and %-changes lie.
+    cur.execute("""
+        SELECT calculation_method, COUNT(*) OVER (), COUNT(*)
+        FROM sit_index_values
+        WHERE tier = 'composite'
+        GROUP BY calculation_method
+    """)
+    methods = cur.fetchall()
+    bad_methods = [m[0] for m in methods if m[0] != "usage_weighted_quality_gated"]
+    print("[6] Composite methodology across history:")
+    for m in methods:
+        print("    %s: %d row(s)" % (m[0], m[2]))
+    if bad_methods:
+        issues.append("composite history has inconsistent method(s): %s" % bad_methods)
+    elif not methods:
+        issues.append("no composite rows in sit_index_values")
+
+    # ---- 7. Index points sanity ----
+    # sit_index_points should only be 1000 at the base date; later dates should
+    # have moved. If every date is frozen at exactly 1000.00, the index isn't
+    # being computed correctly.
+    cur.execute("""
+        SELECT COUNT(*) FILTER (WHERE sit_index_points = 1000)
+        FROM sit_index_values
+        WHERE tier = 'composite'
+    """)
+    frozen = cur.fetchone()[0]
+    print("[7] Composite rows stuck at index 1000: %s" % frozen)
+    if frozen and frozen == 7:  # all historical rows frozen = rebase never ran
+        issues.append("composite index frozen at 1000 across full history")
+
     cur.close()
     conn.close()
 

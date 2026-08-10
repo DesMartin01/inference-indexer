@@ -184,9 +184,18 @@ def recalculate_sit_scores(conn, dry_run=False):
 
 def recalculate_sit_index_values(conn, dry_run=False):
     """Recalculate sit_index_values using adjusted prices.
-    
+
     For each date, compute median adjusted price per tier and update
     sit_price and sit_index_points.
+
+    !! WARNING (2026-08-10): This recomputes sit_price via equal-weighted
+       per-tier median over ALL snapshot models. This does NOT match the live
+       pipeline's composite methodology (usage-weighted top-50, quality-gated)
+       or the tier median_tier method. Running it blindly overwrites the
+       correct sit_index_values history with a different, inconsistent basis,
+       producing false %-change readings on the homepage (e.g. a spurious
+       153% jump). DO NOT run step 3 unless you specifically intend to rewrite
+       the index history. See data_integrity_check.py check #5.
     """
     cur = conn.cursor()
     
