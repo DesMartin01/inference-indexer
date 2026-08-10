@@ -57,6 +57,7 @@ const tocItems = [
   { id: "what", label: "What this is" },
   { id: "why", label: "Why agents should use it" },
   { id: "get-key", label: "Get an API key" },
+  { id: "mcp", label: "Native MCP tools" },
   { id: "endpoints", label: "Key endpoints" },
   { id: "historical", label: "Historical data" },
 ];
@@ -183,6 +184,71 @@ export default async function ForAgentsPage() {
                       </p>
                       <div style={codeStyle}>curl -H "Authorization: Bearer" YOUR_KEY https://api.inferenceindexer.ai/v1/models</div>
                     </div>
+
+          {/* MCP */}
+          <div id="mcp" style={{ marginBottom: 40 }}>
+            <h2 style={sectionHeading}>Native MCP tools (Claude / Cursor / OpenAI Agents)</h2>
+            <p style={bodyText}>
+              The InferenceIndexer MCP server exposes the same data as callable tools your agent can invoke natively -
+              without it assembling a pipeline itself. It is published on{" "}
+              <a href="https://pypi.org/project/inferenceindexer-mcp/" style={{ color: "#C4A038", textDecoration: "underline" }}>
+                PyPI
+              </a>{" "}
+              and auto-discoverable via{" "}
+              <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace" }}>
+                /well-known/mcp-config.json
+              </span>
+              . No API key required - it calls the free, public pricing data.
+            </p>
+
+            <div
+              style={{
+                ...cardBase,
+                borderColor: "#C4A038",
+                background: "rgba(196,160,56,0.06)",
+                marginBottom: 16,
+              }}
+            >
+              <p style={{ fontSize: 14, color: "#e5e5e5", lineHeight: 1.7, margin: 0 }}>
+                <strong style={{ color: "#f2f2f2" }}>Run it</strong> - installs globally from PyPI in one command:
+              </p>
+              <div style={{ ...codeStyle, margin: "12px 0 0" }}>
+                uvx inferenceindexer-mcp
+              </div>
+            </div>
+
+            <div style={cardBase}>
+              <p style={{ fontSize: 14, color: "#c9c9c9", lineHeight: 1.7, margin: "0 0 12px" }}>
+                <strong style={{ color: "#f2f2f2" }}>Connect in Claude, Cursor or any MCP client</strong>
+                {" "}using the config:
+              </p>
+              <div style={{ ...codeStyle, margin: "0 0 12px" }}>
+{`{
+  "mcpServers": {
+    "inferenceindexer": {
+      "command": "uvx",
+      "args": ["inferenceindexer-mcp"]
+    }
+  }
+}`}
+              </div>
+              <p style={{ fontSize: 13, color: "#8a8a8a", lineHeight: 1.6, margin: 0 }}>
+                Or point your client at{" "}
+                <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace" }}>
+                  https://www.inferenceindexer.ai/.well-known/mcp-config.json
+                </span>{" "}
+                for automatic discovery.
+              </p>
+            </div>
+
+            <p style={{ fontSize: 13, color: "#8a8a8a", lineHeight: 1.7, margin: "16px 0 0" }}>
+              Tools exposed:{" "}
+              <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace" }}>
+                search_models, get_model, get_model_history, list_providers, get_provider,
+                get_composite_latest, get_composite_history, compare_providers
+              </span>
+            </p>
+          </div>
 
           {/* Endpoints */}
           <div id="endpoints" style={{ marginBottom: 40 }}>
