@@ -30,6 +30,7 @@ from provider_scrapers import (
 )
 from tensorx_pricing import fetch_tensorx_pricing as _fetch_tensorx_pricing
 from openrelay_pricing import fetch_openrelay_pricing as _fetch_openrelay_pricing
+from sarvam_pricing import fetch_sarvam_pricing as _fetch_sarvam_pricing
 
 # Try psycopg2 for Supabase, fall back to just printing
 try:
@@ -1767,6 +1768,21 @@ def fetch_openrelay_direct():
     return _fetch_openrelay_pricing()
 
 
+# ============================================
+# SARVAM AI DIRECT PRICING SCRAPER (HTML + FX)
+# ============================================
+
+def fetch_sarvam_direct():
+    """Fetch Sarvam AI chat-LLM token pricing (INR->USD).
+
+    Sarvam exposes an OpenAI-compatible /v1/models endpoint (public) but does
+    NOT expose token pricing machine-readably - it lives on the /api-pricing
+    HTML page. Delegates to sarvam_pricing.py which scrapes the two chat
+    models and converts INR to USD at a live FX rate.
+    """
+    return _fetch_sarvam_pricing()
+
+
 def apply_median_pricing(models, fetch_endpoints=False):
     """For models with multiple endpoints, compute median price.
     
@@ -2500,6 +2516,12 @@ def main():
     if openrelay_endpoints:
         endpoint_data.extend(openrelay_endpoints)
         print(f"  OpenRelay direct: {len(openrelay_endpoints)} endpoints added")
+
+    # Sarvam AI direct (HTML scraped pricing, INR->USD, no API key)
+    sarvam_endpoints, sarvam_new_models = fetch_sarvam_direct()
+    if sarvam_endpoints:
+        endpoint_data.extend(sarvam_endpoints)
+        print(f"  Sarvam direct: {len(sarvam_endpoints)} endpoints added")
     
     # Calculate tier averages and SIT scores
     tier_avgs = calculate_tier_averages(priced)
@@ -2574,6 +2596,8 @@ def main():
             upsert_venice_models(conn, engy_new_models, priced)
         if openrelay_new_models:
             upsert_venice_models(conn, openrelay_new_models, priced)
+        if sarvam_new_models:
+            upsert_venice_models(conn, sarvam_new_models, priced)
         
         if endpoint_data:
             insert_endpoints(conn, endpoint_data)
