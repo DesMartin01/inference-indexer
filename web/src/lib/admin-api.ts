@@ -92,6 +92,7 @@ export interface PendingSubmission {
   notes: string;
   status: string;
   created_at: string;
+  integration_status?: string;
 }
 
 export interface SubmissionList {

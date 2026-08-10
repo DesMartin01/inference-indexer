@@ -798,12 +798,14 @@ async def list_submissions(request: Request):
     cur = conn.cursor()
     try:
         cur.execute("""
-            SELECT id, provider_name, website, api_base_url, country,
-                   is_eu_sovereign, is_zdr, zdr_notes, contact_email, notes,
-                   status, created_at
-            FROM provider_submissions
+            SELECT ps.id, ps.provider_name, ps.website, ps.api_base_url, ps.country,
+                   ps.is_eu_sovereign, ps.is_zdr, ps.zdr_notes, ps.contact_email, ps.notes,
+                   ps.status, ps.created_at,
+                   p.integration_status
+            FROM provider_submissions ps
+            LEFT JOIN providers p ON lower(p.name) = lower(ps.provider_name)
             {where}
-            ORDER BY created_at DESC
+            ORDER BY ps.created_at DESC
         """.format(where=where), params)
         rows = cur.fetchall()
         return {
@@ -815,6 +817,7 @@ async def list_submissions(request: Request):
                     "is_eu_sovereign": r[5], "is_zdr": r[6], "zdr_notes": r[7],
                     "contact_email": r[8], "notes": r[9],
                     "status": r[10], "created_at": r[11].isoformat() if r[11] else None,
+                    "integration_status": r[12],
                 }
                 for r in rows
             ],
@@ -848,18 +851,23 @@ async def review_submission(submission_id: int, decision: dict, request: Request
         conn.commit()
 
         if new_status == "approved":
-            # If approved, ensure the provider exists in the providers table
+            # If approved, ensure the provider exists in the providers table.
+            # Newly approved providers are marked 'pending_integration' until
+            # a pipeline connector is wired up to actually fetch their prices.
+            # If the provider already exists and is integrated, keep it
+            # integrated (don't downgrade it).
             cur.execute("""
                 SELECT provider_name FROM provider_submissions WHERE id = %s
             """, (submission_id,))
             row = cur.fetchone()
             if row:
                 cur.execute("""
-                    INSERT INTO providers (name, is_zdr, is_eu_sovereign)
-                    VALUES (%s, %s, %s)
+                    INSERT INTO providers (name, is_zdr, is_eu_sovereign, integration_status)
+                    VALUES (%s, %s, %s, 'pending_integration')
                     ON CONFLICT (name) DO UPDATE SET
                         is_zdr = EXCLUDED.is_zdr,
-                        is_eu_sovereign = EXCLUDED.is_eu_sovereign
+                        is_eu_sovereign = EXCLUDED.is_eu_sovereign,
+                        integration_status = providers.integration_status
                 """, (row[0], decision.get("is_zdr", False), decision.get("is_eu_sovereign", False)))
                 conn.commit()
     finally:

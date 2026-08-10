@@ -159,6 +159,40 @@ export function SubmissionsClient() {
             </p>
           )}
 
+          {s.status === "approved" && s.integration_status === "pending_integration" && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                marginTop: 12,
+                padding: 12,
+                background: "rgba(196,160,56,0.08)",
+                border: "1px solid rgba(196,160,56,0.4)",
+                borderRadius: 8,
+              }}
+            >
+              <span
+                style={{
+                  width: 9,
+                  height: 9,
+                  borderRadius: "50%",
+                  background: "var(--accent)",
+                  display: "inline-block",
+                  flexShrink: 0,
+                }}
+              />
+              <div style={{ fontSize: 13, color: "var(--text-body)", lineHeight: 1.5 }}>
+                <strong style={{ fontWeight: 600, color: "var(--text-heading)" }}>
+                  Pending integration
+                </strong>
+                {" — approved and added to the index, but no pipeline connector "
+                + "fetches its prices yet. Add a no-auth connector or API key to "
+                + "complete integration."}
+              </div>
+            </div>
+          )}
+
           {s.status === "pending" && (
             <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
               <button

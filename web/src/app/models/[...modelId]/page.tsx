@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getModel, getModelHistory, getModelEndpoints, providerFaviconUrl } from "@/lib/api";
 import { Sparkline } from "@/components/Sparkline";
 import { Header } from "@/components/Header";
+import { ProviderComparisonTable } from "@/components/ProviderComparisonTable";
 import type { Metadata } from "next";
 
 const GREEN = "#22c55e";
@@ -302,60 +303,11 @@ export default async function ModelDetailPage({
         {/* Provider Comparison Table */}
         {endpoints.count > 1 && (
           <div style={{ background: "#16161a", border: "1px solid #2a2a2a", borderRadius: 8, padding: "20px 24px", marginBottom: 28 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <div style={{ fontSize: 14, fontWeight: 500, color: "#e5e5e5" }}>Provider Comparison</div>
-              <div style={{ fontSize: 12, color: "#6a6a6a" }}>
-                {endpoints.count} providers · sorted by blended price
-              </div>
-            </div>
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                <thead>
-                  <tr style={{ borderBottom: "1px solid #2a2a2a" }}>
-                    <th style={{ textAlign: "left", padding: "8px 12px", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", color: "#8a8a8a", fontWeight: 500 }}>Provider</th>
-                    <th style={{ textAlign: "right", padding: "8px 12px", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", color: "#8a8a8a", fontWeight: 500 }}>Input $/M</th>
-                    <th style={{ textAlign: "right", padding: "8px 12px", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", color: "#8a8a8a", fontWeight: 500 }}>Output $/M</th>
-                    <th style={{ textAlign: "right", padding: "8px 12px", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", color: "#8a8a8a", fontWeight: 500 }}>Blended $/M</th>
-                    <th style={{ textAlign: "right", padding: "8px 12px", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", color: "#8a8a8a", fontWeight: 500 }}>vs Median</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {endpoints.endpoints.map((ep, i) => {
-                    const diff = ep.blended_price_per_m - model.blended_price_per_m;
-                    const diffPct = model.blended_price_per_m > 0 ? (diff / model.blended_price_per_m) * 100 : 0;
-                    const isCheapest = i === 0;
-                    return (
-                      <tr key={i} style={{ borderBottom: "1px solid #1c1c20" }}>
-                        <td style={{ padding: "9px 12px", color: isCheapest ? "#e5e5e5" : "#c9c9c9", fontWeight: isCheapest ? 600 : 400 }}>
-                          {isCheapest && <span style={{ color: GREEN, marginRight: 6 }}>{"\u2193"}</span>}
-                          <Link
-                            href={`/providers/${encodeURIComponent(ep.provider)}`}
-                            style={{ color: isCheapest ? "#e5e5e5" : "#c9c9c9", textDecoration: "none" }}
-                          >
-                            {ep.provider}
-                          </Link>
-                        </td>
-                        <td style={{ padding: "9px 12px", textAlign: "right", color: "#c9c9c9", fontVariantNumeric: "tabular-nums", fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>
-                          {money(ep.input_price_per_m)}
-                        </td>
-                        <td style={{ padding: "9px 12px", textAlign: "right", color: "#c9c9c9", fontVariantNumeric: "tabular-nums", fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>
-                          {money(ep.output_price_per_m)}
-                        </td>
-                        <td style={{ padding: "9px 12px", textAlign: "right", color: isCheapest ? GREEN : "#c9c9c9", fontWeight: isCheapest ? 600 : 400, fontVariantNumeric: "tabular-nums", fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>
-                          {money(ep.blended_price_per_m)}
-                        </td>
-                        <td style={{ padding: "9px 12px", textAlign: "right", fontSize: 12, color: diff < 0 ? GREEN : diff > 0 ? RED : FLAT, fontVariantNumeric: "tabular-nums" }}>
-                          {diff === 0 ? "median" : `${diff > 0 ? "+" : ""}${diffPct.toFixed(1)}%`}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <div style={{ marginTop: 12, fontSize: 11, color: "#5f5f5f" }}>
-              Blended price = 40% input + 60% output. Median price shown in header is the reference price for this model.
-            </div>
+            <ProviderComparisonTable
+              endpoints={endpoints.endpoints}
+              referenceBlended={model.blended_price_per_m}
+              count={endpoints.count}
+            />
           </div>
         )}
 
