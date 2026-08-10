@@ -393,7 +393,7 @@ SIT-Composite = Σ(weight_i × blended_price_i) / Σ(weight_i)`}</pre>
             <SubSection n="4.5" title="Base Date and Rebaselining">
               <ul style={bulletList}>
                 <li style={bulletItem}>
-                  Base date: <span style={mutedMono}>August 3, 2026</span>
+                  Base date: <span style={mutedMono}>August 4, 2026</span> (first day with full data; index = 1000 at this date)
                 </li>
                 <li style={bulletItem}>
                   Base value: <span style={mutedMono}>SIT-Composite = 1000 index points</span>

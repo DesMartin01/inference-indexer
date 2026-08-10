@@ -475,30 +475,44 @@ async def get_sit_latest(request: Request, authorization: Optional[str] = Header
         GROUP BY tier
     """)
     tier_rows = cur.fetchall()
-    
+
+    # Fetch the latest STORED sit_index_points per tier (real rebased values,
+    # anchored to the earliest data date). The API must NOT hardcode 1000.0 —
+    # that froze the index and hid real price movement.
+    cur.execute("""
+        SELECT DISTINCT ON (tier) tier, sit_index_points
+        FROM sit_index_values
+        ORDER BY tier, date DESC
+    """)
+    stored_points = {row[0]: row[1] for row in cur.fetchall()}
+
+    def idx(tier):
+        v = stored_points.get(tier)
+        return float(v) if v is not None else 1000.0
+
     composite = {
         "price_per_m": round(weighted_mean, 2),
-        "index_points": 1000.0,
+        "index_points": idx("composite"),
         "models": model_count,
         "providers": provider_count,
     }
-    
+
     tiers = {}
     for row in tier_rows:
         tier_name = row[0]
         tiers[tier_name] = {
             "price_per_m": round(float(row[1]), 2),
-            "index_points": 1000.0,
+            "index_points": idx(tier_name),
             "models": row[2],
             "providers": row[3],
         }
-    
+
     # Spread (frontier - budget)
     spread = None
     if "frontier" in tiers and "budget" in tiers:
         spread = {
             "price_per_m": round(tiers["frontier"]["price_per_m"] - tiers["budget"]["price_per_m"], 2),
-            "index_points": 1000.0,
+            "index_points": round(idx("frontier") - idx("budget"), 2),
             "models": 0,
             "providers": 0,
         }

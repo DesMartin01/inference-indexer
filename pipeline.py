@@ -2425,16 +2425,20 @@ def insert_sit_values(conn, indices, today):
     count = 0
     
     for tier, data in indices.items():
-        # For index points: on base date, price = base price
-        # After base date: index_points = (current_price / base_price) * 1000
-        # We store the first ever price as the base
+        # For index points: the base is the EARLIEST stored price for this tier
+        # (anchored to whenever we first have real data). index_points =
+        # (current_price / base_price) * 1000, so 1000 = base date.
+        # NOTE: We anchor to the earliest existing row, NOT a hardcoded
+        # BASE_DATE (2026-08-03), because no Aug-3 data exists (earliest is
+        # Aug 4). A hardcoded BASE_DATE with no row made the index freeze at
+        # 1000 forever. See data_integrity_check.py #7.
         cur.execute("""
             SELECT sit_price FROM sit_index_values 
-            WHERE tier = %s AND date = %s
+            WHERE tier = %s
             ORDER BY date ASC LIMIT 1
-        """, (tier, BASE_DATE))
+        """, (tier,))
         row = cur.fetchone()
-        
+
         if row:
             base_price = row[0]
             index_points = calculate_index_points(data["price"], base_price)
@@ -2442,7 +2446,7 @@ def insert_sit_values(conn, indices, today):
             # First ever calculation on base date
             index_points = BASE_VALUE
         else:
-            # No base price yet, use today's price as base
+            # No base price yet, anchor today as the base
             index_points = BASE_VALUE
         
         # Use correct calculation method name
