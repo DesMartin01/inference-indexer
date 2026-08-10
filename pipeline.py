@@ -29,6 +29,7 @@ from provider_scrapers import (
     fetch_together_pricing as _fetch_together_pricing,
 )
 from tensorx_pricing import fetch_tensorx_pricing as _fetch_tensorx_pricing
+from openrelay_pricing import fetch_openrelay_pricing as _fetch_openrelay_pricing
 
 # Try psycopg2 for Supabase, fall back to just printing
 try:
@@ -1750,6 +1751,22 @@ def fetch_tensorx_direct():
     return _fetch_tensorx_pricing()
 
 
+# ============================================
+# OPENRELAY DIRECT PRICING SCRAPER (HTML)
+# ============================================
+
+def fetch_openrelay_direct():
+    """Fetch OpenRelay token pricing from their catalog + pricing HTML pages.
+
+    OpenRelay's /v1/models endpoint is auth-gated, but their per-model token
+    rates are published as server-rendered HTML tables on the inference-catalog
+    and inference-pricing pages. Delegates to openrelay_pricing.py.
+
+    Returns (endpoints, new_models).
+    """
+    return _fetch_openrelay_pricing()
+
+
 def apply_median_pricing(models, fetch_endpoints=False):
     """For models with multiple endpoints, compute median price.
     
@@ -2477,6 +2494,12 @@ def main():
     if engy_endpoints:
         endpoint_data.extend(engy_endpoints)
         print(f"  engy direct: {len(engy_endpoints)} endpoints added")
+
+    # OpenRelay direct (HTML scraped pricing, no API key)
+    openrelay_endpoints, openrelay_new_models = fetch_openrelay_direct()
+    if openrelay_endpoints:
+        endpoint_data.extend(openrelay_endpoints)
+        print(f"  OpenRelay direct: {len(openrelay_endpoints)} endpoints added")
     
     # Calculate tier averages and SIT scores
     tier_avgs = calculate_tier_averages(priced)
@@ -2549,6 +2572,8 @@ def main():
             upsert_venice_models(conn, tensorx_new_models, priced)
         if engy_new_models:
             upsert_venice_models(conn, engy_new_models, priced)
+        if openrelay_new_models:
+            upsert_venice_models(conn, openrelay_new_models, priced)
         
         if endpoint_data:
             insert_endpoints(conn, endpoint_data)
