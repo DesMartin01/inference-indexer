@@ -162,11 +162,7 @@ export default function ProvidersTable({ providers }: { providers: ProviderSumma
                 </span>
               </td>
               <td style={{ padding: "12px", textAlign: "right", color: "#c9c9c9", fontVariantNumeric: "tabular-nums" }}>
-                {p.model_count > 0
-                  ? p.model_count
-                  : p.endpoint_count > 0
-                    ? `${p.endpoint_count} endpoints`
-                    : "N/A"}
+                {p.model_count > 0 ? p.model_count : `${p.endpoint_count} endpoints`}
               </td>
               <td style={{ padding: "12px", textAlign: "right", color: "#c9c9c9", fontVariantNumeric: "tabular-nums" }}>{formatPrice(p.avg_price)}</td>
               <td style={{ padding: "12px", textAlign: "right", color: "#6a6a6a", fontVariantNumeric: "tabular-nums" }}>{formatPrice(p.min_price)}</td>
