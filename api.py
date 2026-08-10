@@ -236,6 +236,96 @@ app.add_middleware(
 )
 
 # ============================================
+# REQUEST LOGGING (API usage analytics)
+# ============================================
+# Every request that hits a /v1 endpoint is logged to `api_request_log`.
+# This powers the admin API-usage dashboard (requests/day, unique users,
+# top endpoints, plan mix) and later the pro-API billing story.
+# The plan / user label are derived from the Authorization header + SSR
+# secret so we can segment "people/agents" vs our own SSR traffic.
+
+def _classify_request(request: Request) -> tuple[str, str | None]:
+    """Determine (plan, user_label) for a request.
+
+    - SSR secret header  -> ('ssr', None)  (our own frontend traffic)
+    - Bearer api key     -> looked up in api_users -> (plan, email|anon label)
+    - no key / "public"  -> ('public', None)
+    """
+    auth = request.headers.get("authorization", "")
+    if request.headers.get("X-SSR-Secret") == SSR_SECRET:
+        return "ssr", None
+    if auth.startswith("Bearer "):
+        token = auth[len("Bearer "):].strip()
+        if not token or token == "public":
+            return "public", None
+        try:
+            conn = get_db()
+            cur = conn.cursor()
+            cur.execute("SELECT email, plan FROM api_users WHERE api_key = %s", (token,))
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
+            if row:
+                return row[1] or "public", row[0]
+        except Exception:
+            pass
+        return "public", None
+    return "public", None
+
+
+_api_log_buffer: list[tuple] = []
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Log every /v1 API request for usage analytics."""
+    path = request.url.path
+    try:
+        response = await call_next(request)
+    except Exception:
+        raise
+    # Only log real /v1 API endpoints (skip /health, docs, etc.)
+    if path.startswith("/v1/"):
+        try:
+            plan, user_label = _classify_request(request)
+            _api_log_buffer.append((
+                plan,
+                user_label,
+                path,
+                response.status_code,
+            ))
+            _flush_api_log()
+        except Exception:
+            pass  # never let logging break the API
+    return response
+
+
+# Keep DB writes off the hot path: buffer rows and flush them in a single
+# executemany call. Traffic is low (MVP), so we flush on every request to
+# guarantee no buffered data is stranded; the buffer only actually holds
+# rows when bursts arrive faster than a single flush cycle.
+
+
+def _flush_api_log():
+    global _api_log_buffer
+    if not _api_log_buffer:
+        return
+    buf, _api_log_buffer = _api_log_buffer[:], []
+    _LAST_FLUSH = time.time()
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.executemany(
+            "INSERT INTO api_request_log (plan, user_label, endpoint, status) VALUES (%s, %s, %s, %s)",
+            buf,
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception:
+        pass
+
+# ============================================
 # HELPER: Query helpers
 # ============================================
 
@@ -875,6 +965,131 @@ async def review_submission(submission_id: int, decision: dict, request: Request
         conn.close()
 
     return {"id": submission_id, "status": new_status}
+
+
+# ============================================
+# API USAGE ANALYTICS (admin dashboard)
+# ============================================
+
+@app.get("/v1/admin/api-usage")
+async def api_usage(request: Request):
+    """Aggregate API usage for the admin dashboard.
+
+    Returns requests/day, unique users/agents, plan mix, top endpoints and
+    an hourly series. Protected by the SSR secret header - not public.
+    Excludes our own SSR (frontend) traffic by default so the numbers show
+    external people/agent usage; set ?include_ssr=1 to include it.
+    """
+    if request.headers.get("X-SSR-Secret") != SSR_SECRET:
+        return JSONResponse(status_code=401, content={"error": "Unauthorized"})
+
+    include_ssr = request.query_params.get("include_ssr") == "1"
+    scope_filter = "" if include_ssr else "AND plan <> 'ssr'"
+
+    conn = get_db()
+    cur = conn.cursor()
+    try:
+        now = datetime.now(timezone.utc)
+
+        # --- Today summary ---
+        cur.execute(
+            f"""
+            SELECT
+                COUNT(*),
+                COUNT(DISTINCT user_label),
+                COUNT(*) FILTER (WHERE plan = 'free'),
+                COUNT(*) FILTER (WHERE plan = 'public')
+            FROM api_request_log
+            WHERE ts >= %s {scope_filter}
+            """,
+            (now.replace(hour=0, minute=0, second=0, microsecond=0),),
+        )
+        r = cur.fetchone()
+        today = {
+            "requests": r[0],
+            "unique_users": r[1],  # distinct registered/anon labels
+            "free_requests": r[2],
+            "public_requests": r[3],
+        }
+
+        # --- Last 14 days daily series ---
+        cur.execute(
+            f"""
+            SELECT
+                date_trunc('day', ts)::date AS day,
+                COUNT(*),
+                COUNT(DISTINCT user_label::text)
+            FROM api_request_log
+            WHERE ts >= %s {scope_filter}
+            GROUP BY 1 ORDER BY 1
+            """,
+            (now - timedelta(days=14),),
+        )
+        daily = [
+            {"date": d.isoformat(), "requests": c, "unique_users": u}
+            for d, c, u in cur.fetchall()
+        ]
+
+        # --- Plan mix (this month) ---
+        cur.execute(
+            f"""
+            SELECT plan, COUNT(*)
+            FROM api_request_log
+            WHERE ts >= %s {scope_filter}
+            GROUP BY plan ORDER BY 2 DESC
+            """,
+            (now - timedelta(days=30),),
+        )
+        plan_mix = [{"plan": p, "requests": c} for p, c in cur.fetchall()]
+
+        # --- Top endpoints (7d) ---
+        cur.execute(
+            f"""
+            SELECT endpoint, COUNT(*)
+            FROM api_request_log
+            WHERE ts >= %s {scope_filter}
+            GROUP BY endpoint ORDER BY 2 DESC LIMIT 12
+            """,
+            (now - timedelta(days=7),),
+        )
+        top_endpoints = [{"endpoint": e, "requests": c} for e, c in cur.fetchall()]
+
+        # --- Hourly series for today ---
+        cur.execute(
+            f"""
+            SELECT date_trunc('hour', ts) AS h, COUNT(*)
+            FROM api_request_log
+            WHERE ts >= %s {scope_filter}
+            GROUP BY 1 ORDER BY 1
+            """,
+            (now.replace(hour=0, minute=0, second=0, microsecond=0),),
+        )
+        hourly = [{"hour": h.isoformat(), "requests": c} for h, c in cur.fetchall()]
+
+        # --- Status mix (7d) ---
+        cur.execute(
+            f"""
+            SELECT status, COUNT(*)
+            FROM api_request_log
+            WHERE ts >= %s {scope_filter}
+            GROUP BY status ORDER BY 2 DESC
+            """,
+            (now - timedelta(days=7),),
+        )
+        status_mix = [{"status": s, "requests": c} for s, c in cur.fetchall()]
+
+        return {
+            "today": today,
+            "daily": daily,
+            "plan_mix": plan_mix,
+            "top_endpoints": top_endpoints,
+            "hourly": hourly,
+            "status_mix": status_mix,
+            "scope": "external" if not include_ssr else "external+ssr",
+        }
+    finally:
+        cur.close()
+        conn.close()
 
 
 # ============================================

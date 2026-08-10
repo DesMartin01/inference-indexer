@@ -51,6 +51,9 @@ export default async function AdminLayout({
             <Link href="/admin/submissions" style={{ fontSize: 13 }}>
               Submissions
             </Link>
+            <Link href="/admin/api-usage" style={{ fontSize: 13 }}>
+              API Usage
+            </Link>
             <Link href="/admin/logout" style={{ fontSize: 13, color: "var(--text-muted)" }}>
               Logout
             </Link>

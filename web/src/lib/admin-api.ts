@@ -121,3 +121,53 @@ export async function reviewSubmission(
   if (!res.ok) throw new Error(`Review failed (${res.status})`);
   return res.json();
 }
+
+// --- API usage analytics (owner-only) ---
+
+export interface UsageToday {
+  requests: number;
+  unique_users: number;
+  free_requests: number;
+  public_requests: number;
+}
+
+export interface UsageDailyPoint {
+  date: string;
+  requests: number;
+  unique_users: number;
+}
+
+export interface UsagePlanMix {
+  plan: string;
+  requests: number;
+}
+
+export interface UsageEndpoint {
+  endpoint: string;
+  requests: number;
+}
+
+export interface UsageHourlyPoint {
+  hour: string;
+  requests: number;
+}
+
+export interface UsageStatusMix {
+  status: number;
+  requests: number;
+}
+
+export interface ApiUsage {
+  today: UsageToday;
+  daily: UsageDailyPoint[];
+  plan_mix: UsagePlanMix[];
+  top_endpoints: UsageEndpoint[];
+  hourly: UsageHourlyPoint[];
+  status_mix: UsageStatusMix[];
+  scope: string;
+}
+
+export function getApiUsage(includeSsr = false): Promise<ApiUsage> {
+  const q = includeSsr ? `?include_ssr=1` : "";
+  return getJson<ApiUsage>(`/v1/admin/api-usage${q}`);
+}
