@@ -346,13 +346,20 @@ def _flush_api_log():
 # ============================================
 
 def calc_change_24h(conn, model_id, current_price):
-    """Calculate 24h change for a model."""
+    """Calculate 24h change for a model.
+
+    Baselines against the snapshot closest to exactly 24h ago (within a
+    6h-48h search window). Using a stable rolling 24h baseline - rather than
+    "most recent snapshot older than 20h" - keeps the change window at a true
+    24h and prevents movers dropping off before a full day has elapsed.
+    """
     cur = conn.cursor()
     cur.execute("""
         SELECT blended_price_per_m
         FROM price_snapshots
-        WHERE model_id = %s AND fetched_at < NOW() - INTERVAL '20 hours'
-        ORDER BY fetched_at DESC LIMIT 1
+        WHERE model_id = %s AND fetched_at BETWEEN NOW() - INTERVAL '48 hours' AND NOW() - INTERVAL '6 hours'
+        ORDER BY ABS(EXTRACT(EPOCH FROM (fetched_at - (NOW() - INTERVAL '24 hours'))) )
+        LIMIT 1
     """, (model_id,))
     row = cur.fetchone()
     cur.close()

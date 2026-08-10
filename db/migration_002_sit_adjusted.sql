@@ -29,6 +29,9 @@ ORDER BY model_id, fetched_at DESC;
 
 -- ============================================
 -- Update price_changes_24h view to include new columns
+-- Baselines against the snapshot closest to exactly 24h ago (within a 6h-48h
+-- search window) so the change window is a stable rolling 24h - not "newest
+-- snapshot older than 20h", which made movers drop off before a day elapsed.
 -- ============================================
 CREATE OR REPLACE VIEW price_changes_24h AS
 WITH latest AS (
@@ -47,8 +50,8 @@ previous AS (
     blended_price_per_m AS prev_price,
     sit_adjusted_price AS prev_adjusted_price
   FROM price_snapshots
-  WHERE fetched_at < NOW() - INTERVAL '20 hours'
-  ORDER BY model_id, fetched_at DESC
+  WHERE fetched_at BETWEEN NOW() - INTERVAL '48 hours' AND NOW() - INTERVAL '6 hours'
+  ORDER BY model_id, ABS(EXTRACT(EPOCH FROM (fetched_at - (NOW() - INTERVAL '24 hours'))))
 )
 SELECT
   l.model_id,

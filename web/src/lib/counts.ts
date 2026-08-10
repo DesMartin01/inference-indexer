@@ -6,4 +6,4 @@
 // fetch blip never shows a wrong number. Update these values any time the
 // site's model count meaningfully changes.
 export const CURRENT_MODEL_COUNT = 318;
-export const CURRENT_PROVIDER_COUNT = 71;
+export const CURRENT_PROVIDER_COUNT = 74;
