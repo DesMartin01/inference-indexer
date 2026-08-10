@@ -1161,46 +1161,58 @@ async def get_providers(
     cur = conn.cursor()
 
     cur.execute("""
-        WITH direct_models AS (
-            SELECT 
-                p.name as provider_name,
-                COUNT(DISTINCT m.id) as direct_count,
-                ROUND(AVG(lp.blended_price_per_m)::numeric, 4) as avg_price,
-                ROUND(MIN(lp.blended_price_per_m)::numeric, 4) as min_price,
-                ROUND(MAX(lp.blended_price_per_m)::numeric, 4) as max_price,
-                COUNT(m.aa_index_score) as with_aa
-            FROM providers p
-            LEFT JOIN models m ON m.provider = p.name AND m.is_active = TRUE
-            LEFT JOIN latest_prices lp ON m.id = lp.model_id AND lp.blended_price_per_m > 0
-            WHERE m.id IS NULL OR (m.is_active = TRUE AND lp.blended_price_per_m > 0 AND m.id NOT LIKE '%%:batch')
-            GROUP BY p.name
-        ),
-        endpoint_models AS (
+        WITH endpoint_models AS (
             SELECT
-                me.endpoint_provider as provider_name,
-                COUNT(DISTINCT me.model_id) as endpoint_count
+                me.endpoint_provider AS provider_name,
+                COUNT(DISTINCT me.model_id) AS endpoint_count
             FROM model_endpoints me
             JOIN models m ON me.model_id = m.id
             WHERE m.is_active = TRUE AND m.id NOT LIKE '%%:batch'
             GROUP BY me.endpoint_provider
+        ),
+        latest_ep AS (
+            -- Current price of each distinct model as served by each endpoint
+            -- provider (latest fetched within 3 days), so pricing reflects the
+            -- models the provider actually serves - not just models it "owns".
+            SELECT DISTINCT ON (endpoint_provider, model_id)
+                endpoint_provider AS provider_name,
+                model_id,
+                blended_price_per_m AS bpm
+            FROM model_endpoints
+            WHERE fetched_at > NOW() - INTERVAL '3 days'
+              AND blended_price_per_m > 0
+            ORDER BY endpoint_provider, model_id, fetched_at DESC
+        ),
+        direct_models AS (
+            SELECT
+                p.name AS provider_name,
+                COUNT(DISTINCT csv.model_id) AS priced_models,
+                ROUND(AVG(csv.bpm)::numeric, 4) AS avg_price,
+                ROUND(MIN(csv.bpm)::numeric, 4) AS min_price,
+                ROUND(MAX(csv.bpm)::numeric, 4) AS max_price,
+                COUNT(DISTINCT CASE WHEN m.aa_index_score IS NOT NULL THEN csv.model_id END) AS with_aa
+            FROM providers p
+            LEFT JOIN latest_ep csv ON csv.provider_name = p.name
+            LEFT JOIN models m ON m.id = csv.model_id
+            GROUP BY p.name
         )
-        SELECT 
+        SELECT
             p.name,
             p.is_zdr,
             p.is_eu_sovereign,
             p.zdr_notes,
             p.eu_notes,
-            COALESCE(dm.direct_count, 0) as model_count,
+            COALESCE(dm.priced_models, 0) AS model_count,
             dm.avg_price,
             dm.min_price,
             dm.max_price,
-            COALESCE(dm.with_aa, 0) as with_aa,
-            COALESCE(em.endpoint_count, 0) as endpoint_count
+            COALESCE(dm.with_aa, 0) AS with_aa,
+            COALESCE(em.endpoint_count, 0) AS endpoint_count
         FROM providers p
         LEFT JOIN direct_models dm ON p.name = dm.provider_name
         LEFT JOIN endpoint_models em ON p.name = em.provider_name
-        WHERE COALESCE(dm.direct_count, 0) > 0 OR COALESCE(em.endpoint_count, 0) > 0
-        ORDER BY (COALESCE(dm.direct_count, 0) + COALESCE(em.endpoint_count, 0)) DESC
+        WHERE COALESCE(dm.priced_models, 0) > 0 OR COALESCE(em.endpoint_count, 0) > 0
+        ORDER BY (COALESCE(dm.priced_models, 0) + COALESCE(em.endpoint_count, 0)) DESC
     """)
 
     providers = []
@@ -1354,7 +1366,6 @@ async def get_provider_detail(
             "sit_score": int(row[11]) if row[11] else None,
             "sit_adjusted_price": float(row[12]) if row[12] else None,
             "fetched_at": row[13].isoformat() if row[13] else None,
-            "source": row[14] or "",
             "hosting_type": raw.get("hosting_type", ""),
             "quantization": (row[16] or raw.get("quantization", "")) or "",
             "is_zdr": prow[1] or False,
@@ -1752,7 +1763,6 @@ async def get_model(
             "tier_rank": tier_rank,
             "tier_total_models": tier_total,
             "comparisons": comparisons,
-            "source": row[16],
             "fetched_at": row[17].isoformat() if row[17] else None,
         },
         headers=headers
