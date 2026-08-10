@@ -1248,11 +1248,14 @@ async def get_providers(
             dm.min_price,
             dm.max_price,
             COALESCE(dm.with_aa, 0) AS with_aa,
-            COALESCE(em.endpoint_count, 0) AS endpoint_count
+            COALESCE(em.endpoint_count, 0) AS endpoint_count,
+            COALESCE(p.show_in_list, FALSE) AS show_in_list
         FROM providers p
         LEFT JOIN direct_models dm ON p.name = dm.provider_name
         LEFT JOIN endpoint_models em ON p.name = em.provider_name
-        WHERE COALESCE(dm.priced_models, 0) > 0 OR COALESCE(em.endpoint_count, 0) > 0
+        WHERE COALESCE(dm.priced_models, 0) > 0
+           OR COALESCE(em.endpoint_count, 0) > 0
+           OR p.show_in_list = TRUE
         ORDER BY (COALESCE(dm.priced_models, 0) + COALESCE(em.endpoint_count, 0)) DESC
     """)
 
@@ -1260,6 +1263,7 @@ async def get_providers(
     for row in cur.fetchall():
         direct = row[5] or 0
         endpoints = row[10] or 0
+        show_in_list = row[11] or False
         # A provider is "hybrid" if it has both direct models AND endpoint records
         # (hosting other providers' models). "self-host" if only direct models.
         # "aggregator" if only endpoint records (no own models in our DB).
@@ -1267,13 +1271,14 @@ async def get_providers(
             ptype = "hybrid"
         elif direct > 0:
             ptype = "self-host"
+        elif endpoints > 0:
+            ptype = "hybrid"
+        elif show_in_list:
+            # Tracked catalog provider with no priced endpoints yet (e.g. NVIDIA).
+            # It hosts its own models (self-host) but we have no direct price data.
+            ptype = "self-host"
         else:
-            # Has endpoints but no direct models. Check if it hosts models
-            # from multiple owners (aggregator) or just its own (self-host).
-            if endpoints > 0:
-                ptype = "hybrid"
-            else:
-                ptype = "aggregator"
+            ptype = "aggregator"
         providers.append({
             "name": row[0],
             "is_zdr": row[1],
@@ -1287,6 +1292,7 @@ async def get_providers(
             "with_aa": row[9] or 0,
             "endpoint_count": endpoints,
             "provider_type": ptype,
+            "show_in_list": show_in_list,
         })
 
     cur.close()

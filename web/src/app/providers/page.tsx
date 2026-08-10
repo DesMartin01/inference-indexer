@@ -6,7 +6,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "AI Inference Providers - Compare Pricing | InferenceIndexer.ai",
-  description: "Compare inference pricing across 71 AI model providers. Model counts, price ranges, ZDR and EU sovereign status.",
+  description: "Compare inference pricing across 74 AI model providers. Model counts, price ranges, ZDR and EU sovereign status.",
   alternates: { canonical: "https://www.inferenceindexer.ai/providers" },
 };
 
@@ -31,6 +31,29 @@ export default async function ProvidersPage() {
         </p>
 
         <ProvidersTable providers={providers} />
+
+        {providers.some((p) => p.show_in_list && p.avg_price == null) && (
+          <div
+            style={{
+              marginTop: 24,
+              padding: "16px 20px",
+              border: "1px solid #262626",
+              borderLeft: "3px solid #C4A038",
+              borderRadius: 6,
+              background: "#111112",
+              fontSize: 13,
+              color: "#c9c9c9",
+              lineHeight: 1.6,
+            }}
+          >
+            <strong style={{ color: "#f2f2f2" }}>Why some providers show N/A pricing.</strong>{" "}
+            A few providers, such as NVIDIA, publish their model catalog but
+            do not expose list prices through a public API. Their models are
+            tracked and searchable, but we show&nbsp;N/A instead of pricing we
+            cannot verify. Where the same model is priced by another provider,
+            it still appears with that price on the model page.
+          </div>
+        )}
 
         <div
           style={{
@@ -65,7 +88,7 @@ export default async function ProvidersPage() {
           </Link>
         </div>
       </main>
-      <Footer providers={71} updatedAt="" />
+      <Footer providers={74} updatedAt="" />
     </div>
   );
 }

@@ -205,6 +205,7 @@ export interface ProviderSummary {
   with_aa: number;
   endpoint_count: number;
   provider_type: string;
+  show_in_list: boolean;
 }
 
 export interface ProviderList {

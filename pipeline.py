@@ -55,6 +55,8 @@ NOVITA_PRICE_DIVISOR = 10000
 SAMABANOVA_API = "https://api.sambanova.ai/v1/models"
 INFERENCE_NET_API = "https://api.inference.net/v1/models"
 JINA_API = "https://api.jina.ai/v1/models"
+# NVIDIA NIM (build.nvidia.com). Public catalog-only API, no auth, no pricing field.
+NVIDIA_API = "https://integrate.api.nvidia.com/v1/models"
 # Auth-required providers (API keys loaded from env or Jentic One)
 TOGETHER_API = "https://api.together.xyz/v1/models"
 GROQ_API = "https://api.groq.com/openai/v1/models"
@@ -1010,6 +1012,90 @@ def fetch_inference_net_direct():
         })
 
     print(f"  Catalog models: {len(new_models)}, Skipped: {skipped}")
+    return endpoints, new_models
+
+
+# ============================================
+# NVIDIA NIM DIRECT API CONNECTOR
+# ============================================
+
+# NVIDIA native model prefixes (NVIDIA-owned exclusives). Everything else the
+# catalog carries is hosted open-weight models owned by other authors and
+# already tracked under their canonical IDs (meta/llama-*, deepseek-ai/*, etc.).
+NVIDIA_NATIVE_PREFIXES = ("nvidia/", "nv-", "nv-mistralai/")
+
+# Skip non-text-inference model types NVIDIA serves: embeddings, rerankers,
+# guard/safety classifiers, video/image/cosmos, translation, VLMs we don't
+# model as text chat, reward models, synthetic detectors.
+NVIDIA_SKIP_HINTS = (
+    "embed", "rerank", "guard", "safety", "reward", "cosmos", "vila",
+    "translate", "video-detector", "clip", "neva", "fuyu", "deplot",
+    "calibration", "recurrentgemma", "diffusiongemma", "nemoretriever",
+)
+
+def fetch_nvidia_direct():
+    """Fetch NVIDIA NIM (build.nvidia.com) model catalog directly.
+
+    Returns (endpoints, new_models) like other direct connectors.
+    No auth required - public API.
+
+    NVIDIA's /v1/models endpoint is CATALOG-ONLY (id, owned_by, created) - it
+    exposes NO pricing field. We record the catalog so NVIDIA's exclusive
+    Nemotron-family models become tracked, and their pricing is inferred where
+    the same underlying model is priced via OpenRouter or another source.
+    Overlapping author-hosted models (meta/llama-*, google/gemma-*,
+    deepseek-ai/*) keep their canonical 'author/model' ID to merge onto
+    existing rows rather than creating nvidia/* duplicates.
+    """
+    print(f"[{datetime.now(timezone.utc).isoformat()}] Fetching NVIDIA NIM direct API...")
+
+    try:
+        resp = requests.get(NVIDIA_API, timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
+        models = data.get("data", [])
+        print(f"  NVIDIA NIM API returned {len(models)} models")
+    except Exception as e:
+        print(f"  ERROR fetching NVIDIA NIM API: {e}")
+        return [], []
+
+    endpoints = []  # NVIDIA exposes no pricing in this endpoint
+    new_models = []
+    skipped = 0
+
+    for m in models:
+        model_id = m.get("id", "")
+        if not model_id:
+            continue
+
+        low = model_id.lower()
+        # Skip non-text-inference model types
+        if any(skip in low for skip in NVIDIA_SKIP_HINTS):
+            skipped += 1
+            continue
+
+        native = low.startswith(NVIDIA_NATIVE_PREFIXES)
+
+        if native:
+            # NVIDIA-owned/exclusive model -> canonical nvidia/* id
+            canonical_id = canonical_model_id(low if "/" in low else f"nvidia/{low}")
+            provider = "NVIDIA"
+        else:
+            # re-hosted open weight owned by another author -> keep author id
+            # so it merges onto the existing canonical model row
+            canonical_id = canonical_model_id(low)
+            provider = canonical_id.split("/")[0] if "/" in canonical_id else "NVIDIA"
+
+        new_models.append({
+            "model_id": canonical_id,
+            "name": model_id.split("/")[-1].replace("-", " ").replace("_", " ").title(),
+            "provider": provider,
+            "context_length": None,  # Not exposed
+            "is_reasoning": "reasoning" in low or "thinking" in low or "super" in low,
+            "modality": "text",
+        })
+
+    print(f"  Catalog models: {len(new_models)}, Skipped (non-chat): {skipped}")
     return endpoints, new_models
 
 
@@ -2606,6 +2692,14 @@ def main():
         endpoint_data.extend(infernet_endpoints)
         print(f"  Inference.net direct: {len(infernet_endpoints)} endpoints added")
     
+    # Fetch NVIDIA NIM direct API (hourly - one HTTP call, no auth, catalog only)
+    nvidia_endpoints, nvidia_new_models = fetch_nvidia_direct()
+    if nvidia_endpoints:
+        endpoint_data.extend(nvidia_endpoints)
+        print(f"  NVIDIA NIM direct: {len(nvidia_endpoints)} endpoints added")
+    if nvidia_new_models:
+        print(f"  NVIDIA NIM direct catalog: {len(nvidia_new_models)} models")
+    
     # Auth-required providers (will skip gracefully if no API key)
     together_endpoints, together_new_models = fetch_together_direct()
     if together_endpoints:
@@ -2712,6 +2806,8 @@ def main():
             upsert_venice_models(conn, jina_new_models, priced)
         if infernet_endpoints:
             upsert_venice_models(conn, infernet_new_models, priced)
+        if nvidia_new_models:
+            upsert_venice_models(conn, nvidia_new_models, priced)
         if together_endpoints:
             upsert_venice_models(conn, together_new_models, priced)
         if groq_new_models:
