@@ -405,3 +405,42 @@ export function providerFaviconUrl(provider: string): string {
   if (!domain) return "";
   return `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
 }
+
+// --- Provider submissions (public self-serve listing) ---
+
+export interface ProviderSubmission {
+  provider_name: string;
+  api_base_url: string;
+  website?: string;
+  api_key?: string;
+  country?: string;
+  is_eu_sovereign?: boolean;
+  is_zdr?: boolean;
+  zdr_notes?: string;
+  contact_email?: string;
+  notes?: string;
+}
+
+export interface SubmissionResult {
+  id: number;
+  status: string;
+  endpoint_probe?: { ok: boolean; model_count: number; detail: string };
+  message: string;
+}
+
+/** POST a provider pricing submission to the review queue. No auth needed. */
+export async function submitProvider(
+  sub: ProviderSubmission
+): Promise<SubmissionResult> {
+  const res = await fetch(`${API_URL}/v1/providers/submit`, {
+    method: "POST",
+    cache: "no-store",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(sub),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { error?: string }).error || `Submission failed (${res.status})`);
+  }
+  return res.json();
+}

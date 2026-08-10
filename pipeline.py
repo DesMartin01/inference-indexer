@@ -67,6 +67,7 @@ TENSORX_API = "https://api.tensorx.ai/v1/models"
 HYPERBOLIC_API = "https://api.hyperbolic.xyz/v1/models"
 # Additional no-auth providers
 AIML_API = "https://api.aimlapi.com/v1/models"
+ENGY_API = "https://api.engy.ai/v1/models"
 # Additional auth-required providers
 DEEPSEEK_DIRECT_API = "https://api.deepseek.com/v1/models"
 MOONSHOT_DIRECT_API = "https://api.moonshot.cn/v1/models"
@@ -1646,6 +1647,90 @@ def fetch_moonshot_direct():
 
 
 # ============================================
+# ENGY DIRECT API CONNECTOR (no auth)
+# ============================================
+
+def fetch_engy_direct():
+    """Fetch model catalog and pricing directly from engy.ai's API.
+
+    No auth required. Returns (endpoints, new_models).
+    engy hosts open-source models (DeepSeek, GLM, Kimi, Qwen) with
+    per-token pricing in the OpenRouter format (prompt/completion fields).
+    """
+    print(f"[{datetime.now(timezone.utc).isoformat()}] Fetching engy direct API...")
+
+    try:
+        resp = requests.get(ENGY_API, timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
+        models = data.get("data", [])
+        print(f"  engy API returned {len(models)} models")
+    except Exception as e:
+        print(f"  ERROR fetching engy API: {e}")
+        return [], []
+
+    # engy hosts models from multiple owners. Map flat IDs to canonical
+    # provider/model IDs so they merge with existing DB rows.
+    ENGY_MODEL_MAP = {
+        "deepseek-v4-flash-0731": "deepseek/deepseek-v4-flash-0731",
+        "glm-5.2": "z-ai/glm-5.2",
+        "kimi-k3": "moonshotai/kimi-k3",
+        "qwen3.6-35b-a3b": "qwen/qwen3.6-35b-a3b",
+    }
+
+    endpoints = []
+    new_models = []
+
+    for m in models:
+        raw_id = m.get("id", "")
+        if not raw_id:
+            continue
+
+        pricing = m.get("pricing", {})
+        prompt_price = pricing.get("prompt")
+        completion_price = pricing.get("completion")
+
+        if prompt_price is None or completion_price is None:
+            continue
+        if float(prompt_price) <= 0 and float(completion_price) <= 0:
+            continue
+
+        # Per-token -> per-million
+        input_price = round(float(prompt_price) * 1_000_000, 6)
+        output_price = round(float(completion_price) * 1_000_000, 6)
+        blended = round((BLENDED_INPUT_WEIGHT * input_price) + (BLENDED_OUTPUT_WEIGHT * output_price), 6)
+
+        canonical_id = ENGY_MODEL_MAP.get(raw_id, canonical_model_id(raw_id))
+
+        endpoints.append({
+            "endpoint_provider": "Engy",
+            "model_id": canonical_id,
+            "input_price_per_m": input_price,
+            "output_price_per_m": output_price,
+            "blended_price_per_m": blended,
+            "context_length": m.get("context_length"),
+            "source": "engy_direct",
+            "raw_data": {
+                "engy_id": raw_id,
+                "owned_by": m.get("owned_by", "engy"),
+                "cache_read_price": float(pricing["input_cache_read"]) * 1_000_000 if pricing.get("input_cache_read") else None,
+            },
+        })
+
+        new_models.append({
+            "model_id": canonical_id,
+            "name": raw_id.replace("-", " "),
+            "provider": canonical_id.split("/")[0],
+            "context_length": m.get("context_length"),
+            "is_reasoning": False,
+            "modality": "text",
+        })
+
+    print(f"  engy: {len(endpoints)} priced endpoints")
+    return endpoints, new_models
+
+
+# ============================================
 # TENSORX DIRECT API CONNECTOR (auth)
 # ============================================
 
@@ -2387,6 +2472,12 @@ def main():
         endpoint_data.extend(tensorx_endpoints)
         print(f"  TensorX direct: {len(tensorx_endpoints)} endpoints added")
     
+    # engy direct (no auth, pricing included)
+    engy_endpoints, engy_new_models = fetch_engy_direct()
+    if engy_endpoints:
+        endpoint_data.extend(engy_endpoints)
+        print(f"  engy direct: {len(engy_endpoints)} endpoints added")
+    
     # Calculate tier averages and SIT scores
     tier_avgs = calculate_tier_averages(priced)
     priced = calculate_sit_scores(priced, tier_avgs)
@@ -2456,6 +2547,8 @@ def main():
             upsert_venice_models(conn, moonshot_direct_new_models, priced)
         if tensorx_new_models:
             upsert_venice_models(conn, tensorx_new_models, priced)
+        if engy_new_models:
+            upsert_venice_models(conn, engy_new_models, priced)
         
         if endpoint_data:
             insert_endpoints(conn, endpoint_data)

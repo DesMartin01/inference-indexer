@@ -48,6 +48,9 @@ export default async function AdminLayout({
             <Link href="/admin/pricing" style={{ fontSize: 13 }}>
               Price Compare
             </Link>
+            <Link href="/admin/submissions" style={{ fontSize: 13 }}>
+              Submissions
+            </Link>
             <Link href="/admin/logout" style={{ fontSize: 13, color: "var(--text-muted)" }}>
               Logout
             </Link>

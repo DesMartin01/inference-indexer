@@ -687,6 +687,189 @@ async def get_models(
     )
 
 # ============================================
+# PROVIDER SUBMISSIONS (self-serve listing)
+# ============================================
+
+def _verify_provider_endpoint(api_base_url, api_key=None):
+    """Test that a submitted API base URL responds on /v1/models.
+
+    Used to pre-validate a submission before it's approved. Returns
+    (ok, model_count, detail). Never crashes - a failed probe just
+    marks the submission invalid.
+    """
+    url = api_base_url.rstrip("/") + "/v1/models"
+    headers = {"Accept": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    import urllib.request
+    req = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            if resp.status >= 400:
+                return False, 0, f"HTTP {resp.status}"
+            raw = resp.read().decode("utf-8", "replace")
+        data = json.loads(raw)
+        models = data.get("data", []) if isinstance(data, dict) else []
+        return True, len(models), f"{len(models)} models reachable"
+    except Exception as e:
+        return False, 0, f"Could not reach endpoint: {type(e).__name__}"
+
+
+@app.post("/v1/providers/submit")
+async def submit_provider(submission: dict):
+    """Accept a provider pricing submission for review.
+
+    Stores the submission in a queue (status='pending'). The pricing
+    endpoint is probed live (no auth) to pre-validate it. A human then
+    reviews and approves/rejects it; approved submissions flow into the
+    main pipeline.
+    """
+    required = ["provider_name", "api_base_url"]
+    for field in required:
+        if not submission.get(field):
+            return JSONResponse(status_code=400, content={"error": f"Missing required field: {field}"})
+
+    provider_name = submission["provider_name"].strip()
+    api_base_url = submission["api_base_url"].strip()
+
+    # Pre-validate the endpoint
+    ok, model_count, detail = _verify_provider_endpoint(api_base_url, submission.get("api_key"))
+
+    conn = get_db()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            INSERT INTO provider_submissions
+            (provider_name, website, api_base_url, api_key, country,
+             is_eu_sovereign, is_zdr, zdr_notes, contact_email, notes,
+             status)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                    %s)
+            ON CONFLICT (provider_name) DO UPDATE SET
+                api_base_url = EXCLUDED.api_base_url,
+                website = EXCLUDED.website,
+                contact_email = EXCLUDED.contact_email,
+                status = 'pending',
+                reviewed_at = NULL
+            RETURNING id
+        """, (
+            provider_name,
+            submission.get("website", ""),
+            api_base_url,
+            submission.get("api_key"),
+            submission.get("country", ""),
+            bool(submission.get("is_eu_sovereign")),
+            bool(submission.get("is_zdr")),
+            submission.get("zdr_notes", ""),
+            submission.get("contact_email", ""),
+            submission.get("notes", ""),
+            "pending",
+        ))
+        sub_id = cur.fetchone()[0]
+        conn.commit()
+    finally:
+        cur.close()
+        conn.close()
+
+    return {
+        "id": sub_id,
+        "status": "pending",
+        "endpoint_probe": {"ok": ok, "model_count": model_count, "detail": detail},
+        "message": "Submission received. We'll review it and get back to you.",
+    }
+
+
+@app.get("/v1/providers/submissions")
+async def list_submissions(request: Request):
+    """List provider submissions. Review queue for the site owner.
+
+    Protected by the SSR secret header - not public.
+    """
+    if request.headers.get("X-SSR-Secret") != SSR_SECRET:
+        return JSONResponse(status_code=401, content={"error": "Unauthorized"})
+
+    where = ""
+    params = []
+    if request.query_params.get("status"):
+        where = "WHERE status = %s"
+        params.append(request.query_params.get("status"))
+
+    conn = get_db()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT id, provider_name, website, api_base_url, country,
+                   is_eu_sovereign, is_zdr, zdr_notes, contact_email, notes,
+                   status, created_at
+            FROM provider_submissions
+            {where}
+            ORDER BY created_at DESC
+        """.format(where=where), params)
+        rows = cur.fetchall()
+        return {
+            "count": len(rows),
+            "submissions": [
+                {
+                    "id": r[0], "provider_name": r[1], "website": r[2],
+                    "api_base_url": r[3], "country": r[4],
+                    "is_eu_sovereign": r[5], "is_zdr": r[6], "zdr_notes": r[7],
+                    "contact_email": r[8], "notes": r[9],
+                    "status": r[10], "created_at": r[11].isoformat() if r[11] else None,
+                }
+                for r in rows
+            ],
+        }
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.post("/v1/providers/submissions/{submission_id}/review")
+async def review_submission(submission_id: int, decision: dict, request: Request):
+    """Approve or reject a submitted provider. Owner-only (SSR secret)."""
+    if request.headers.get("X-SSR-Secret") != SSR_SECRET:
+        return JSONResponse(status_code=401, content={"error": "Unauthorized"})
+
+    new_status = decision.get("status")
+    if new_status not in ("approved", "rejected"):
+        return JSONResponse(status_code=400, content={"error": "status must be approved or rejected"})
+
+    conn = get_db()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            UPDATE provider_submissions
+            SET status = %s, reviewed_by = 'des', reviewed_at = now()
+            WHERE id = %s
+            RETURNING id
+        """, (new_status, submission_id))
+        if cur.fetchone() is None:
+            return JSONResponse(status_code=404, content={"error": "Submission not found"})
+        conn.commit()
+
+        if new_status == "approved":
+            # If approved, ensure the provider exists in the providers table
+            cur.execute("""
+                SELECT provider_name FROM provider_submissions WHERE id = %s
+            """, (submission_id,))
+            row = cur.fetchone()
+            if row:
+                cur.execute("""
+                    INSERT INTO providers (name, is_zdr, is_eu_sovereign)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (name) DO UPDATE SET
+                        is_zdr = EXCLUDED.is_zdr,
+                        is_eu_sovereign = EXCLUDED.is_eu_sovereign
+                """, (row[0], decision.get("is_zdr", False), decision.get("is_eu_sovereign", False)))
+                conn.commit()
+    finally:
+        cur.close()
+        conn.close()
+
+    return {"id": submission_id, "status": new_status}
+
+
+# ============================================
 # PROVIDERS
 # ============================================
 
@@ -810,22 +993,54 @@ async def get_provider_detail(
         raise HTTPException(status_code=404, detail="Provider not found")
 
     # Hosted models: from model_endpoints (what this provider serves to users)
-    # Includes both own models and third-party models they aggregate
+    # Includes both own models and third-party models they aggregate.
+    # Also includes models OWNED by this provider but hosted via other endpoint
+    # providers (e.g. Mistralai owns models but they're hosted under "Mistral"
+    # in model_endpoints). We UNION those so the provider page isn't empty.
     cur.execute("""
-        SELECT DISTINCT ON (me.model_id)
-            me.model_id, m.name, m.provider as model_owner, m.tier, m.context_length,
-            m.aa_index_score, m.modality, m.is_reasoning,
-            me.input_price_per_m, me.output_price_per_m, me.blended_price_per_m,
-            lp.sit_score, lp.sit_adjusted_price, me.fetched_at, me.source, me.raw_data
-        FROM model_endpoints me
-        JOIN models m ON me.model_id = m.id
-        LEFT JOIN latest_prices lp ON me.model_id = lp.model_id
-        WHERE me.endpoint_provider = %s
-          AND m.is_active = TRUE
-          AND me.blended_price_per_m > 0
-          AND m.id NOT LIKE '%%:batch'
-        ORDER BY me.model_id, me.fetched_at DESC
-    """, (provider_name,))
+        WITH hosted AS (
+            SELECT DISTINCT ON (me.model_id)
+                me.model_id, m.name, m.provider as model_owner, m.tier, m.context_length,
+                m.aa_index_score, m.modality, m.is_reasoning,
+                me.input_price_per_m, me.output_price_per_m, me.blended_price_per_m,
+                lp.sit_score, lp.sit_adjusted_price, me.fetched_at, me.source, me.raw_data
+            FROM model_endpoints me
+            JOIN models m ON me.model_id = m.id
+            LEFT JOIN latest_prices lp ON me.model_id = lp.model_id
+            WHERE me.endpoint_provider = %s
+              AND m.is_active = TRUE
+              AND me.blended_price_per_m > 0
+              AND m.id NOT LIKE '%%:batch'
+            ORDER BY me.model_id, me.fetched_at DESC
+        ),
+        owned AS (
+            SELECT DISTINCT ON (me.model_id)
+                me.model_id, m.name, m.provider as model_owner, m.tier, m.context_length,
+                m.aa_index_score, m.modality, m.is_reasoning,
+                me.input_price_per_m, me.output_price_per_m, me.blended_price_per_m,
+                lp.sit_score, lp.sit_adjusted_price, me.fetched_at, me.source, me.raw_data
+            FROM models m
+            JOIN model_endpoints me ON m.id = me.model_id
+            LEFT JOIN latest_prices lp ON m.id = lp.model_id
+            WHERE m.provider = %s
+              AND m.is_active = TRUE
+              AND me.blended_price_per_m > 0
+              AND m.id NOT LIKE '%%:batch'
+              AND me.endpoint_provider != %s
+            ORDER BY me.model_id, me.fetched_at DESC
+        )
+        SELECT DISTINCT ON (model_id)
+            model_id, name, model_owner, tier, context_length,
+            aa_index_score, modality, is_reasoning,
+            input_price_per_m, output_price_per_m, blended_price_per_m,
+            sit_score, sit_adjusted_price, fetched_at, source, raw_data
+        FROM (
+            SELECT * FROM hosted
+            UNION ALL
+            SELECT * FROM owned
+        ) combined
+        ORDER BY model_id, fetched_at DESC
+    """, (provider_name, provider_name, provider_name))
 
     models = []
     for row in cur.fetchall():

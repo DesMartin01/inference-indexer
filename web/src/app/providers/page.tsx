@@ -31,6 +31,39 @@ export default async function ProvidersPage() {
         </p>
 
         <ProvidersTable providers={providers} />
+
+        <div
+          style={{
+            marginTop: 32,
+            padding: "18px 24px",
+            border: "1px solid #262626",
+            borderRadius: 8,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: 12,
+            background: "#111112",
+          }}
+        >
+          <span style={{ fontSize: 14, color: "#c9c9c9" }}>
+            Are you an inference provider?
+          </span>
+          <Link
+            href="/providers/submit"
+            style={{
+              fontSize: 13.5,
+              fontWeight: 600,
+              color: "#C4A038",
+              padding: "9px 18px",
+              border: "1px solid #C4A038",
+              borderRadius: 6,
+              textDecoration: "none",
+            }}
+          >
+            Submit your models here
+          </Link>
+        </div>
       </main>
       <Footer providers={71} updatedAt="" />
     </div>

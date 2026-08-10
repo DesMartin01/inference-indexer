@@ -94,8 +94,14 @@ export async function proxy(request: NextRequest) {
     request.method === "GET" &&
     (pathname.startsWith("/models/") || pathname.startsWith("/providers/"))
   ) {
+    // Do NOT guard static pages that live under /providers/ (e.g. the
+    // self-serve submission page). Only the dynamic /providers/{name}
+    // detail route should be checked against live provider names.
+    const isStaticProviderPage =
+      pathname === "/providers/submit" ||
+      pathname === "/providers/submit/";
     const live = await getLiveSlugs();
-    if (live) {
+    if (live && !isStaticProviderPage) {
       if (pathname.startsWith("/models/")) {
         const slug = pathname.slice("/models/".length).split("/")[0];
         if (slug && !live.modelProviderSlugs.has(slug)) {

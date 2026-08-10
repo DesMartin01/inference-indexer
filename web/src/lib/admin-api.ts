@@ -76,3 +76,47 @@ export function getPriceCompare(
   if (provider) q.set("provider", provider);
   return getJson<PriceCompare>(`/v1/admin/price-compare?${q.toString()}`);
 }
+
+// --- Provider submissions review queue (owner-only) ---
+
+export interface PendingSubmission {
+  id: number;
+  provider_name: string;
+  website: string;
+  api_base_url: string;
+  country: string;
+  is_eu_sovereign: boolean;
+  is_zdr: boolean;
+  zdr_notes: string;
+  contact_email: string;
+  notes: string;
+  status: string;
+  created_at: string;
+}
+
+export interface SubmissionList {
+  count: number;
+  submissions: PendingSubmission[];
+}
+
+export function getSubmissions(status?: string): Promise<SubmissionList> {
+  const q = status ? `?status=${status}` : "";
+  return getJson<SubmissionList>(`/v1/providers/submissions${q}`);
+}
+
+export async function reviewSubmission(
+  id: number,
+  decision: { status: "approved" | "rejected"; is_zdr?: boolean; is_eu_sovereign?: boolean }
+): Promise<{ id: number; status: string }> {
+  const res = await fetch(`${API_URL}/v1/providers/submissions/${id}/review`, {
+    method: "POST",
+    cache: "no-store",
+    headers: {
+      "X-SSR-Secret": SSR_SECRET,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(decision),
+  });
+  if (!res.ok) throw new Error(`Review failed (${res.status})`);
+  return res.json();
+}
