@@ -12,7 +12,6 @@ import {
 import { buildSparkPath } from "@/lib/charts";
 import { Header, Footer } from "@/components/Header";
 import ModelTable from "@/components/ModelTable";
-import FrontierPodium from "@/components/FrontierPodium";
 import { CURRENT_MODEL_COUNT, CURRENT_PROVIDER_COUNT } from "@/lib/counts";
 
 export const revalidate = 60;
@@ -403,9 +402,6 @@ export default async function Home() {
           </div>
         </div>
       </section>
-
-      {/* Frontier Best Value podium (Gold/Silver/Bronze) */}
-      {models.length > 0 && <FrontierPodium models={models} />}
 
       {/* Pricing data description */}
       <section
