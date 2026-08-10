@@ -1,0 +1,18 @@
+SIT-Composite $3.17/M (↓ 5.5% 24h).
+
+Biggest price drops (24h):
+  ▼ Gemini 3.5 Flash Lite -55%
+  ▼ Qwen3 VL 235B A22B Instruct -29%
+  ▼ GPT-5.4 Mini -20%
+  ▼ GPT-5.3-Codex -20%
+  ▼ Claude Sonnet 4.6 -9%
+
+Biggest price increases (24h):
+  ▲ GPT-5.6 Luna Pro +313%
+  ▲ Gemini 3 Flash Preview +153%
+  ▲ Ling-3.0-flash +26%
+  ▲ Gemini 3.6 Flash +25%
+  ▲ Gemini 3.1 Pro Preview +25%
+
+Live at inferenceindexer.ai
+#AInference #LLM #pricing
