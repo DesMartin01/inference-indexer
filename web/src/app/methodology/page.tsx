@@ -1,4 +1,5 @@
 import { Header, Footer } from "@/components/Header";
+import DataSourcesTable from "./DataSourcesTable";
 
 export const metadata = {
   title: "Methodology - SIT Standard Inference Token | InferenceIndexer.ai",
@@ -474,72 +475,18 @@ SIT-Composite = Σ(weight_i × blended_price_i) / Σ(weight_i)`}</pre>
           {/* 6. Data Sources */}
           <Section n="6" title="Data Sources" id="sources">
             <SubSection n="6.1" title="Primary Sources">
-              <table style={tableStyle}>
-                <thead>
-                  <tr>
-                    <th style={thStyle}>Source</th>
-                    <th style={thStyle}>Type</th>
-                    <th style={thStyle}>Models</th>
-                    <th style={thStyle}>Frequency</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td style={tdStyle}>OpenRouter API</td>
-                    <td style={tdStyle}>Aggregator</td>
-                    <td style={tdStyle}>318+</td>
-                    <td style={tdStyle}>Hourly</td>
-                  </tr>
-                  <tr>
-                    <td style={tdStyle}>Together AI API</td>
-                    <td style={tdStyle}>Aggregator</td>
-                    <td style={tdStyle}>~80</td>
-                    <td style={tdStyle}>Hourly</td>
-                  </tr>
-                  <tr>
-                    <td style={tdStyle}>Fireworks AI API</td>
-                    <td style={tdStyle}>Aggregator</td>
-                    <td style={tdStyle}>~50</td>
-                    <td style={tdStyle}>Hourly</td>
-                  </tr>
-                  <tr>
-                    <td style={tdStyle}>Groq API</td>
-                    <td style={tdStyle}>Aggregator</td>
-                    <td style={tdStyle}>~15</td>
-                    <td style={tdStyle}>Hourly</td>
-                  </tr>
-                  <tr>
-                    <td style={tdStyle}>OpenAI pricing</td>
-                    <td style={tdStyle}>Direct</td>
-                    <td style={tdStyle}>~15</td>
-                    <td style={tdStyle}>Daily scrape</td>
-                  </tr>
-                  <tr>
-                    <td style={tdStyle}>Anthropic pricing</td>
-                    <td style={tdStyle}>Direct</td>
-                    <td style={tdStyle}>~10</td>
-                    <td style={tdStyle}>Daily scrape</td>
-                  </tr>
-                  <tr>
-                    <td style={tdStyle}>Google AI Studio</td>
-                    <td style={tdStyle}>Direct</td>
-                    <td style={tdStyle}>~20</td>
-                    <td style={tdStyle}>Daily scrape</td>
-                  </tr>
-                  <tr>
-                    <td style={tdStyle}>DeepSeek pricing</td>
-                    <td style={tdStyle}>Direct</td>
-                    <td style={tdStyle}>~5</td>
-                    <td style={tdStyle}>Daily scrape</td>
-                  </tr>
-                  <tr>
-                    <td style={tdStyle}>TensorX</td>
-                    <td style={tdStyle}>Direct</td>
-                    <td style={tdStyle}>~10</td>
-                    <td style={tdStyle}>Daily</td>
-                  </tr>
-                </tbody>
-              </table>
+              <p style={p}>
+                All providers in the index below, with their refresh cadence.
+                The list updates automatically as new direct data providers are
+                added, so it always reflects the current index.
+              </p>
+              <DataSourcesTable />
+              <p style={{ fontSize: "12.5px", color: "#8a8a8a" }}>
+                <strong style={{ color: "#C4A038" }}>Type:</strong> Aggregator
+                sources aggregate and republish pricing from multiple upstream
+                providers. Direct sources are provider-owned feeds pulled from
+                their own endpoints or published pricing.
+              </p>
             </SubSection>
 
             <SubSection n="6.2" title="Source Hierarchy">
