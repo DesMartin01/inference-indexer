@@ -1994,28 +1994,31 @@ def calculate_tier_averages(models):
 
 def calculate_sit_scores(models, tier_avgs):
     """Calculate SIT score for each model.
-    
+
     SIT Score = (model's SIT-adjusted price / tier median SIT-adjusted price) * 100
     A score of 100 = at the tier median. Lower = cheaper per unit of intelligence.
     Minimum score is 1. Models without an AA score get no SIT score (None).
+
+    `tier_avgs` should be the DAILY-STABLE tier medians (per UTC date) so scores
+    stay constant across hourly runs within a day. Median is the SIT-adjusted
+    price median, not the blended median. If a tier is missing from `tier_avgs`,
+    fall back to computing it from the passed models for that run only.
     """
-    # Compute tier medians using ONLY models with SIT-adjusted prices
+    # Ensure every tier present in models has a stable median; fall back to
+    # recomputing transiently only for tiers the stable set omits.
     tier_adjusted_prices = {}
     for m in models:
         tier = m["tier"]
-        if tier not in tier_adjusted_prices:
-            tier_adjusted_prices[tier] = []
         adj = m.get("sit_adjusted_price")
         if adj and adj > 0:
-            tier_adjusted_prices[tier].append(adj)
-    
-    tier_adjusted_medians = {}
+            tier_adjusted_prices.setdefault(tier, []).append(adj)
+
     for tier, prices in tier_adjusted_prices.items():
-        if prices:
-            tier_adjusted_medians[tier] = _median(prices)
-    
+        if tier not in tier_avgs and prices:
+            tier_avgs[tier] = round(_median(prices), 8)
+
     for m in models:
-        tier_median = tier_adjusted_medians.get(m["tier"])
+        tier_median = tier_avgs.get(m["tier"])
         adj = m.get("sit_adjusted_price")
         if tier_median and tier_median > 0 and adj and adj > 0:
             ratio = adj / tier_median
@@ -2025,6 +2028,135 @@ def calculate_sit_scores(models, tier_avgs):
             # No AA score = no SIT score
             m["sit_score"] = None
     return models
+
+# ---------------------------------------------------------------------------
+# DAILY-STABLE SIT MEDIANS
+#
+# Per-model SIT scores are a *relative* ratio: (model SIT-adjusted price /
+# tier median of SIT-adjusted prices) * 100. If the median is recomputed from
+# the transient hourly run set, catalog churn (a model appearing/disappearing)
+# moves the median and every score fluctuates within a single day with no price
+# change. Customers/agents cross-checking scores see erratic, unreliable data.
+#
+# Fix: compute the SIT-adjusted tier median ONCE per UTC date from the
+# authoritative `latest_prices` view (the complete set of active models), cache
+# it for the day, and use the same median for every hourly run that day. Scores
+# then change only when the *daily* median genuinely shifts, never hourly churn.
+# ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# DAILY-STABLE SIT MEDIANS
+#
+# Per-model SIT scores are a *relative* ratio: (model SIT-adjusted price /
+# tier median of SIT-adjusted prices) * 100. If the median is recomputed from
+# the transient hourly run set, catalog churn (a model appearing/disappearing)
+# moves the median and every score fluctuates within a single day with no price
+# change. Customers/agents cross-checking scores see erratic, unreliable data.
+#
+# Fix: persist ONE SIT-adjusted tier median per UTC date in the
+# `daily_tier_medians` table. The first run of a UTC date computes + stores it
+# from the authoritative `latest_prices` view (complete active model set); all
+# subsequent runs (separate cron processes!) read the stored value. Scores then
+# change only when the *daily* median genuinely shifts, never hourly catalog
+# churn.
+# ---------------------------------------------------------------------------
+
+def _cache_day_key():
+    """UTC-date key for the daily tier-median table (rotates at UTC midnight)."""
+    return datetime.now(timezone.utc).date().isoformat()
+
+def _get_or_create_daily_medians(conn, day=None):
+    """Return the SIT-adjusted tier median for the current UTC date.
+
+    Reads from `daily_tier_medians`. If no row exists for today, computes it
+    from `latest_prices` and stores it (first run of the day wins). Returns a
+    dict {tier: median} — possibly empty if no data yet.
+    """
+    if day is None:
+        day = _cache_day_key()
+    medians = {}
+
+    if conn is None:
+        return medians
+
+    # 1) Try to read today's persisted medians.
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT tier, sit_adjusted_median
+            FROM daily_tier_medians
+            WHERE date = %s
+        """, (day,))
+        rows = cur.fetchall()
+        if rows:
+            medians = {tier: float(m) for tier, m in rows}
+            # Check all tiers are present (in case a tier was added mid-day we
+            # still want a complete set; missing tiers fall back at caller).
+            return medians
+    except Exception:
+        conn.rollback()
+    finally:
+        cur.close()
+
+    # 2) No persisted value for today yet -> compute from the complete active
+    #    model set and persist (first run of the UTC date wins).
+    tier_prices = {}
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT m.tier, lp.sit_adjusted_price
+            FROM latest_prices lp
+            JOIN models m ON lp.model_id = m.id
+            WHERE m.is_active = TRUE
+              AND lp.sit_adjusted_price > 0
+        """)
+        for tier, adj in cur.fetchall():
+            if adj and adj > 0:
+                tier_prices.setdefault(tier, []).append(float(adj))
+        cur.close()
+    except Exception:
+        conn.rollback()
+        if cur:
+            cur.close()
+        return medians
+
+    if not tier_prices:
+        return medians
+
+    now = datetime.now(timezone.utc)
+    for tier, prices in tier_prices.items():
+        medians[tier] = round(_median(prices), 8)
+
+    # Persist atomically; ignore duplicate-key race from concurrent first runs.
+    try:
+        cur = conn.cursor()
+        for tier, m in medians.items():
+            cur.execute("""
+                INSERT INTO daily_tier_medians (date, tier, sit_adjusted_median, model_count)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (date, tier) DO NOTHING
+            """, (day, tier, m, len(tier_prices[tier])))
+        conn.commit()
+        cur.close()
+    except Exception:
+        conn.rollback()
+        try:
+            cur.close()
+        except Exception:
+            pass
+
+    return medians
+
+def get_stable_tier_medians(conn):
+    """Return the counter global — daily tier medians stable for the UTC date.
+
+    Reads from the persisted `daily_tier_medians` table (handles separate
+    process invocations across hourly cron runs).
+    """
+    return _get_or_create_daily_medians(conn)
+
+def reset_daily_median_cache():
+    """No-op kept for API compatibility (medians are DB-persisted now)."""
+    return None
 
 def calculate_composite_price(models):
     """Calculate the SIT-Composite price: usage-weighted mean of top 50 models by token volume.
@@ -2524,7 +2656,9 @@ def main():
         print(f"  Sarvam direct: {len(sarvam_endpoints)} endpoints added")
     
     # Calculate tier averages and SIT scores
-    tier_avgs = calculate_tier_averages(priced)
+    # Use DAILY-STABLE tier medians so per-model SIT scores are constant across
+    # the day's hourly runs (catalog churn no longer flips the median hourly).
+    tier_avgs = get_stable_tier_medians(get_db_connection())
     priced = calculate_sit_scores(priced, tier_avgs)
     
     # Calculate SIT indices
