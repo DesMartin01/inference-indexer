@@ -136,6 +136,11 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|css|js)$).*)",
+    // Admin pages manage their own session cookie (ADMIN_SECRET) and must NOT
+    // be touched by the Proxy or Supabase middleware — running middleware over
+    // them was intermittently dropping the admin auth cookie and logging the
+    // owner out. Exclude /admin entirely so its route-handler Set-Cookie is
+    // never re-wrapped.
+    "/((?!admin|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|css|js)$).*)",
   ],
 };
