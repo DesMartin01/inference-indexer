@@ -126,7 +126,7 @@ export function ApiUsageClient({
         />
         <MetricCard
           label="Free-Key Requests"
-          value={today ? String(today.free_requests) : "—"}
+          value={today ? `${today.free_requests} (${today.free_users} users)` : "—"}
         />
         <MetricCard
           label="Public (no key)"
@@ -201,7 +201,12 @@ export function ApiUsageClient({
                     }}
                   >
                     <span>{p.plan}</span>
-                    <span>{p.requests}</span>
+                    <span>
+                      {p.requests.toLocaleString()}
+                      {typeof p.users === "number" && p.users > 0 && (
+                        <span style={{ color: MUTED, fontSize: 11 }}> · {p.users} users</span>
+                      )}
+                    </span>
                   </div>
                   <div style={{ height: 6, background: "#1a1a1a", borderRadius: 3 }}>
                     <div
@@ -310,6 +315,46 @@ export function ApiUsageClient({
           public no-key calls count toward requests but aren&apos;t individually
           attributable.
         </div>
+      </div>
+
+      {/* Free key traction: signups + activity */}
+      <div style={card}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: "#e5e5e5", marginBottom: 4 }}>
+          Free-Key Users · traction
+        </div>
+        <div style={{ fontSize: 12, color: MUTED, marginBottom: 16 }}>
+          New free signups (30d): <strong style={{ color: ACCENT }}>{data ? data.new_free_signups_30d : "—"}</strong>
+        </div>
+        {data && data.free_key_activity.length > 0 ? (
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr style={{ textAlign: "left" }}>
+                <th style={{ padding: "6px 8px", fontSize: 11, textTransform: "uppercase", color: MUTED, letterSpacing: "0.06em" }}>User</th>
+                <th style={{ padding: "6px 8px", fontSize: 11, textTransform: "uppercase", color: MUTED, letterSpacing: "0.06em" }}>Endpoint</th>
+                <th style={{ padding: "6px 8px", fontSize: 11, textTransform: "uppercase", color: MUTED, letterSpacing: "0.06em", textAlign: "right" }}>Req</th>
+                <th style={{ padding: "6px 8px", fontSize: 11, textTransform: "uppercase", color: MUTED, letterSpacing: "0.06em", textAlign: "right" }}>Last</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.free_key_activity.map((a, i) => (
+                <tr key={i} style={{ borderBottom: "1px solid #1c1c20" }}>
+                  <td style={{ padding: "8px", fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#c9c9c9" }}>{a.user}</td>
+                  <td style={{ padding: "8px", fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: "#e5e5e5" }}>{a.endpoint}</td>
+                  <td style={{ padding: "8px", textAlign: "right", fontVariantNumeric: "tabular-nums", color: "#e5e5e5" }}>{a.requests}</td>
+                  <td style={{ padding: "8px", textAlign: "right", fontSize: 11, color: MUTED }}>
+                    {a.last ? new Date(a.last).toISOString().replace("T", " ").slice(0, 16) + "Z" : "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <div style={{ color: MUTED, fontSize: 13 }}>
+            No free-key API usage yet. This is where a real user (agent or
+            developer) shows up once they sign up and call the API with their
+            key.
+          </div>
+        )}
       </div>
     </div>
   );

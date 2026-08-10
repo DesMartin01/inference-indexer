@@ -129,17 +129,20 @@ export interface UsageToday {
   unique_users: number;
   free_requests: number;
   public_requests: number;
+  free_users: number;
 }
 
 export interface UsageDailyPoint {
   date: string;
   requests: number;
   unique_users: number;
+  free_users: number;
 }
 
 export interface UsagePlanMix {
   plan: string;
   requests: number;
+  users: number;
 }
 
 export interface UsageEndpoint {
@@ -157,6 +160,13 @@ export interface UsageStatusMix {
   requests: number;
 }
 
+export interface FreeKeyActivity {
+  user: string;
+  endpoint: string;
+  requests: number;
+  last: string | null;
+}
+
 export interface ApiUsage {
   today: UsageToday;
   daily: UsageDailyPoint[];
@@ -164,6 +174,8 @@ export interface ApiUsage {
   top_endpoints: UsageEndpoint[];
   hourly: UsageHourlyPoint[];
   status_mix: UsageStatusMix[];
+  new_free_signups_30d: number;
+  free_key_activity: FreeKeyActivity[];
   scope: string;
 }
 

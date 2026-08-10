@@ -1012,9 +1012,10 @@ async def api_usage(request: Request):
             f"""
             SELECT
                 COUNT(*),
-                COUNT(DISTINCT user_label),
+                COUNT(DISTINCT user_label) FILTER (WHERE user_label IS NOT NULL),
                 COUNT(*) FILTER (WHERE plan = 'free'),
-                COUNT(*) FILTER (WHERE plan = 'public')
+                COUNT(*) FILTER (WHERE plan = 'public'),
+                COUNT(DISTINCT user_label) FILTER (WHERE plan = 'free' AND user_label IS NOT NULL)
             FROM api_request_log
             WHERE ts >= %s {scope_filter}
             """,
@@ -1026,6 +1027,7 @@ async def api_usage(request: Request):
             "unique_users": r[1],  # distinct registered/anon labels
             "free_requests": r[2],
             "public_requests": r[3],
+            "free_users": r[4],  # distinct free-key users today
         }
 
         # --- Last 14 days daily series ---
@@ -1034,7 +1036,8 @@ async def api_usage(request: Request):
             SELECT
                 date_trunc('day', ts)::date AS day,
                 COUNT(*),
-                COUNT(DISTINCT user_label::text)
+                COUNT(DISTINCT user_label::text),
+                COUNT(DISTINCT user_label::text) FILTER (WHERE plan = 'free' AND user_label IS NOT NULL)
             FROM api_request_log
             WHERE ts >= %s {scope_filter}
             GROUP BY 1 ORDER BY 1
@@ -1042,21 +1045,46 @@ async def api_usage(request: Request):
             (now - timedelta(days=14),),
         )
         daily = [
-            {"date": d.isoformat(), "requests": c, "unique_users": u}
-            for d, c, u in cur.fetchall()
+            {"date": d.isoformat(), "requests": c, "unique_users": u, "free_users": f}
+            for d, c, u, f in cur.fetchall()
         ]
 
-        # --- Plan mix (this month) ---
+        # --- Plan mix (this month), with distinct users per plan ---
         cur.execute(
             f"""
-            SELECT plan, COUNT(*)
+            SELECT plan, COUNT(*), COUNT(DISTINCT user_label::text) FILTER (WHERE user_label IS NOT NULL)
             FROM api_request_log
             WHERE ts >= %s {scope_filter}
             GROUP BY plan ORDER BY 2 DESC
             """,
             (now - timedelta(days=30),),
         )
-        plan_mix = [{"plan": p, "requests": c} for p, c in cur.fetchall()]
+        plan_mix = [{"plan": p, "requests": c, "users": u} for p, c, u in cur.fetchall()]
+
+        # --- New free-plan signups (30d) + recent free-key activity ---
+        cur.execute(
+            """
+            SELECT COUNT(*) FROM api_users
+            WHERE plan = 'free' AND created_at >= NOW() - INTERVAL '30 days'
+            """
+        )
+        new_free_signups_30d = cur.fetchone()[0] or 0
+
+        cur.execute(
+            f"""
+            SELECT user_label, endpoint, COUNT(*), MAX(ts)
+            FROM api_request_log
+            WHERE plan = 'free' AND user_label IS NOT NULL AND ts >= %s {scope_filter}
+            GROUP BY user_label, endpoint
+            ORDER BY MAX(ts) DESC
+            LIMIT 25
+            """,
+            (now - timedelta(days=30),),
+        )
+        free_key_activity = [
+            {"user": u, "endpoint": e, "requests": c, "last": l.isoformat() if l else None}
+            for u, e, c, l in cur.fetchall()
+        ]
 
         # --- Top endpoints (7d) ---
         cur.execute(
@@ -1101,6 +1129,8 @@ async def api_usage(request: Request):
             "top_endpoints": top_endpoints,
             "hourly": hourly,
             "status_mix": status_mix,
+            "new_free_signups_30d": new_free_signups_30d,
+            "free_key_activity": free_key_activity,
             "scope": "external" if not include_ssr else "external+ssr",
         }
     finally:
