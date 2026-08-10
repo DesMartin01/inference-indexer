@@ -34,7 +34,7 @@ export default function DashboardPage() {
     }
 
     // Fetch API user data from our API
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://34.246.208.210:8000";
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://api.inferenceindexer.ai";
 
     // First, get the API key from the api_users table via Supabase
     const { data: apiUserData, error: rlsError } = await supabase
@@ -99,7 +99,7 @@ export default function DashboardPage() {
     if (!data?.api_key) return;
     setRegenerating(true);
 
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://34.246.208.210:8000";
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://api.inferenceindexer.ai";
     try {
       const res = await fetch(`${apiUrl}/v1/auth/regenerate-key`, {
         method: "POST",
@@ -146,7 +146,7 @@ export default function DashboardPage() {
     : "";
 
   const curlExample = `curl -H "Authorization: Bearer ${data?.api_key || "YOUR_API_KEY"}" \\
-  ${process.env.NEXT_PUBLIC_API_URL || "http://34.246.208.210:8000"}/v1/sit/composite/latest`;
+  ${process.env.NEXT_PUBLIC_API_URL || "https://api.inferenceindexer.ai"}/v1/sit/composite/latest`;
 
   return (
     <div style={{ minHeight: "100vh", background: "#0a0a0a", padding: "40px 20px" }}>
