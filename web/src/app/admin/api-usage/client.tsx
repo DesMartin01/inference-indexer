@@ -116,11 +116,11 @@ export function ApiUsageClient({
         }}
       >
         <MetricCard
-          label="Requests Today"
+          label="Registered-Key Requests Today"
           value={today ? String(today.requests) : "—"}
         />
         <MetricCard
-          label="Unique Users / Agents"
+          label="Unique API-Key Users"
           value={today ? String(today.unique_users) : "—"}
           accent
         />
@@ -129,7 +129,7 @@ export function ApiUsageClient({
           value={today ? `${today.free_requests} (${today.free_users} users)` : "—"}
         />
         <MetricCard
-          label="Public (no key)"
+          label="Anonymous (public, no key)"
           value={today ? String(today.public_requests) : "—"}
         />
       </div>

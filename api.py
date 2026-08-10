@@ -289,6 +289,21 @@ def _classify_request(request: Request) -> tuple[str, str | None]:
     return "public", None
 
 
+def _client_ip(request: Request) -> str:
+    """Best-effort client IP behind the SSR proxy / nginx.
+
+    Reads X-Forwarded-For (first hop) then falls back to request.client.
+    Returns '' if unavailable. So admin usage can filter our own traffic by
+    IP instead of counting every anonymous self-call as external usage.
+    """
+    fwd = request.headers.get("x-forwarded-for")
+    if fwd:
+        return fwd.split(",")[0].strip()
+    if request.client:
+        return request.client.host or ""
+    return ""
+
+
 _api_log_buffer: list[tuple] = []
 
 
@@ -304,11 +319,13 @@ async def log_requests(request: Request, call_next):
     if path.startswith("/v1/"):
         try:
             plan, user_label = _classify_request(request)
+            ip = _client_ip(request)
             _api_log_buffer.append((
                 plan,
                 user_label,
                 path,
                 response.status_code,
+                ip,
             ))
             _flush_api_log()
         except Exception:
@@ -332,7 +349,7 @@ def _flush_api_log():
         conn = get_db()
         cur = conn.cursor()
         cur.executemany(
-            "INSERT INTO api_request_log (plan, user_label, endpoint, status) VALUES (%s, %s, %s, %s)",
+            "INSERT INTO api_request_log (plan, user_label, endpoint, status, ip) VALUES (%s, %s, %s, %s, %s)",
             buf,
         )
         conn.commit()
@@ -1021,7 +1038,11 @@ async def api_usage(request: Request):
         return JSONResponse(status_code=401, content={"error": "Unauthorized"})
 
     include_ssr = request.query_params.get("include_ssr") == "1"
-    scope_filter = "" if include_ssr else "AND plan <> 'ssr'"
+    # Exclude our own frontend SSR traffic AND our own admin/monitoring
+    # self-calls (/v1/admin/*) by default, so the headline numbers reflect
+    # real external endpoint usage, not the dashboard counting itself.
+    # include_ssr=1 also surfaces the ssr/admin rows for a full audit.
+    scope_filter = "" if include_ssr else "AND plan <> 'ssr' AND endpoint NOT LIKE '/v1/admin/%%'"
 
     conn = get_db()
     cur = conn.cursor()
@@ -1029,14 +1050,17 @@ async def api_usage(request: Request):
         now = datetime.now(timezone.utc)
 
         # --- Today summary ---
+        # Primary "requests" headline = registered API-key (free) traffic,
+        # which by construction reflects real third-party signups. Anonymous
+        # 'public' traffic (bots/crawlers/our own browsing) is reported
+        # separately and not presented as usage.
         cur.execute(
-            f"""
+            f"""\
             SELECT
-                COUNT(*),
-                COUNT(DISTINCT user_label) FILTER (WHERE user_label IS NOT NULL),
                 COUNT(*) FILTER (WHERE plan = 'free'),
+                COUNT(DISTINCT user_label) FILTER (WHERE plan = 'free' AND user_label IS NOT NULL),
                 COUNT(*) FILTER (WHERE plan = 'public'),
-                COUNT(DISTINCT user_label) FILTER (WHERE plan = 'free' AND user_label IS NOT NULL)
+                COUNT(*)
             FROM api_request_log
             WHERE ts >= %s {scope_filter}
             """,
@@ -1044,11 +1068,14 @@ async def api_usage(request: Request):
         )
         r = cur.fetchone()
         today = {
-            "requests": r[0],
-            "unique_users": r[1],  # distinct registered/anon labels
-            "free_requests": r[2],
-            "public_requests": r[3],
-            "free_users": r[4],  # distinct free-key users today
+            "requests": r[0],            # registered-key real usage (headline)
+            "registered_key_requests": r[0],
+            "unique_users": r[1],        # distinct registered-key users today
+            "free_requests": r[0],       # kept for frontend card (registered-key)
+            "free_users": r[1],          # kept for frontend card
+            "public_requests": r[2],     # anonymous traffic (separate, not usage)
+            "all_requests": r[3],        # everything non-ssr incl. anonymous
+            "public_users": None,
         }
 
         # --- Last 14 days daily series ---
