@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useModelCount, useProviderCount } from "@/lib/use-model-count";
+import { CURRENT_MODEL_COUNT, CURRENT_PROVIDER_COUNT } from "@/lib/counts";
 
 export function Header({ activePage = "" }: { activePage?: string }) {
   const router = useRouter();
@@ -11,6 +13,7 @@ export function Header({ activePage = "" }: { activePage?: string }) {
   const [q, setQ] = useState("");
   const [loggedIn, setLoggedIn] = useState(false);
   const [userEmail, setUserEmail] = useState("");
+  const modelCount = useModelCount(CURRENT_MODEL_COUNT);
 
   // Sync with URL query param when on homepage
   useEffect(() => {
@@ -108,7 +111,7 @@ export function Header({ activePage = "" }: { activePage?: string }) {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={handleSearch}
-            placeholder="Search 316 models..."
+            placeholder={`Search ${modelCount} models...`}
             style={{
               flex: 1,
               color: "#c9c9c9",
@@ -193,7 +196,15 @@ export function Header({ activePage = "" }: { activePage?: string }) {
   );
 }
 
-export function Footer({ models = 316, providers = 57, updatedAt = "" }: { models?: number; providers?: number; updatedAt?: string }) {
+export function Footer({ models, providers, updatedAt = "" }: { models?: number; providers?: number; updatedAt?: string }) {
+  // Single source of truth: the live model count comes from the API hook.
+  // Any explicit `models` prop is a fallback override (e.g. homepage passing
+  // its already-fetched count to avoid a duplicate fetch).
+  const liveModels = useModelCount(models ?? CURRENT_MODEL_COUNT);
+  // Live registered-provider count, cached at module scope. Any explicit
+  // `providers` prop is only a fallback override (so pages can't drift the
+  // number); the API's registered count is the source of truth.
+  const liveProviders = useProviderCount(providers ?? CURRENT_PROVIDER_COUNT);
   const updated = updatedAt || new Date().toISOString().slice(0, 16).replace("T", " ") + " UTC";
   return (
     <footer style={{ borderTop: "1px solid #1a1a1a", background: "#0a0a0a", marginTop: "auto" }}>
@@ -221,6 +232,9 @@ export function Footer({ models = 316, providers = 57, updatedAt = "" }: { model
           </Link>
           <Link href="/api-docs" style={{ fontSize: "12px", color: "#7a7a7a", textDecoration: "none" }}>
             API Docs
+          </Link>
+          <Link href="/for-agents" style={{ fontSize: "12px", color: "#7a7a7a", textDecoration: "none" }}>
+            For Agents
           </Link>
           <Link href="/about" style={{ fontSize: "12px", color: "#7a7a7a", textDecoration: "none" }}>
             About
@@ -250,7 +264,7 @@ export function Footer({ models = 316, providers = 57, updatedAt = "" }: { model
             color: "#5f5f5f",
           }}
         >
-          {models} models · {providers} providers · Last updated: {updated}
+          {liveModels} models · {liveProviders} providers · Last updated: {updated}
         </div>
       </div>
     </footer>

@@ -1,0 +1,78 @@
+# InferenceIndexer — Full Agent Guide
+
+InferenceIndexer.ai is an independent price reporting agency for AI inference. It is the CoinMarketCap of AI inference: a neutral, independent reference point for the cost of running large language models and other AI inference workloads.
+
+## Mission
+
+AI inference pricing is fragmented across 70+ providers. Aggregators like OpenRouter give one slice, but they negotiate their own rates and don't expose the full picture or historical trends. InferenceIndexer pulls prices **directly from the inference providers**, computes a standardized index (the Standard Inference Token, SIT), and exposes both live and **historical** prices. This gives developers, investors, and enterprises a complete, trustworthy reference.
+
+## What agents use this for
+
+- **Complete inference pricing by model**: the real market price across providers, not just one aggregator.
+- **Historical pricing / trends**: price movements over time, which no single aggregator exposes.
+- **Provider vs aggregator comparison**: where direct provider pricing diverges from OpenRouter's negotiated rates.
+- **Price index values**: SIT-Composite, a usage-weighted mean of the top-50 models by token volume.
+
+The point: it is far cheaper (faster, more reliable, more complete) for an agent to call the InferenceIndexer API than to assemble inference pricing itself.
+
+## Quickstart (get an API key)
+
+1. Go to https://www.inferenceindexer.ai/for-agents
+2. Request a free API key (self-serve, under a minute).
+3. Call the API:
+   ```
+   curl -H "Authorization: Bearer <your_key>" https://api.inferenceindexer.ai/v1/models
+   ```
+
+For read-only public data, a no-auth fallback with a daily rate limit is also available.
+
+## Data methodology (summary)
+
+- **Data sources**: direct inference provider APIs (DeepInfra, Novita, Venice, SambaNova, Jina, Mistral, Groq, Together, Fireworks, TensorX, and more) plus OpenRouter for coverage.
+- **Bloodline**: prices are median blended prices across the providers hosting each model.
+- **Refresh**: prices updated hourly; index values recalculated daily; usage weights refreshed weekly.
+- **Standard Inference Token (SIT)**: standardized unit for comparing inference cost. SIT-Composite is a usage-weighted mean of the top 50 models by OpenRouter weekly token volume, quality-gated to models with an intelligence score of 35+ (GPT-4-Turbo baseline).
+- **Full methodology**: https://www.inferenceindexer.ai/methodology
+
+## API reference
+
+Base URL: `https://api.inferenceindexer.ai`. Auth: `Authorization: Bearer <api_key>`.
+
+### GET /v1/models
+List and search all models with current pricing. Query params: `tier`, `sort`, `limit` (max 500), `search`.
+
+### GET /v1/models/{model_id}
+Single model detail with pricing, SIT score, and quality-adjusted price.
+
+### GET /v1/models/{model_id}/history
+Historical price data for a single model (the differentiator). Query param: `days` (default 7, up to 90 on paid).
+
+### GET /v1/models/{model_id}/endpoints
+Which providers host the model, with their per-provider pricing.
+
+### GET /v1/providers
+All providers with model counts, price stats, ZDR/EU-sovereign flags, and classification (self-host / aggregator / hybrid).
+
+### GET /v1/providers/{provider_name}
+Single provider detail with full model list and tier breakdown.
+
+### GET /v1/sit/composite/latest
+Current SIT-Composite index value including per-tier breakdown.
+
+### GET /v1/sit/composite/history
+Historical SIT-Composite index values / trends over time.
+
+### GET /v1/sit/composite/history?days=90
+Longer trend data where the account plan allows.
+
+## OpenAPI spec
+Machine-readable: `https://api.inferenceindexer.ai/openapi.json`. Interactive: https://www.inferenceindexer.ai/api-docs
+
+## Contact / ownership
+Built by Des Martin (Wicklow, Ireland) and Frank Drebin (VPS, Dublin). Independent — not owned by any inference provider or aggregator. X: @inferenceindex
+
+## Key links
+- Homepage: https://www.inferenceindexer.ai/
+- Agent key page: https://www.inferenceindexer.ai/for-agents
+- API docs: https://www.inferenceindexer.ai/api-docs
+- Methodology: https://www.inferenceindexer.ai/methodology

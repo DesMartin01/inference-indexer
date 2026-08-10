@@ -1,14 +1,18 @@
 import Link from "next/link";
 import { Header } from "@/components/Header";
+import { getModelCount } from "@/lib/api";
+import { CURRENT_MODEL_COUNT } from "@/lib/counts";
 
-export const metadata = {
+export async function generateMetadata() {
+  const count = (await getModelCount().catch(() => 0)) || CURRENT_MODEL_COUNT;
+  return {
   title: "API Documentation - Free Inference Pricing API | InferenceIndexer.ai",
   description:
-    "Free API for AI inference pricing data. Access SIT-Composite index, model pricing, price history, and SIT scores for 316+ models. 100 requests/day free, no credit card required.",
+    `Free API for AI inference pricing data. Access SIT-Composite index, model pricing, price history, and SIT scores for ${count}+ models. 100 requests/day free, no credit card required.`,
   alternates: { canonical: "https://www.inferenceindexer.ai/api-docs" },
   openGraph: {
     title: "InferenceIndexer API - Free AI Pricing Data",
-    description: "Access live inference pricing for 316+ models via free API. SIT scores, price history, tier rankings.",
+    description: `Access live inference pricing for ${count}+ models via free API. SIT scores, price history, tier rankings.`,
     url: "https://www.inferenceindexer.ai/api-docs",
     siteName: "InferenceIndexer.ai",
   },
@@ -20,15 +24,36 @@ export const metadata = {
     "SIT API",
     "inference price data",
   ],
-};
+  };
+}
 
 const MONO = "'JetBrains Mono', ui-monospace, monospace";
 const SANS = "Inter, -apple-system, BlinkMacSystemFont, sans-serif";
 
 export default function ApiDocsPage() {
+  const apiSchema = {
+    "@context": "https://schema.org",
+    "@type": "WebAPI",
+    name: "InferenceIndexer API",
+    description:
+      "Free API for AI inference pricing data. Live and historical prices by model, provider comparison, and the SIT-Composite index.",
+    url: "https://www.inferenceindexer.ai/api-docs",
+    termsOfService: "https://www.inferenceindexer.ai/terms",
+    provider: {
+      "@type": "Organization",
+      name: "InferenceIndexer.ai",
+      url: "https://www.inferenceindexer.ai/",
+    },
+    documentation:
+      "https://www.inferenceindexer.ai/api-docs",
+  };
   return (
     <div style={{ background: "#0a0a0a", minHeight: "100vh", fontFamily: SANS }}>
       <Header activePage="api" />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(apiSchema) }}
+      />
 
       <div style={{ maxWidth: "1320px", margin: "0 auto", padding: "40px 28px 80px" }}>
         {/* Page title */}
@@ -177,8 +202,18 @@ function AuthSection() {
   return (
     <Section id="authentication" title="Authentication">
       <p style={pStyle}>
-        API keys are required for all requests. Sign up with your email to get a free key.
+        API keys are required for all requests. For agents, get one instantly with no email or account:
       </p>
+
+      <CodeBlock>
+        <span style={{ color: "#4ade80" }}>$</span>
+        {" curl -X POST "}
+        <span style={{ color: "#4ade80" }}>https://api.inferenceindexer.ai/v1/auth/anonymous</span>
+      </CodeBlock>
+      <p style={{ ...pStyle, marginBottom: 8 }}>
+        Returns a key valid on the free tier (10,000 requests/day, 30 days of history).
+      </p>
+      <p style={{ ...pStyle, margin: "20px 0 8px" }}>Or sign up with an email (usage tracking + dashboard):</p>
 
       <ol style={{ listStyle: "none", padding: 0, margin: "0 0 24px", display: "flex", flexDirection: "column", gap: 12 }}>
         <Step n={1}>Click &quot;Get API Key&quot; or go to the Sign Up page</Step>
@@ -191,7 +226,7 @@ function AuthSection() {
       <CodeBlock>
         <span style={{ color: "#C4A038" }}>Authorization</span>
         <span style={{ color: "#8a8a8a" }}>: </span>
-        <span style={{ color: "#4ade80" }}>Bearer ***</span>
+        <span style={{ color: "#4ade80" }}>Bearer YOUR_API_KEY</span>
         {"\n"}
       </CodeBlock>
 
@@ -199,7 +234,7 @@ function AuthSection() {
       <CodeBlock>
         <span style={{ color: "#4ade80" }}>$</span>
         {" curl -H "}
-        <span style={{ color: "#4ade80" }}>{`"Authorization: Bearer ***"`}</span>
+        <span style={{ color: "#4ade80" }}>{`"Authorization: Bearer YOUR_API_KEY"`}</span>
         {" \\\n     https://api.inferenceindexer.ai/v1/sit/composite/latest"}
       </CodeBlock>
     </Section>
@@ -244,7 +279,7 @@ function EndpointsSection() {
         path="/v1/sit/composite/latest"
         desc="Returns the current SIT-Composite index value, including tier breakdowns."
         params={[]}
-        request={`$ curl -H "Authorization: Bearer ***" \\\n     https://api.inferenceindexer.ai/v1/sit/composite/latest`}
+        request={`$ curl -H "Authorization: Bearer YOUR_API_KEY" \\\n     https://api.inferenceindexer.ai/v1/sit/composite/latest`}
         response={`{
   "date": "2026-08-03",
   "composite": {
@@ -272,7 +307,7 @@ function EndpointsSection() {
           { name: "days", type: "integer", required: false, desc: "Number of days to return (default: 30, max: 365)" },
           { name: "tier", type: "string", required: false, desc: "Filter to a specific tier: frontier, standard, budget" },
         ]}
-        request={`$ curl -H "Authorization: Bearer ***" \\\n     "https://api.inferenceindexer.ai/v1/sit/composite/history?days=30"`}
+        request={`$ curl -H "Authorization: Bearer YOUR_API_KEY" \\\n     "https://api.inferenceindexer.ai/v1/sit/composite/history?days=30"`}
         response={`{
   "history": [
     { "date": "2026-08-03", "price_per_m": 2.84, "index_points": 784.5 },
@@ -291,11 +326,11 @@ function EndpointsSection() {
           { name: "tier", type: "string", required: false, desc: "Filter by tier: frontier, standard, budget, micro" },
           { name: "provider", type: "string", required: false, desc: "Filter by provider name" },
           { name: "sort", type: "string", required: false, desc: "Sort by: blended, input, output, sit_score (default: sit_score)" },
-          { name: "limit", type: "integer", required: false, desc: "Max results (default: 50, max: 315)" },
+          { name: "limit", type: "integer", required: false, desc: "Max results (default: 50, max: 500)" },
         ]}
-        request={`$ curl -H "Authorization: Bearer ***" \\\n     "https://api.inferenceindexer.ai/v1/models?tier=standard&sort=blended"`}
+        request={`$ curl -H "Authorization: Bearer YOUR_API_KEY" \\\n     "https://api.inferenceindexer.ai/v1/models?tier=standard&sort=blended"`}
         response={`{
-  "count": 315,
+  "count": 318,
   "models": [
     {
       "model_id": "deepseek/deepseek-v4-reasoner",
@@ -323,7 +358,7 @@ function EndpointsSection() {
         params={[
           { name: "model_id", type: "string", required: true, desc: "The model ID (e.g. openai/gpt-5.6)" },
         ]}
-        request={`$ curl -H "Authorization: Bearer ***" \\\n     https://api.inferenceindexer.ai/v1/models/openai/gpt-5.6`}
+        request={`$ curl -H "Authorization: Bearer YOUR_API_KEY" \\\n     https://api.inferenceindexer.ai/v1/models/openai/gpt-5.6`}
         response={`{
   "model_id": "openai/gpt-5.6",
   "name": "OpenAI: GPT-5.6",
@@ -348,7 +383,7 @@ function EndpointsSection() {
           { name: "model_id", type: "string", required: true, desc: "The model ID" },
           { name: "days", type: "integer", required: false, desc: "Days of history (default: 30, max: 365 on free tier)" },
         ]}
-        request={`$ curl -H "Authorization: Bearer ***" \\\n     "https://api.inferenceindexer.ai/v1/models/openai/gpt-5.6/history?days=90"`}
+        request={`$ curl -H "Authorization: Bearer YOUR_API_KEY" \\\n     "https://api.inferenceindexer.ai/v1/models/openai/gpt-5.6/history?days=90"`}
         response={`{
   "model_id": "openai/gpt-5.6",
   "history": [
@@ -549,7 +584,7 @@ function ResponseFormatSection() {
 
       <h3 style={{ ...subLabel, marginTop: 20 }}>Pagination (for list endpoints)</h3>
       <CodeBlock>{`{
-  "count": 315,
+  "count": 318,
   "page": 1,
   "per_page": 50,
   "total_pages": 7,

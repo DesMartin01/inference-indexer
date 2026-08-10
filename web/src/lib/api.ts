@@ -142,6 +142,32 @@ export async function getModels(tier?: string, sort?: string, limit?: number, _r
   return fetchWithCache<ModelList>(`/v1/models${qs ? `?${qs}` : ""}`);
 }
 
+/**
+ * Lightweight model count for headers/footers/SEO. Hits /v1/models?limit=1
+ * and reads the `count` field so it stays in sync with the table without
+ * pulling every model row. Single source of truth for "how many models".
+ */
+export async function getModelCount(): Promise<number> {
+  const res = await fetchWithCache<ModelList>("/v1/models?limit=1");
+  const count = res?.count;
+  // A non-positive/unusable count is treated as a failure so callers fall
+  // back to their known-good constant rather than ever flashing 0.
+  if (typeof count !== "number" || count <= 0) throw new Error("Invalid model count");
+  return count;
+}
+
+/**
+ * Lightweight provider count (all registered providers) for footers/SEO.
+ * Hits /v1/providers and reads the `count` field. Throws on a non-positive
+ * count so callers fall back rather than flashing 0.
+ */
+export async function getProviderCount(): Promise<number> {
+  const res = await fetchWithCache<ProviderList>("/v1/providers");
+  const count = res?.count;
+  if (typeof count !== "number" || count <= 0) throw new Error("Invalid provider count");
+  return count;
+}
+
 const SSR_HEADERS = { "X-SSR-Secret": SSR_SECRET };
 
 export async function getModel(modelId: string): Promise<ModelDetail> {
@@ -215,6 +241,27 @@ export interface ProviderTierBreakdown {
   max_price: number;
 }
 
+export interface ProviderQualityProbe {
+  ttft_ms: number | null;
+  throughput_tps: number | null;
+  success: boolean;
+  error_type: string | null;
+  probed_at: string | null;
+}
+
+export interface ProviderQuality {
+  total_probes: number;
+  successful_probes: number;
+  avg_ttft_ms: number | null;
+  min_ttft_ms: number | null;
+  max_ttft_ms: number | null;
+  avg_throughput_tps: number | null;
+  success_rate: number | null;
+  last_probe: string | null;
+  probe_model: string | null;
+  recent_probes: ProviderQualityProbe[];
+}
+
 export interface ProviderDetail {
   name: string;
   is_zdr: boolean;
@@ -227,6 +274,7 @@ export interface ProviderDetail {
   owners: string[];
   models: ProviderModel[];
   tiers: Record<string, ProviderTierBreakdown>;
+  quality?: ProviderQuality;
 }
 
 export async function getProviders(): Promise<ProviderList> {

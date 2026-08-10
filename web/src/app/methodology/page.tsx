@@ -487,7 +487,7 @@ SIT-Composite = Σ(weight_i × blended_price_i) / Σ(weight_i)`}</pre>
                   <tr>
                     <td style={tdStyle}>OpenRouter API</td>
                     <td style={tdStyle}>Aggregator</td>
-                    <td style={tdStyle}>315+</td>
+                    <td style={tdStyle}>318+</td>
                     <td style={tdStyle}>Hourly</td>
                   </tr>
                   <tr>
@@ -744,7 +744,7 @@ Retrieved from https://www.inferenceindexer.ai/methodology`}</pre>
           </nav>
         </aside>
       </div>
-      <Footer models={316} providers={57} updatedAt="2026-08-03 00:00 UTC" />
+      <Footer providers={71} updatedAt="2026-08-03 00:00 UTC" />
     </div>
   );
 }

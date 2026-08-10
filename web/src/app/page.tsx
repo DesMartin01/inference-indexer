@@ -4,6 +4,7 @@ import {
   getCompositeLatest,
   getCompositeHistory,
   getModels,
+  getModelCount,
   formatPrice,
   formatPct,
   pctColor,
@@ -11,26 +12,29 @@ import {
 import { buildSparkPath } from "@/lib/charts";
 import { Header, Footer } from "@/components/Header";
 import ModelTable from "@/components/ModelTable";
+import { CURRENT_MODEL_COUNT, CURRENT_PROVIDER_COUNT } from "@/lib/counts";
 
 export const revalidate = 60;
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "AI Inference Pricing Index - 316 Models, 57 Providers | InferenceIndexer.ai",
+export async function generateMetadata(): Promise<Metadata> {
+  const count = (await getModelCount().catch(() => 0)) || CURRENT_MODEL_COUNT;
+  return {
+  title: `AI Inference Pricing Index - ${count} Models | InferenceIndexer.ai`,
   description:
-    "The Standard Inference Token (SIT) tracks AI inference prices across 316 models and 57 providers. Live pricing, SIT scores, price history charts, and a free API. The CoinMarketCap of AI inference.",
+    `The Standard Inference Token (SIT) tracks AI inference prices across ${count} models. Live pricing, SIT scores, price history charts, and a free API. The CoinMarketCap of AI inference.`,
   alternates: { canonical: "https://www.inferenceindexer.ai" },
   openGraph: {
-    title: "InferenceIndexer.ai - AI Inference Price Index",
+    title: `InferenceIndexer.ai - AI Inference Price Index (${count} models)`,
     description:
-      "Live AI inference pricing for 316+ models. SIT-Composite index, tier rankings, price history, and free API access.",
+      `Live AI inference pricing for ${count} models. SIT-Composite index, tier rankings, price history, and free API access.`,
     url: "https://www.inferenceindexer.ai",
     siteName: "InferenceIndexer.ai",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "AI Inference Pricing Index - 316 Models, 57 Providers",
+    title: `AI Inference Pricing Index - ${count} Models`,
     description: "Live AI inference prices. SIT-Composite index, model pricing charts, free API.",
   },
   keywords: [
@@ -50,20 +54,19 @@ export const metadata: Metadata = {
     "model API cost comparison",
     "inference price index",
   ],
-};
+  };
+}
 
 export default async function Home() {
   // Fetch all data in parallel
   const [latest, history, modelsData] = await Promise.all([
     getCompositeLatest(60).catch(() => null),
     getCompositeHistory(30, 60).catch(() => null),
-    getModels(undefined, undefined, 315).catch(() => null),
+    getModels(undefined, undefined, 500).catch(() => null),
   ]);
 
   // Fallback data if API is down
   const composite = latest?.composite;
-  const tiers = latest?.tiers;
-  const spread = latest?.spread;
   const models = modelsData?.models ?? [];
   const totalCount = modelsData?.returned ?? models.length;
 
@@ -79,7 +82,11 @@ export default async function Home() {
       ? histVals
       : [composite?.price_per_m ?? 7.06, composite?.price_per_m ?? 7.06];
 
-  const sp = buildSparkPath(sparkVals);
+  const sp = buildSparkPath(sparkVals, {
+    height: 272,
+    top: 15,
+    bot: 248,
+  });
 
   const heroPrice = composite ? formatPrice(composite.price_per_m) : "—";
   const d1 = composite?.change_24h ?? 0;
@@ -92,27 +99,6 @@ export default async function Home() {
     value: formatPct(n),
     color: pctColor(n),
   });
-
-  const tierCards = [
-    {
-      name: "SIT-Frontier",
-      data: tiers?.frontier,
-      dot: "#C4A038",
-      tierKey: "frontier" as const,
-    },
-    {
-      name: "SIT-Standard",
-      data: tiers?.standard,
-      dot: "#5b8def",
-      tierKey: "standard" as const,
-    },
-    {
-      name: "SIT-Budget",
-      data: tiers?.budget,
-      dot: "#22c55e",
-      tierKey: "budget" as const,
-    },
-  ];
 
   const lastUpdated = latest?.date
     ? latest.date + " 06:00 UTC"
@@ -128,7 +114,7 @@ export default async function Home() {
             "@context": "https://schema.org",
             "@type": "Dataset",
             name: "InferenceIndexer SIT-Composite - AI Inference Price Index",
-            description: `Independent price index for AI inference. ${composite ? `SIT-Composite: $${composite.price_per_m.toFixed(2)}/M tokens across ${composite.models} models from ${composite.providers} providers.` : "316+ models, 57 providers, updated hourly."}`,
+            description: `Independent price index for AI inference. ${composite ? `SIT-Composite: $${composite.price_per_m.toFixed(2)}/M tokens across ${composite.models} models from ${composite.providers} providers.` : `${totalCount} models, updated hourly.`}`,
             url: "https://www.inferenceindexer.ai",
             creator: {
               "@type": "Organization",
@@ -353,7 +339,7 @@ export default async function Home() {
             </div>
             <div style={{ position: "relative" }}>
               <svg
-                viewBox="0 0 640 148"
+                viewBox="0 0 640 272"
                 role="img"
                 aria-label="30-day SIT price history"
                 style={{ display: "block", width: "100%", height: "auto" }}
@@ -417,120 +403,30 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* Tier cards */}
-      <section style={{ maxWidth: "1320px", margin: "0 auto", padding: "26px 28px 0" }}>
-        <h2 style={{ margin: "0 0 14px", fontSize: "14px", fontWeight: 500, color: "#8a8a8a", letterSpacing: "0.02em" }}>
-          What does a typical model cost?
-        </h2>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-            gap: "14px",
-          }}
-        >
-          {tierCards.map((t) => {
-            const price = t.data?.price_per_m ?? 0;
-            const change = t.data?.change_24h ?? 0;
-            const modelCount = t.data?.models ?? 0;
-            const providerCount = t.data?.providers ?? 0;
-            return (
-              <div
-                key={t.name}
-                style={{
-                  background: "#16161a",
-                  border: "1px solid #2a2a2a",
-                  borderRadius: "8px",
-                  padding: "16px 18px 15px",
-                  transition: "border-color 120ms, background 120ms",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <span
-                    style={{
-                      width: "6px",
-                      height: "6px",
-                      borderRadius: "1px",
-                      background: t.dot,
-                      display: "block",
-                    }}
-                  />
-                  <span
-                    style={{
-                      fontSize: "12px",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.1em",
-                      color: "#8a8a8a",
-                    }}
-                  >
-                    {t.name}
-                  </span>
-                </div>
-                <div style={{ marginTop: "12px", display: "flex", alignItems: "baseline", gap: "12px" }}>
-                  <span
-                    style={{
-                      fontFamily: "Inter, sans-serif",
-                      fontSize: "24px",
-                      fontWeight: 500,
-                      color: "#f2f2f2",
-                      fontVariantNumeric: "tabular-nums",
-                    }}
-                  >
-                    ${price.toFixed(2)}/M
-                  </span>
-                  <span
-                    style={{
-                      fontFamily: "Inter, sans-serif",
-                      fontSize: "14px",
-                      color: pctColor(change),
-                      fontVariantNumeric: "tabular-nums",
-                    }}
-                  >
-                    {formatPct(change)}
-                  </span>
-                </div>
-                <div style={{ marginTop: "10px", fontSize: "12px", color: "#6f6f6f" }}>
-                  {modelCount} models · {providerCount} providers
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        <div
-          style={{
-            marginTop: "14px",
-            display: "flex",
-            alignItems: "center",
-            gap: "10px",
-            flexWrap: "wrap",
-            fontSize: "13px",
-            color: "#7a7a7a",
-          }}
-        >
-          <span>
-            SIT-Spread <span style={{ color: "#5f5f5f" }}>(Frontier − Budget)</span>
-          </span>
-          <span
-            style={{
-              fontFamily: "Inter, sans-serif",
-              fontSize: "14px",
-              color: "#d6d6d6",
-              fontVariantNumeric: "tabular-nums",
-            }}
+      {/* Pricing data description */}
+      <section
+        style={{
+          maxWidth: "1320px",
+          margin: "0 auto",
+          padding: "26px 28px 0",
+          fontSize: "15px",
+          lineHeight: "1.7",
+          color: "#c9c9c9",
+        }}
+      >
+        <p style={{ margin: "0" }}>
+          Below is live pricing data for AI inference, by model. We pull prices
+          directly from the inference providers, which gives a more complete
+          picture than an aggregator like OpenRouter.{" "}
+          <a
+            href="/api-docs"
+            style={{ color: "#C4A038", textDecoration: "underline" }}
           >
-            ${(spread?.price_per_m ?? 0).toFixed(2)}/M
-          </span>
-          <span
-            style={{
-              fontFamily: "Inter, sans-serif",
-              fontSize: "13px",
-              color: pctColor(spread?.change_24h ?? 0),
-            }}
-          >
-            {formatPct(spread?.change_24h ?? 0)}
-          </span>
-          <span style={{ color: "#5f5f5f" }}>— quality premium narrowing</span>
-        </div>
+            Our API
+          </a>{" "}
+          also exposes historic price data and shows where providers have
+          diverged from aggregators.
+        </p>
       </section>
 
       {/* Model table (client component) */}
@@ -556,7 +452,7 @@ export default async function Home() {
         </span>
       </section>
 
-      <Footer models={totalCount} providers={latest?.composite.providers ?? 57} updatedAt={lastUpdated} />
+      <Footer models={totalCount} providers={CURRENT_PROVIDER_COUNT} updatedAt={lastUpdated} />
     </>
   );
 }

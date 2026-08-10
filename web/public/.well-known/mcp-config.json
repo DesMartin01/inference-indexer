@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "inferenceindexer": {
+      "command": "uvx",
+      "args": ["inferenceindexer-mcp"],
+      "env": {}
+    }
+  }
+}

@@ -277,15 +277,31 @@ def calc_change_7d(conn, model_id, current_price):
 async def root():
     return {
         "name": "InferenceIndexer API",
-        "version": "1.1.0",
+        "version": "1.2.0",
+        "description": (
+            "Independent AI inference price reporting. Live and historical "
+            "pricing by model, provider comparison, and the SIT-Composite index. "
+            "Pulled direct from inference providers - a more complete picture "
+            "than aggregators like OpenRouter."
+        ),
+        "base_url": "https://api.inferenceindexer.ai",
         "docs": "/docs",
+        "openapi_json": "/openapi.json",
+        "get_an_api_key": "https://www.inferenceindexer.ai/for-agents",
+        "anon_key": "POST /v1/auth/anonymous (instant key, no email/account)",
+        "web_docs": "https://www.inferenceindexer.ai/api-docs",
+        "model_count": "GET /v1/models",
+        "historical_data": "GET /v1/models/{model_id}/history",
         "endpoints": [
             "/v1/sit/composite/latest",
             "/v1/sit/composite/history",
             "/v1/models",
             "/v1/models/{model_id}",
             "/v1/models/{model_id}/endpoints",
-            "/v1/models/{model_id}/history"
+            "/v1/models/{model_id}/history",
+            "/v1/providers",
+            "/v1/providers/{provider_name}",
+            "/health"
         ]
     }
 
@@ -374,70 +390,95 @@ async def get_sit_latest(request: Request, authorization: Optional[str] = Header
             "providers": 0,
         }
     
-    # Get changes (like-for-like: only models that have prices on both days)
-    # This prevents the composite from jumping when new models are added/removed
+    # Compute changes from sit_index_values (daily stored values).
+    # This matches the displayed price (same composite methodology) and
+    # avoids the old bug where change was computed from a different model
+    # set (median of ALL models) than the headline (usage-weighted top 50).
+    # We look back 1/7/30/90 days; if no row exists for the exact target
+    # date, we use the most recent row before it.
     cur.execute("""
-        WITH today_prices AS (
-            SELECT ps.model_id, ps.blended_price_per_m
-            FROM latest_prices ps
+        WITH target_dates AS (
+            SELECT
+                (CURRENT_DATE - INTERVAL '1 day')::date  AS d1,
+                (CURRENT_DATE - INTERVAL '7 days')::date AS d7,
+                (CURRENT_DATE - INTERVAL '30 days')::date AS d30,
+                (CURRENT_DATE - INTERVAL '90 days')::date AS d90
         ),
-        prev_prices AS (
-            SELECT DISTINCT ON (ps.model_id) ps.model_id, ps.blended_price_per_m
-            FROM price_snapshots ps
-            WHERE ps.fetched_at < NOW() - INTERVAL '20 hours'
-            ORDER BY ps.model_id, ps.fetched_at DESC
+        latest_by_tier AS (
+            SELECT DISTINCT ON (tier) tier, date, sit_price
+            FROM sit_index_values
+            ORDER BY tier, date DESC
         ),
-        like_for_like AS (
-            SELECT t.model_id, t.blended_price_per_m AS today_price, p.blended_price_per_m AS prev_price,
-                   m.tier
-            FROM today_prices t
-            JOIN prev_prices p ON t.model_id = p.model_id
-            JOIN models m ON t.model_id = m.id
-            WHERE m.is_active = TRUE AND t.blended_price_per_m > 0 AND p.blended_price_per_m > 0
+        lookback AS (
+            SELECT
+                t.tier,
+                t.sit_price AS today_price,
+                (
+                    SELECT s.sit_price FROM sit_index_values s
+                    WHERE s.tier = t.tier AND s.date <= td.d1
+                    ORDER BY s.date DESC LIMIT 1
+                ) AS price_1d,
+                COALESCE(
+                    (SELECT s.sit_price FROM sit_index_values s
+                     WHERE s.tier = t.tier AND s.date <= td.d7
+                     ORDER BY s.date DESC LIMIT 1),
+                    (SELECT s.sit_price FROM sit_index_values s
+                     WHERE s.tier = t.tier
+                     ORDER BY s.date ASC LIMIT 1)
+                ) AS price_7d,
+                COALESCE(
+                    (SELECT s.sit_price FROM sit_index_values s
+                     WHERE s.tier = t.tier AND s.date <= td.d30
+                     ORDER BY s.date DESC LIMIT 1),
+                    (SELECT s.sit_price FROM sit_index_values s
+                     WHERE s.tier = t.tier
+                     ORDER BY s.date ASC LIMIT 1)
+                ) AS price_30d,
+                COALESCE(
+                    (SELECT s.sit_price FROM sit_index_values s
+                     WHERE s.tier = t.tier AND s.date <= td.d90
+                     ORDER BY s.date DESC LIMIT 1),
+                    (SELECT s.sit_price FROM sit_index_values s
+                     WHERE s.tier = t.tier
+                     ORDER BY s.date ASC LIMIT 1)
+                ) AS price_90d
+            FROM latest_by_tier t
+            CROSS JOIN target_dates td
         )
-        SELECT
-            -- Composite: median of today prices vs median of prev prices (same model set)
-            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY lfl.today_price) AS composite_today,
-            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY lfl.prev_price) AS composite_prev,
-            -- Per-tier
-            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY CASE WHEN lfl.tier = 'frontier' THEN lfl.today_price END) AS frontier_today,
-            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY CASE WHEN lfl.tier = 'frontier' THEN lfl.prev_price END) AS frontier_prev,
-            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY CASE WHEN lfl.tier = 'standard' THEN lfl.today_price END) AS standard_today,
-            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY CASE WHEN lfl.tier = 'standard' THEN lfl.prev_price END) AS standard_prev,
-            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY CASE WHEN lfl.tier = 'budget' THEN lfl.today_price END) AS budget_today,
-            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY CASE WHEN lfl.tier = 'budget' THEN lfl.prev_price END) AS budget_prev,
-            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY CASE WHEN lfl.tier = 'micro' THEN lfl.today_price END) AS micro_today,
-            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY CASE WHEN lfl.tier = 'micro' THEN lfl.prev_price END) AS micro_prev,
-            COUNT(*) AS like_for_like_count
-        FROM like_for_like lfl
+        SELECT tier, today_price, price_1d, price_7d, price_30d, price_90d
+        FROM lookback
     """)
-    lfl_row = cur.fetchone()
-    
+    change_rows = cur.fetchall()
+
     def calc_change(current, prev):
-        if prev and prev > 0:
+        if prev is not None and float(prev) > 0:
             return round(((float(current) - float(prev)) / float(prev)) * 100, 2)
         return 0.0
-    
-    if composite and lfl_row:
-        composite["change_24h"] = calc_change(lfl_row[0], lfl_row[1])
-    
-    tier_changes = {
-        "frontier": (lfl_row[2], lfl_row[3]),
-        "standard": (lfl_row[4], lfl_row[5]),
-        "budget": (lfl_row[6], lfl_row[7]),
-        "micro": (lfl_row[8], lfl_row[9]),
-    }
-    for tier_name in tiers:
-        if tier_name in tier_changes:
-            today_val, prev_val = tier_changes[tier_name]
-            if today_val is not None and prev_val is not None:
-                tiers[tier_name]["change_24h"] = calc_change(today_val, prev_val)
-            else:
-                tiers[tier_name]["change_24h"] = 0.0
-    
+
+    # Map tier names from the query to the response structures
+    # 'composite' -> composite dict, everything else -> tiers dict
+    for row in change_rows:
+        tier_name = row[0]
+        today = row[1]
+        c1 = calc_change(today, row[2])
+        c7 = calc_change(today, row[3])
+        c30 = calc_change(today, row[4])
+        c90 = calc_change(today, row[5])
+
+        if tier_name == "composite" and composite:
+            composite["change_24h"] = c1
+            composite["change_7d"] = c7
+            composite["change_30d"] = c30
+            composite["change_90d"] = c90
+        elif tier_name in tiers:
+            tiers[tier_name]["change_24h"] = c1
+            tiers[tier_name]["change_7d"] = c7
+            tiers[tier_name]["change_30d"] = c30
+            tiers[tier_name]["change_90d"] = c90
+
     if spread:
         spread["change_24h"] = 0.0
-    
+
     cur.close()
     conn.close()
     
@@ -522,7 +563,7 @@ async def get_models(
     tier: Optional[str] = Query(None, regex="^(frontier|standard|budget|micro)$"),
     provider: Optional[str] = Query(None),
     sort: str = Query("sit_score", regex="^(blended|input|output|sit_score)$"),
-    limit: int = Query(50, ge=1, le=315),
+    limit: int = Query(50, ge=1, le=500),
     authorization: Optional[str] = Header(None)
 ):
     """Returns all tracked models with current pricing."""
@@ -552,7 +593,7 @@ async def get_models(
                    ROUND(((lp2.blended_price_per_m - ps.blended_price_per_m)::numeric / NULLIF(ps.blended_price_per_m, 0)::numeric) * 100, 2) AS change_pct
             FROM price_snapshots ps
             JOIN latest_prices lp2 ON ps.model_id = lp2.model_id
-            WHERE ps.fetched_at < NOW() - INTERVAL '6 days'
+            WHERE ps.fetched_at < NOW() - INTERVAL '5 days'
             ORDER BY ps.model_id, ps.fetched_at DESC
         ) ch7 ON m.id = ch7.model_id
         LEFT JOIN (
@@ -851,6 +892,54 @@ async def get_provider_detail(
             "max_price": round(max(prices), 4),
         }
 
+    # Quality data: recent latency probes for this provider
+    cur.execute("""
+        SELECT
+            COUNT(*) AS total_probes,
+            COUNT(*) FILTER (WHERE success = TRUE) AS successful,
+            ROUND(AVG(ttft_ms) FILTER (WHERE success = TRUE AND ttft_ms IS NOT NULL)::numeric, 0) AS avg_ttft_ms,
+            ROUND(MIN(ttft_ms) FILTER (WHERE success = TRUE AND ttft_ms IS NOT NULL)::numeric, 0) AS min_ttft_ms,
+            ROUND(MAX(ttft_ms) FILTER (WHERE success = TRUE AND ttft_ms IS NOT NULL)::numeric, 0) AS max_ttft_ms,
+            ROUND(AVG(throughput_tps) FILTER (WHERE success = TRUE AND throughput_tps IS NOT NULL)::numeric, 1) AS avg_tps,
+            COUNT(*) FILTER (WHERE success = TRUE) * 100.0 / NULLIF(COUNT(*), 0) AS success_rate,
+            MAX(probed_at) AS last_probe
+        FROM provider_latency_snapshots
+        WHERE provider = %s AND probed_at >= NOW() - INTERVAL '7 days'
+    """, (provider_name,))
+    qrow = cur.fetchone()
+    quality_data = {
+        "total_probes": qrow[0] or 0,
+        "successful_probes": qrow[1] or 0,
+        "avg_ttft_ms": float(qrow[2]) if qrow[2] else None,
+        "min_ttft_ms": float(qrow[3]) if qrow[3] else None,
+        "max_ttft_ms": float(qrow[4]) if qrow[4] else None,
+        "avg_throughput_tps": float(qrow[5]) if qrow[5] else None,
+        "success_rate": round(float(qrow[6]), 1) if qrow[6] else None,
+        "last_probe": qrow[7].isoformat() if qrow[7] else None,
+        "probe_model": None,  # filled below
+    }
+
+    # Get the probe model name and recent probes for a sparkline
+    cur.execute("""
+        SELECT probe_model, ttft_ms, throughput_tps, success, error_type, probed_at
+        FROM provider_latency_snapshots
+        WHERE provider = %s AND probed_at >= NOW() - INTERVAL '24 hours'
+        ORDER BY probed_at ASC
+        LIMIT 24
+    """, (provider_name,))
+    recent_probes = []
+    for pr in cur.fetchall():
+        recent_probes.append({
+            "ttft_ms": float(pr[1]) if pr[1] else None,
+            "throughput_tps": float(pr[2]) if pr[2] else None,
+            "success": pr[3],
+            "error_type": pr[4],
+            "probed_at": pr[5].isoformat() if pr[5] else None,
+        })
+        if quality_data["probe_model"] is None and pr[0]:
+            quality_data["probe_model"] = pr[0]
+    quality_data["recent_probes"] = recent_probes
+
     cur.close()
     conn.close()
 
@@ -867,6 +956,7 @@ async def get_provider_detail(
             "owners": sorted(owner_list) if (owner_list := list(owner_set)) else [],
             "models": models,
             "tiers": tiers,
+            "quality": quality_data,
         },
         headers={"Cache-Control": "public, max-age=300"}
     )
@@ -952,7 +1042,13 @@ async def get_model_history(
     days: int = Query(30, ge=1, le=365),
     authorization: Optional[str] = Header(None)
 ):
-    """Returns historical price data for a single model."""
+    """Returns historical price data and trends for a single model.
+
+    This is InferenceIndexer's differentiator: aggregators like OpenRouter
+    expose only current price, while this endpoint returns the price over
+    time (input, output, and blended $/M), allowing trend analysis and
+    historical comparison. Use `days` to control the window (default 30).
+    """
     # Strip trailing /history if FastAPI captured it via :path
     if model_id.endswith("/history"):
         model_id = model_id[:-8]
@@ -1196,6 +1292,38 @@ async def signup(email: str):
     
     return {"api_key": new_key, "plan": "free", "message": "API key created"}
 
+@app.post("/v1/auth/anonymous")
+async def anonymous_signup():
+    """Get an API key instantly with NO email/account/password.
+
+    Designed for AI agents: one request, no signup, no verification.
+    Returns a key valid on the standard free tier (10,000 requests/day,
+    30 days history). Key is tracked only by itself (synthetic email
+    marker `anon_*.ii.local`); no contact identity is captured.
+    """
+    api_key = generate_api_key()
+    # Distinct per-key bucket: synthetic unique email so each anonymous key
+    # gets its own rate-limit bucket (get_api_user keys off email).
+    anon_email = f"anon_{secrets.token_hex(8)}@ii.local"
+    conn = get_db()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "INSERT INTO api_users (email, api_key, plan) VALUES (%s, %s, 'free') RETURNING api_key",
+            (anon_email, api_key),
+        )
+        new_key = cur.fetchone()[0]
+        conn.commit()
+    finally:
+        cur.close()
+        conn.close()
+    return {
+        "api_key": new_key,
+        "plan": "free",
+        "anonymous": True,
+        "message": "Anonymous API key created. No email required.",
+    }
+
 # ============================================
 # AUTH: USER INFO & KEY MANAGEMENT
 # ============================================
@@ -1289,6 +1417,193 @@ async def health():
             status_code=503,
             content={"status": "unhealthy", "error": str(e)}
         )
+
+# ============================================
+# ADMIN: FEED STATUS & PRICING COMPARISON
+# ============================================
+
+def _require_admin(x_ssr_secret: Optional[str]):
+    """Gate admin endpoints behind the SSR secret. Admin-only internal tooling."""
+    if x_ssr_secret != SSR_SECRET:
+        return JSONResponse(
+            status_code=401,
+            content={"error": "Unauthorized"},
+            headers={"Cache-Control": "no-store"},
+        )
+    return None
+
+
+@app.get("/v1/admin/feeds")
+async def admin_feeds(x_ssr_secret: Optional[str] = Header(None)):
+    """Feed status for all data sources: is data flowing, complete, fresh.
+
+    For each source in model_endpoints reports:
+      - model_count / priced_count        (completeness)
+      - last_fetch / age_minutes          (flow: is data up to date?)
+      - endpoint_count                    (volume of endpoint rows)
+      - expected_cadence                  (daily vs hourly, so staleness is judged right)
+    Returns per-source status plus a derived overall health summary.
+    """
+    deny = _require_admin(x_ssr_secret)
+    if deny:
+        return deny
+    conn = get_db()
+    cur = conn.cursor()
+    now = datetime.now(timezone.utc)
+    try:
+        cur.execute("""
+            SELECT me.source,
+                   COUNT(DISTINCT me.model_id) AS model_count,
+                   COUNT(DISTINCT CASE WHEN me.blended_price_per_m > 0 THEN me.model_id END) AS priced_count,
+                   COUNT(*) AS endpoint_count,
+                   MAX(me.fetched_at) AS last_fetch
+            FROM model_endpoints me
+            JOIN models m ON m.id = me.model_id AND m.is_active = TRUE
+            WHERE me.fetched_at > NOW() - INTERVAL '7 days'
+            GROUP BY me.source
+            ORDER BY me.source
+        """)
+        sources = []
+        # Hourly sources must update every ~75 min; daily sources every ~26h.
+        hourly = {"venice_direct", "deepinfra_direct", "novita_direct",
+                  "sambanova_direct", "jina_direct", "tensorx_direct"}
+        for row in cur.fetchall():
+            source, model_count, priced_count, endpoint_count, last_fetch = row
+            age_min = (now - last_fetch).total_seconds() / 60.0 if last_fetch else None
+            cadence = "hourly" if source in hourly else "daily"
+            threshold_min = 85 if cadence == "hourly" else 60 * 28
+            stale = age_min is not None and age_min > threshold_min
+            status = "ok"
+            if stale:
+                status = "stale"
+            elif priced_count is None or priced_count == 0:
+                status = "no_prices"
+            elif age_min is None:
+                status = "never_fetched"
+            sources.append({
+                "source": source,
+                "cadence": cadence,
+                "model_count": model_count,
+                "priced_count": priced_count,
+                "endpoint_count": endpoint_count,
+                "last_fetch": last_fetch.isoformat() if last_fetch else None,
+                "age_minutes": round(age_min, 1) if age_min is not None else None,
+                "status": status,
+                "expected_cadence": cadence,
+                "stale": stale,
+            })
+
+        # Overall health: count sources that are stale / broken
+        problems = [s for s in sources if s["status"] != "ok"]
+        total_models = sum(s["model_count"] for s in sources)
+        health = "healthy"
+        if problems:
+            health = "degraded"
+        if len(problems) >= len(sources) // 2 + 1:
+            health = "critical"
+        return JSONResponse(content={
+            "generated_at": now.isoformat(),
+            "health": health,
+            "source_count": len(sources),
+            "total_models_indexed": total_models,
+            "sources": sources,
+            "problem_count": len(problems),
+            "problems": problems,
+        }, headers={"Cache-Control": "no-store"})
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.get("/v1/admin/price-compare")
+async def admin_price_compare(
+    x_ssr_secret: Optional[str] = Header(None),
+    sort: str = Query("abs_diff", description="Sort key: abs_diff, direct, openrouter, model, provider, pct_diff"),
+    order: str = Query("desc", description="asc or desc"),
+    min_diff: float = Query(0.0, description="Minimum absolute % difference to include"),
+    provider: Optional[str] = Query(None, description="Filter by endpoint provider"),
+):
+    """Compare OpenRouter-reported price vs our direct price for the same
+    provider+model. Highlights discrepancies in the pricing we pull vs what
+    OpenRouter reports for the same host.
+    """
+    deny = _require_admin(x_ssr_secret)
+    if deny:
+        return deny
+    conn = get_db()
+    cur = conn.cursor()
+    try:
+        # Sort column is whitelisted; provider filter is parameterized.
+        sort_map = {
+            "abs_diff": "ABS(pct_diff)",
+            "direct": "direct_blend",
+            "openrouter": "orange_blend",
+            "model": "model_id",
+            "provider": "endpoint_provider",
+            "pct_diff": "pct_diff",
+        }
+        sort_col = sort_map.get(sort, "ABS(pct_diff)")
+        direction = "ASC" if order == "asc" else "DESC"
+
+        params = []
+        p_where = ""
+        if provider:
+            params.append(provider)
+            p_where = " AND d.endpoint_provider = %s"
+        params.append(min_diff)
+
+        sql = f"""
+            WITH latest_ep AS (
+              SELECT DISTINCT ON (is_openrouter, endpoint_provider, model_id)
+                model_id, endpoint_provider, (source='openrouter') AS is_openrouter,
+                blended_price_per_m AS bpm, input_price_per_m AS inp, output_price_per_m AS outp
+              FROM model_endpoints
+              WHERE fetched_at > NOW() - INTERVAL '3 days'
+              ORDER BY (source='openrouter'), endpoint_provider, model_id, fetched_at DESC
+            )
+            SELECT model_id, endpoint_provider, direct_blend, orange_blend, pct_diff,
+                   direct_in, direct_out, or_in, or_out
+            FROM (
+              SELECT d.model_id, d.endpoint_provider,
+                     d.bpm AS direct_blend, o.bpm AS orange_blend,
+                     ROUND((100.0*(d.bpm - o.bpm)/NULLIF(o.bpm,0))::numeric, 1) AS pct_diff,
+                     d.inp AS direct_in, d.outp AS direct_out, o.inp AS or_in, o.outp AS or_out
+              FROM latest_ep d
+              JOIN latest_ep o
+                ON o.model_id = d.model_id AND o.endpoint_provider = d.endpoint_provider
+               AND o.is_openrouter AND NOT d.is_openrouter
+              WHERE NOT d.is_openrouter AND d.bpm > 0 AND o.bpm > 0
+                {p_where}
+            ) t
+            WHERE ABS(pct_diff) >= %s
+            ORDER BY {sort_col} {direction}
+        """
+        cur.execute(sql, params)
+        rows = cur.fetchall()
+        return JSONResponse(content={
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "count": len(rows),
+            "sort": sort,
+            "order": order,
+            "pairs": [
+                {
+                    "model_id": r[0],
+                    "endpoint_provider": r[1],
+                    "direct_blended": float(r[2]),
+                    "openrouter_blended": float(r[3]),
+                    "pct_diff": float(r[4]),
+                    "direct_input": float(r[5]),
+                    "direct_output": float(r[6]),
+                    "openrouter_input": float(r[7]),
+                    "openrouter_output": float(r[8]),
+                }
+                for r in rows
+            ],
+        }, headers={"Cache-Control": "no-store"})
+    finally:
+        cur.close()
+        conn.close()
+
 
 # ============================================
 # MAIN

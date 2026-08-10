@@ -23,6 +23,13 @@ import requests
 from datetime import datetime, timezone, date
 from pathlib import Path
 
+from fireworks_pricing import fetch_fireworks_pricing as _fetch_fireworks_pricing
+from provider_scrapers import (
+    fetch_groq_pricing as _fetch_groq_pricing,
+    fetch_together_pricing as _fetch_together_pricing,
+)
+from tensorx_pricing import fetch_tensorx_pricing as _fetch_tensorx_pricing
+
 # Try psycopg2 for Supabase, fall back to just printing
 try:
     import psycopg2
@@ -255,6 +262,21 @@ def normalize_endpoints(model_id, raw_endpoints):
 # ============================================
 # VENICE DIRECT API CONNECTOR
 # ============================================
+
+def canonical_model_id(model_id: str) -> str:
+    """Normalize a provider model id to our canonical lowercase form.
+
+    Our canonical scheme is lowercase `provider/model` (moonshotai/kimi-k3,
+    z-ai/glm-5.2). Some providers (DeepInfra, Novita, Jina, Together, Groq,
+    OpenRouter) return mixed-case IDs (moonshotai/Kimi-K3, zai-org/GLM-5.2)
+    which collide with the lowercase canonical rows. Lowercasing both path
+    segments avoids case-duplicate rows.
+    """
+    if "/" not in model_id:
+        return model_id.lower()
+    provider, _, model = model_id.partition("/")
+    return provider.lower() + "/" + model.lower()
+
 
 # Map Venice model IDs to our model IDs (provider/model format)
 # Venice uses flat IDs like "kimi-k3" -> we need "moonshotai/kimi-k3"
@@ -613,7 +635,7 @@ def fetch_deepinfra_direct():
         
         # DeepInfra model IDs already match our format (provider/model)
         # But some need normalization to match OpenRouter IDs
-        deepinfra_id = model_id
+        deepinfra_id = canonical_model_id(model_id)
         
         endpoints.append({
             "endpoint_provider": "DeepInfra",
@@ -706,16 +728,18 @@ def fetch_novita_direct():
         is_reasoning = "reasoning" in features
         is_vision = "image" in (m.get("input_modalities", []) or [])
         
+        canonical_id = canonical_model_id(model_id)
+
         endpoints.append({
             "endpoint_provider": "Novita",
-            "model_id": model_id,
+            "model_id": canonical_id,
             "input_price_per_m": input_price,
             "output_price_per_m": output_price,
             "blended_price_per_m": blended,
             "context_length": m.get("context_size"),
             "source": "novita_direct",
             "raw_data": {
-                "novita_id": model_id,
+                "novita_id": canonical_id,
                 "owned_by": m.get("owned_by", "novita"),
                 "hosting_type": "self-hosted",
                 "display_name": m.get("display_name", ""),
@@ -727,9 +751,9 @@ def fetch_novita_direct():
         })
         
         new_models.append({
-            "model_id": model_id,
+            "model_id": canonical_id,
             "name": m.get("display_name") or model_id.split("/")[-1].replace("-", " "),
-            "provider": model_id.split("/")[0] if "/" in model_id else "novita",
+            "provider": canonical_id.split("/")[0] if "/" in canonical_id else "novita",
             "context_length": m.get("context_size"),
             "is_reasoning": is_reasoning,
             "modality": "vision" if is_vision else "text",
@@ -897,8 +921,8 @@ def fetch_sambanova_direct():
         output_price = round(output_per_token * 1_000_000, 6)
         blended = round((BLENDED_INPUT_WEIGHT * input_price) + (BLENDED_OUTPUT_WEIGHT * output_price), 6)
 
-        # SambaNova model IDs don't have provider prefix; add one
-        canonical_id = f"sambanova/{model_id}"
+        # SambaNova model IDs don't have provider prefix; add one, lowercase canonical
+        canonical_id = canonical_model_id(f"sambanova/{model_id}")
 
         endpoints.append({
             "endpoint_provider": "SambaNova",
@@ -966,7 +990,7 @@ def fetch_inference_net_direct():
         # Inference.net does not expose pricing in the models endpoint
         # We record it as a known provider but without price data
         # Pricing will be inferred from OpenRouter if available
-        canonical_id = f"inference-net/{model_id}"
+        canonical_id = canonical_model_id(f"inference-net/{model_id}")
 
         # Check if this is a text model (skip non-text)
         if any(skip in model_id.lower() for skip in ["whisper", "tts", "embed", "image", "dall"]):
@@ -1052,7 +1076,7 @@ def fetch_jina_direct():
 
         endpoints.append({
             "endpoint_provider": "Jina",
-            "model_id": model_id,
+            "model_id": canonical_model_id(model_id),
             "input_price_per_m": input_price,
             "output_price_per_m": output_price,
             "blended_price_per_m": blended,
@@ -1073,7 +1097,7 @@ def fetch_jina_direct():
         })
 
         new_models.append({
-            "model_id": model_id,
+            "model_id": canonical_model_id(model_id),
             "name": m.get("name", model_id.split("/")[-1].replace("-", " ")),
             "provider": "Jina",
             "context_length": m.get("context_length"),
@@ -1090,98 +1114,16 @@ def fetch_jina_direct():
 # ============================================
 
 def fetch_together_direct():
-    """Fetch model catalog and pricing directly from Together AI's API.
+    """Fetch Together pricing via their docs markdown scraper.
 
-    Returns (endpoints, new_models).
-    Requires API key (Together requires auth for /v1/models).
-    Together pricing is per-million ($/M) - no conversion needed.
+    Together's /v1/models API needs a key and returns catalog-only data. The
+    authoritative per-model pricing lives on docs.together.ai (clean markdown).
+    This delegates to provider_scrapers.fetch_together_pricing().
+
+    Returns (endpoints, new_models) with canonical model IDs (Venice-style).
     """
-    print(f"[{datetime.now(timezone.utc).isoformat()}] Fetching Together AI direct API...")
-
-    data = fetch_with_auth(TOGETHER_API, "together")
-    if data is None:
-        return [], []
-
-    # Together returns a flat list, not {"data": [...]}
-    models = data if isinstance(data, list) else data.get("data", [])
-    print(f"  Together API returned {len(models)} models")
-
-    endpoints = []
-    new_models = []
-    skipped = 0
-
-    for m in models:
-        model_id = m.get("id", "")
-        if not model_id:
-            continue
-
-        # Together pricing is in a different structure
-        pricing = m.get("pricing", {})
-        # Try different pricing field names
-        input_price = pricing.get("input") or pricing.get("prompt")
-        output_price = pricing.get("output") or pricing.get("completion")
-
-        if input_price is None or output_price is None:
-            # Try top-level fields
-            input_price = m.get("input_price")
-            output_price = m.get("output_price")
-
-        if input_price is None or output_price is None:
-            skipped += 1
-            continue
-
-        try:
-            input_price = float(input_price)
-            output_price = float(output_price)
-        except (ValueError, TypeError):
-            skipped += 1
-            continue
-
-        if input_price <= 0 and output_price <= 0:
-            skipped += 1
-            continue
-
-        # Together prices might be per-token or per-M depending on API version
-        # Check magnitude: if < 0.1, it's likely per-token
-        if input_price < 0.1:
-            input_price = round(input_price * 1_000_000, 6)
-            output_price = round(output_price * 1_000_000, 6)
-        else:
-            input_price = round(input_price, 6)
-            output_price = round(output_price, 6)
-
-        blended = round((BLENDED_INPUT_WEIGHT * input_price) + (BLENDED_OUTPUT_WEIGHT * output_price), 6)
-
-        canonical_id = model_id if "/" in model_id else f"together/{model_id}"
-
-        endpoints.append({
-            "endpoint_provider": "Together",
-            "model_id": canonical_id,
-            "input_price_per_m": input_price,
-            "output_price_per_m": output_price,
-            "blended_price_per_m": blended,
-            "context_length": m.get("context_length") or m.get("max_sequence_length"),
-            "source": "together_direct",
-            "raw_data": {
-                "together_id": model_id,
-                "owned_by": m.get("owned_by", "together"),
-                "hosting_type": "self-hosted",
-                "display_name": m.get("display_name", ""),
-                "description": m.get("description", ""),
-            },
-        })
-
-        new_models.append({
-            "model_id": canonical_id,
-            "name": m.get("display_name") or model_id.split("/")[-1].replace("-", " "),
-            "provider": model_id.split("/")[0] if "/" in model_id else "Together",
-            "context_length": m.get("context_length") or m.get("max_sequence_length"),
-            "is_reasoning": "reasoning" in model_id.lower() or "deepseek" in model_id.lower(),
-            "modality": "text",
-        })
-
-    print(f"  Models with pricing: {len(endpoints)}, Skipped: {skipped}")
-    return endpoints, new_models
+    # Delegate to the markdown scraper (no API key needed).
+    return _fetch_together_pricing()
 
 
 # ============================================
@@ -1189,44 +1131,16 @@ def fetch_together_direct():
 # ============================================
 
 def fetch_groq_direct():
-    """Fetch model catalog from Groq's API.
+    """Fetch Groq pricing via their docs markdown scraper.
 
-    Returns (endpoints, new_models).
-    Requires API key. Groq does NOT expose pricing in the models endpoint.
+    Groq's /v1/models API needs a key and returns catalog-only (no pricing).
+    The authoritative per-model pricing lives on console.groq.com/docs/models.md
+    (clean markdown). Delegates to provider_scrapers.fetch_groq_pricing().
+
+    Returns (endpoints, new_models) with canonical model IDs (Venice-style).
     """
-    print(f"[{datetime.now(timezone.utc).isoformat()}] Fetching Groq direct API...")
-
-    data = fetch_with_auth(GROQ_API, "groq")
-    if data is None:
-        return [], []
-
-    models = data.get("data", []) if isinstance(data, dict) else data
-    print(f"  Groq API returned {len(models)} models")
-
-    endpoints = []
-    new_models = []
-    skipped = 0
-
-    for m in models:
-        model_id = m.get("id", "")
-        if not model_id:
-            continue
-
-        # Groq doesn't expose pricing in the models API
-        # We record the catalog for comparison
-        canonical_id = model_id if "/" in model_id else f"groq/{model_id}"
-
-        new_models.append({
-            "model_id": canonical_id,
-            "name": model_id.replace("-", " ").replace("_", " ").title(),
-            "provider": "Groq",
-            "context_length": m.get("context_window_size") or m.get("context_length"),
-            "is_reasoning": "reasoning" in model_id.lower() or "deepseek" in model_id.lower(),
-            "modality": "text",
-        })
-
-    print(f"  Catalog models: {len(new_models)}, Skipped: {skipped}")
-    return endpoints, new_models
+    # Delegate to the markdown scraper (no API key needed).
+    return _fetch_groq_pricing()
 
 
 # ============================================
@@ -1234,95 +1148,22 @@ def fetch_groq_direct():
 # ============================================
 
 def fetch_fireworks_direct():
-    """Fetch model catalog from Fireworks AI's API.
+    """Fetch Fireworks catalog + pricing direct.
 
-    Returns (endpoints, new_models).
-    Requires API key.
+    Fireworks' REST API returns the model catalog but NO pricing field. Our
+    scraper (fireworks_pricing.py) combines the live catalog with the
+    authoritative per-model prices from the docs page (docs.fireworks.ai
+    /serverless/pricing.md) and returns (endpoints, new_models).
+
+    Requires API key. Falls back to catalog-only if the docs fetch fails.
     """
-    print(f"[{datetime.now(timezone.utc).isoformat()}] Fetching Fireworks AI direct API...")
-
-    data = fetch_with_auth(FIREWORKS_API, "fireworks")
-    if data is None:
+    api_key = get_provider_api_key("fireworks")
+    if not api_key:
+        print("  fireworks: No API key (auth required). Skipping.")
         return [], []
 
-    models = data.get("data", []) if isinstance(data, dict) else data
-    print(f"  Fireworks API returned {len(models)} models")
-
-    endpoints = []
-    new_models = []
-    skipped = 0
-
-    for m in models:
-        model_id = m.get("id", "")
-        if not model_id:
-            continue
-
-        pricing = m.get("pricing", {})
-        input_price = pricing.get("input") or pricing.get("prompt")
-        output_price = pricing.get("output") or pricing.get("completion")
-
-        # Store model as catalog entry (even without pricing)
-        canonical_id = model_id if "/" in model_id else f"fireworks/{model_id}"
-        new_models.append({
-            "model_id": canonical_id,
-            "name": model_id.split("/")[-1].replace("-", " "),
-            "provider": "Fireworks",
-            "context_length": m.get("context_length"),
-            "is_reasoning": "reasoning" in model_id.lower(),
-            "modality": "text",
-        })
-
-        if input_price is None or output_price is None:
-            # No pricing in API - catalog only (pricing comes from OpenRouter)
-            skipped += 1
-            continue
-
-        try:
-            input_price = float(input_price)
-            output_price = float(output_price)
-        except (ValueError, TypeError):
-            skipped += 1
-            continue
-
-        # Fireworks prices are per-million ($/M)
-        input_price = round(input_price, 6)
-        output_price = round(output_price, 6)
-        blended = round((BLENDED_INPUT_WEIGHT * input_price) + (BLENDED_OUTPUT_WEIGHT * output_price), 6)
-
-        endpoints.append({
-            "endpoint_provider": "Fireworks",
-            "model_id": canonical_id,
-            "input_price_per_m": input_price,
-            "output_price_per_m": output_price,
-            "blended_price_per_m": blended,
-            "context_length": m.get("context_length"),
-            "source": "fireworks_direct",
-            "raw_data": {
-                "fireworks_id": model_id,
-                "owned_by": m.get("owned_by", "fireworks"),
-                "hosting_type": "self-hosted",
-                "description": m.get("description", ""),
-            },
-        })
-
-        endpoints.append({
-            "endpoint_provider": "Fireworks",
-            "model_id": canonical_id,
-            "input_price_per_m": input_price,
-            "output_price_per_m": output_price,
-            "blended_price_per_m": blended,
-            "context_length": m.get("context_length"),
-            "source": "fireworks_direct",
-            "raw_data": {
-                "fireworks_id": model_id,
-                "owned_by": m.get("owned_by", "fireworks"),
-                "hosting_type": "self-hosted",
-                "description": m.get("description", ""),
-            },
-        })
-
-    print(f"  Models with pricing: {len(endpoints)}, Catalog only: {skipped}")
-    return endpoints, new_models
+    # Delegates to fireworks_pricing.fetch_fireworks_pricing().
+    return _fetch_fireworks_pricing(api_key)
 
 
 # ============================================
@@ -1353,7 +1194,7 @@ def fetch_cerebras_direct():
         if not model_id:
             continue
 
-        canonical_id = model_id if "/" in model_id else f"cerebras/{model_id}"
+        canonical_id = canonical_model_id(model_id if "/" in model_id else f"cerebras/{model_id}")
 
         new_models.append({
             "model_id": canonical_id,
@@ -1396,7 +1237,7 @@ def fetch_mistral_direct():
         if not model_id:
             continue
 
-        canonical_id = f"mistralai/{model_id}"
+        canonical_id = canonical_model_id(f"mistralai/{model_id}")
 
         new_models.append({
             "model_id": canonical_id,
@@ -1452,7 +1293,7 @@ def fetch_siliconflow_direct():
                 output_price = round(output_price, 6)
                 blended = round((BLENDED_INPUT_WEIGHT * input_price) + (BLENDED_OUTPUT_WEIGHT * output_price), 6)
 
-                canonical_id = model_id if "/" in model_id else f"siliconflow/{model_id}"
+                canonical_id = canonical_model_id(model_id if "/" in model_id else f"siliconflow/{model_id}")
 
                 endpoints.append({
                     "endpoint_provider": "SiliconFlow",
@@ -1472,7 +1313,7 @@ def fetch_siliconflow_direct():
                 pass
 
         # Always add to new_models (even without pricing)
-        canonical_id = model_id if "/" in model_id else f"siliconflow/{model_id}"
+        canonical_id = canonical_model_id(model_id if "/" in model_id else f"siliconflow/{model_id}")
         new_models.append({
             "model_id": canonical_id,
             "name": model_id.split("/")[-1].replace("-", " "),
@@ -1514,7 +1355,7 @@ def fetch_perplexity_direct():
         if not model_id:
             continue
 
-        canonical_id = f"perplexity/{model_id}"
+        canonical_id = canonical_model_id(f"perplexity/{model_id}")
 
         new_models.append({
             "model_id": canonical_id,
@@ -1562,7 +1403,7 @@ def fetch_openai_direct():
             skipped += 1
             continue
 
-        canonical_id = f"openai/{model_id}"
+        canonical_id = canonical_model_id(f"openai/{model_id}")
 
         new_models.append({
             "model_id": canonical_id,
@@ -1605,7 +1446,7 @@ def fetch_anthropic_direct():
         if not model_id:
             continue
 
-        canonical_id = f"anthropic/{model_id}"
+        canonical_id = canonical_model_id(f"anthropic/{model_id}")
 
         new_models.append({
             "model_id": canonical_id,
@@ -1648,7 +1489,7 @@ def fetch_hyperbolic_direct():
         if not model_id:
             continue
 
-        canonical_id = model_id if "/" in model_id else f"hyperbolic/{model_id}"
+        canonical_id = canonical_model_id(model_id if "/" in model_id else f"hyperbolic/{model_id}")
 
         new_models.append({
             "model_id": canonical_id,
@@ -1703,7 +1544,7 @@ def fetch_aiml_direct():
             continue
 
         info = m.get("info", {})
-        canonical_id = model_id  # Already has provider/ prefix
+        canonical_id = canonical_model_id(model_id)  # Already has provider/ prefix, normalize case
 
         new_models.append({
             "model_id": canonical_id,
@@ -1746,7 +1587,7 @@ def fetch_deepseek_direct():
         if not model_id:
             continue
 
-        canonical_id = f"deepseek/{model_id}"
+        canonical_id = canonical_model_id(f"deepseek/{model_id}")
 
         new_models.append({
             "model_id": canonical_id,
@@ -1789,7 +1630,7 @@ def fetch_moonshot_direct():
         if not model_id:
             continue
 
-        canonical_id = f"moonshotai/{model_id}"
+        canonical_id = canonical_model_id(f"moonshotai/{model_id}")
 
         new_models.append({
             "model_id": canonical_id,
@@ -1809,45 +1650,19 @@ def fetch_moonshot_direct():
 # ============================================
 
 def fetch_tensorx_direct():
-    """Fetch model catalog from TensorX's API.
+    """Fetch TensorX pricing via their models-page scraper.
+
+    TensorX hosts models from Z-AI, DeepSeek, Qwen, Moonshot, Minimax etc.
+    Its /v1/models API needs a key and returns catalog-only (no pricing).
+    The authoritative per-model pricing lives on tensorx.ai/models/ (server-
+    rendered HTML with data-name + price rows). Delegates to
+    tensorx_pricing.fetch_tensorx_pricing(). The data-name attributes are
+    already our canonical lowercase provider/model IDs.
 
     Returns (endpoints, new_models).
-    Requires API key. TensorX is an aggregator/proxy hosting models from
-    Z-AI, DeepSeek, Qwen, Moonshot, Minimax and others.
-    No pricing in /v1/models - catalog only.
     """
-    print(f"[{datetime.now(timezone.utc).isoformat()}] Fetching TensorX direct API...")
-
-    data = fetch_with_auth(TENSORX_API, "tensorx")
-    if data is None:
-        return [], []
-
-    models = data.get("data", []) if isinstance(data, dict) else data
-    print(f"  TensorX API returned {len(models)} models")
-
-    endpoints = []
-    new_models = []
-    skipped = 0
-
-    for m in models:
-        model_id = m.get("id", "")
-        if not model_id:
-            continue
-
-        # TensorX model IDs already use provider/model format (e.g. z-ai/glm-5.2)
-        canonical_id = model_id if "/" in model_id else f"tensorx/{model_id}"
-
-        new_models.append({
-            "model_id": canonical_id,
-            "name": model_id.split("/")[-1].replace("-", " ").title() if "/" in model_id else model_id,
-            "provider": "TensorX",
-            "context_length": m.get("context_length") or m.get("context_window"),
-            "is_reasoning": "reasoning" in model_id.lower() or "kimi" in model_id.lower() or "deepseek-r" in model_id.lower(),
-            "modality": "text",
-        })
-
-    print(f"  Catalog models: {len(new_models)}, Skipped: {skipped}")
-    return endpoints, new_models
+    # Delegate to the models-page scraper (no API key needed).
+    return _fetch_tensorx_pricing()
 
 
 def apply_median_pricing(models, fetch_endpoints=False):
@@ -2532,6 +2347,9 @@ def main():
         print(f"  Together direct: {len(together_endpoints)} endpoints added")
     
     groq_endpoints, groq_new_models = fetch_groq_direct()
+    if groq_endpoints:
+        endpoint_data.extend(groq_endpoints)
+        print(f"  Groq direct: {len(groq_endpoints)} endpoints added")
     
     fireworks_endpoints, fireworks_new_models = fetch_fireworks_direct()
     if fireworks_endpoints:
@@ -2565,6 +2383,9 @@ def main():
     
     # TensorX direct (aggregator/proxy - catalog only, no pricing in API)
     tensorx_endpoints, tensorx_new_models = fetch_tensorx_direct()
+    if tensorx_endpoints:
+        endpoint_data.extend(tensorx_endpoints)
+        print(f"  TensorX direct: {len(tensorx_endpoints)} endpoints added")
     
     # Calculate tier averages and SIT scores
     tier_avgs = calculate_tier_averages(priced)
@@ -2611,6 +2432,8 @@ def main():
             upsert_venice_models(conn, groq_new_models, priced)
         if fireworks_endpoints:
             upsert_venice_models(conn, fireworks_new_models, priced)
+        if tensorx_endpoints:
+            upsert_venice_models(conn, tensorx_new_models, priced)
         if cerebras_new_models:
             upsert_venice_models(conn, cerebras_new_models, priced)
         if mistral_new_models:

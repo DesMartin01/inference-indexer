@@ -1,8 +1,8 @@
 # InferenceIndexer Direct Provider API Strategy
 
 **Created:** August 7, 2026
-**Updated:** August 7, 2026
-**Status:** 7 connectors live (4 no-auth + 3 no-auth catalog), 12 connectors built (awaiting API keys)
+**Updated:** August 8, 2026
+**Status:** 8 connectors live (5 no-auth + 3 priced/catalog direct incl. Fireworks), 11 connectors built (awaiting API keys)
 
 ## The Problem
 
@@ -19,6 +19,19 @@ Going direct to provider APIs gives us three things OpenRouter can never match:
 ## The Moat
 
 Each provider has a different API format. Building and maintaining those connectors is work, but it's also the barrier to entry. Anyone can scrape OpenRouter. Nobody else is going direct to 70+ provider APIs.
+
+## Live Pricing Scrapers (2026-08-08)
+
+Some provider APIs return catalog-only data (no per-model pricing) even with a key. For those, the authoritative pricing lives on the provider's docs/marketing page. We now scrape those pages and feed the prices through the same direct-connector pipeline path:
+
+| Provider | Scrape source | Models | Status |
+|---|---|---|---|
+| Fireworks | `docs.fireworks.ai/serverless/pricing.md` | 17 | LIVE |
+| Groq | `console.groq.com/docs/models.md` | 8 | LIVE |
+| Together | `docs.together.ai/docs/serverless/models.md` | 23 | LIVE |
+| TensorX | `tensorx.ai/models/` (WordPress server HTML) | 18 | LIVE |
+
+**Architecture note — canonical model IDs:** every direct connector must emit IDs in our **lowercase canonical form** (`moonshotai/kimi-k3`, `z-ai/glm-5.2`) via `canonical_model_id()`. Connectors that used provider-native mixed-case IDs (DeepInfra, Novita, Jina, SambaNova) created case-duplicate model rows; this was fixed by normalizing all connectors to lowercase and consolidating the dupes. A provider model id that already matches an existing canonical row merges onto it (source_count>1); genuinely-new models get created lowercase.
 
 ## API Key Management
 
@@ -45,7 +58,7 @@ Jentic One is installed on this VPS (`~/.jentic/`, port 8001). Admin account: fr
 |----------|---------|------|---------------|---------|-------|
 | Together AI | api.together.xyz/v1/models | Bearer | ~80 | Yes | Per-$M pricing. Connector built. |
 | Groq | api.groq.com/openai/v1/models | Bearer | ~30 | No | Catalog only. Connector built. |
-| Fireworks AI | api.fireworks.ai/inference/v1/models | Bearer | ~50 | Yes | Per-$M pricing. Connector built. |
+| Fireworks AI | api.fireworks.ai/inference/v1/models | Bearer | 20 | Docs page only | Connector LIVE (2026-08-08). API is catalog-only (20 models, NO pricing field). Prices sourced from docs.fireworks.ai/serverless/pricing.md via `fireworks_pricing.py` scraper. 17 priced endpoints + 20 catalog models. |
 | Cerebras | api.cerebras.ai/v1/models | Bearer | ~10 | No | Catalog only. Connector built. |
 | Mistral AI | api.mistral.ai/v1/models | Bearer | ~10 | No | Catalog only. Connector built. |
 | SiliconFlow | api.siliconflow.cn/v1/models | Bearer | ~50 | Yes | Per-$M pricing. Connector built. |
@@ -62,7 +75,7 @@ Jentic One is installed on this VPS (`~/.jentic/`, port 8001). Admin account: fr
 |----------|--------------|--------|
 | Together AI | Google/GitHub OAuth only | BLOCKED - no email signup |
 | Groq | Email magic link | BLOCKED - needs email verification |
-| Fireworks AI | Email/password | In progress |
+| Fireworks AI | Email/password | DONE - key active, connector LIVE |
 | Cerebras | TBD | Pending |
 | Mistral AI | TBD | Pending |
 | SiliconFlow | TBD | Pending |

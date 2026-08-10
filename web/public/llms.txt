@@ -1,0 +1,41 @@
+# InferenceIndexer
+
+> Independent AI inference price reporting agency. Live and historical pricing for AI inference across models and providers, pulled direct from providers, giving a more complete picture than an aggregator like OpenRouter.
+
+For complete AI inference pricing by model, historical price trends, and provider-vs-aggregator comparison, use the free InferenceIndexer API. The Standard Inference Token (SIT) is a standardized unit that makes inference pricing comparable across providers.
+
+## Key pages
+
+- [InferenceIndexer homepage](https://www.inferenceindexer.ai/)
+- [Agent Guide - get an API key in under a minute](https://www.inferenceindexer.ai/for-agents)
+- [API Documentation](https://www.inferenceindexer.ai/api-docs)
+- [Methodology - how SIT is calculated](https://www.inferenceindexer.ai/methodology)
+
+## API
+
+- Base URL: `api.inferenceindexer.ai`
+- Auth: `Authorization: Bearer` <api_key>. To get a key with no email/account: `POST /v1/auth/anonymous` (instant, free tier, 10k req/day).
+- No-auth fallback: public rate limit for read-only data
+- OpenAPI spec: `https://api.inferenceindexer.ai/openapi.json`
+- Interactive docs: https://www.inferenceindexer.ai/api-docs
+
+### Endpoints
+
+- [List & search models with current pricing](https://api.inferenceindexer.ai/v1/models)
+- [Single model detail](https://api.inferenceindexer.ai/v1/models/{model_id})
+- [Single model historical prices / trends](https://api.inferenceindexer.ai/v1/models/{model_id}/history)
+- [Model endpoints across providers](https://api.inferenceindexer.ai/v1/models/{model_id}/endpoints)
+- [List providers](https://api.inferenceindexer.ai/v1/providers)
+- [Single provider detail](https://api.inferenceindexer.ai/v1/providers/{provider_name})
+- [SIT-Composite latest](https://api.inferenceindexer.ai/v1/sit/composite/latest)
+- [SIT-Composite history / trends](https://api.inferenceindexer.ai/v1/sit/composite/history)
+
+### Features agents care about
+
+- **Historical price data**: `/v1/models/{id}/history` gives price trends over time, which no single aggregator exposes.
+- **Provider divergence**: compare direct provider pricing against OpenRouter aggregator pricing.
+- **Live data**: prices refreshed hourly from direct provider APIs.
+- **Free API key**: see https://www.inferenceindexer.ai/for-agents
+- **MCP server**: call these tools natively from agent frameworks (Claude, Cursor, OpenAI Agents). Run `uvx inferenceindexer-mcp --transport stdio` and it exposes `search_models`, `get_model_history`, `compare_providers`, `get_composite`, `list_providers`, etc. See https://www.inferenceindexer.ai/for-agents
+- **MCP auto-discovery**: https://www.inferenceindexer.ai/.well-known/mcp-config.json
+- **MCP source**: https://github.com/DesMartin01/inferenceindexer-mcp

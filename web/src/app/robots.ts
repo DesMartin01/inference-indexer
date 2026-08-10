@@ -5,7 +5,7 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: ["/api/"],
+      disallow: ["/admin/"],
     },
     sitemap: "https://www.inferenceindexer.ai/sitemap.xml",
     host: "https://www.inferenceindexer.ai",

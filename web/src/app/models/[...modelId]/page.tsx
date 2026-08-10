@@ -45,10 +45,7 @@ export async function generateMetadata({ params }: { params: Promise<{ modelId: 
   try {
     model = await getModel(modelId);
   } catch {
-    return {
-      title: "Model Not Found - InferenceIndexer.ai",
-      robots: { index: false, follow: true },
-    };
+    notFound();
   }
 
   const name = cleanModelName(model.name);
@@ -331,7 +328,12 @@ export default async function ModelDetailPage({
                       <tr key={i} style={{ borderBottom: "1px solid #1c1c20" }}>
                         <td style={{ padding: "9px 12px", color: isCheapest ? "#e5e5e5" : "#c9c9c9", fontWeight: isCheapest ? 600 : 400 }}>
                           {isCheapest && <span style={{ color: GREEN, marginRight: 6 }}>{"\u2193"}</span>}
-                          {ep.provider}
+                          <Link
+                            href={`/providers/${encodeURIComponent(ep.provider)}`}
+                            style={{ color: isCheapest ? "#e5e5e5" : "#c9c9c9", textDecoration: "none" }}
+                          >
+                            {ep.provider}
+                          </Link>
                         </td>
                         <td style={{ padding: "9px 12px", textAlign: "right", color: "#c9c9c9", fontVariantNumeric: "tabular-nums", fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>
                           {money(ep.input_price_per_m)}

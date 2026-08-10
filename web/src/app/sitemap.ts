@@ -14,6 +14,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Static pages
   const staticPages = [
     { url: "", priority: 1.0, changeFrequency: "hourly" as const },
+    { url: "/for-agents", priority: 0.8, changeFrequency: "monthly" as const },
     { url: "/api-docs", priority: 0.8, changeFrequency: "monthly" as const },
     { url: "/methodology", priority: 0.7, changeFrequency: "monthly" as const },
     { url: "/about", priority: 0.5, changeFrequency: "monthly" as const },
@@ -30,7 +31,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   // Dynamic model pages
   try {
-    const res = await fetch(`${API_URL}/v1/models?limit=315`, {
+    const res = await fetch(`${API_URL}/v1/models?limit=500`, {
       next: { revalidate: 3600 },
     });
     if (res.ok) {

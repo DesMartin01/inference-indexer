@@ -1,5 +1,7 @@
 import { Header, Footer } from "@/components/Header";
 import type { CSSProperties } from "react";
+import { getModelCount, getProviderCount } from "@/lib/api";
+import { CURRENT_MODEL_COUNT, CURRENT_PROVIDER_COUNT } from "@/lib/counts";
 
 export const metadata = {
   title: "About - Independent AI Inference Price Index | InferenceIndexer.ai",
@@ -72,7 +74,11 @@ const commitments = [
   },
 ];
 
-export default function AboutPage() {
+export default async function AboutPage() {
+  const modelCount =
+    (await getModelCount().catch(() => null)) ?? CURRENT_MODEL_COUNT;
+  const providerCount =
+    (await getProviderCount().catch(() => null)) ?? CURRENT_PROVIDER_COUNT;
   return (
     <div style={{ background: "#0a0a0a", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
       <Header activePage="about" />
@@ -93,7 +99,7 @@ export default function AboutPage() {
               InferenceIndexer exists to bring price transparency to AI inference. As the number of model providers
               explodes and pricing structures fragment, developers, investors, and enterprises need a neutral, independent
               reference point. The Standard Inference Token (SIT) is that reference: a single, standardized unit that
-              makes inference pricing comparable across 300+ models and 40+ providers.
+              makes inference pricing comparable across {modelCount} models and {providerCount} providers.
             </p>
             <p style={bodyText}>
               We are building the CoinMarketCap of AI inference. Not an exchange. Not an aggregator. Not a routing

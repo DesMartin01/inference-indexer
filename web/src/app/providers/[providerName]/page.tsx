@@ -46,10 +46,7 @@ export async function generateMetadata({ params }: { params: Promise<{ providerN
   try {
     provider = await getProviderDetail(decoded);
   } catch {
-    return {
-      title: "Provider Not Found - InferenceIndexer.ai",
-      robots: { index: false, follow: true },
-    };
+    notFound();
   }
 
   return {
@@ -192,6 +189,62 @@ export default async function ProviderPage({ params }: { params: Promise<{ provi
           })()}
         </div>
 
+        {/* Quality metrics */}
+        {provider.quality && provider.quality.total_probes > 0 && (
+          <div style={{ marginBottom: 28 }}>
+            <h2 style={{ fontSize: 14, fontWeight: 600, color: "#8a8a8a", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 14 }}>
+              Provider Quality
+            </h2>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10 }}>
+              {/* TTFT */}
+              <div style={{ background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 8, padding: "12px 16px" }}>
+                <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", color: "#5f5f5f", marginBottom: 6 }}>Avg TTFT</div>
+                <div style={{ fontSize: 18, fontWeight: 600, color: "#f2f2f2", fontVariantNumeric: "tabular-nums" }}>
+                  {provider.quality.avg_ttft_ms != null ? `${provider.quality.avg_ttft_ms.toFixed(0)}ms` : "N/A"}
+                </div>
+                {provider.quality.min_ttft_ms != null && provider.quality.max_ttft_ms != null && (
+                  <div style={{ fontSize: 11, color: "#5f5f5f", marginTop: 2 }}>
+                    {provider.quality.min_ttft_ms.toFixed(0)}-{provider.quality.max_ttft_ms.toFixed(0)}ms
+                  </div>
+                )}
+              </div>
+              {/* Throughput */}
+              <div style={{ background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 8, padding: "12px 16px" }}>
+                <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", color: "#5f5f5f", marginBottom: 6 }}>Avg Throughput</div>
+                <div style={{ fontSize: 18, fontWeight: 600, color: "#f2f2f2", fontVariantNumeric: "tabular-nums" }}>
+                  {provider.quality.avg_throughput_tps != null ? `${provider.quality.avg_throughput_tps.toFixed(1)} tok/s` : "N/A"}
+                </div>
+              </div>
+              {/* Success rate */}
+              <div style={{ background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 8, padding: "12px 16px" }}>
+                <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", color: "#5f5f5f", marginBottom: 6 }}>Uptime</div>
+                <div style={{ fontSize: 18, fontWeight: 600, color: provider.quality.success_rate != null ? (provider.quality.success_rate >= 95 ? GREEN : provider.quality.success_rate >= 80 ? ACCENT : "#ef4444") : "#7a7a7a", fontVariantNumeric: "tabular-nums" }}>
+                  {provider.quality.success_rate != null ? `${provider.quality.success_rate.toFixed(0)}%` : "N/A"}
+                </div>
+              </div>
+              {/* Probes */}
+              <div style={{ background: "#0d0d0d", border: "1px solid #1a1a1a", borderRadius: 8, padding: "12px 16px" }}>
+                <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", color: "#5f5f5f", marginBottom: 6 }}>Probes (7d)</div>
+                <div style={{ fontSize: 18, fontWeight: 600, color: "#f2f2f2", fontVariantNumeric: "tabular-nums" }}>
+                  {provider.quality.total_probes}
+                </div>
+                <div style={{ fontSize: 11, color: "#5f5f5f", marginTop: 2 }}>
+                  {provider.quality.successful_probes} ok
+                </div>
+              </div>
+            </div>
+            {/* Probe model + last probe time */}
+            <div style={{ fontSize: 11, color: "#5f5f5f", marginTop: 8, display: "flex", gap: 16 }}>
+              {provider.quality.probe_model && (
+                <span>Probe model: <code style={{ fontFamily: "var(--font-jetbrains-mono), monospace", color: "#8a8a8a" }}>{provider.quality.probe_model}</code></span>
+              )}
+              {provider.quality.last_probe && (
+                <span>Last probe: {new Date(provider.quality.last_probe).toISOString().replace("T", " ").slice(0, 16)} UTC</span>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Tier breakdown */}
         {tiers.length > 0 && (
           <div style={{ marginBottom: 28 }}>
@@ -229,7 +282,7 @@ export default async function ProviderPage({ params }: { params: Promise<{ provi
         </h2>
         <ProviderModelTable models={provider.models} providerName={provider.name} />
       </main>
-      <Footer models={316} providers={71} updatedAt="" />
+      <Footer providers={71} updatedAt="" />
     </div>
   );
 }
