@@ -114,7 +114,11 @@ def check_rate_limit(api_user, is_ssr=False):
     today = now.date()
     current_minute = now.minute
     
-    key = api_user["email"] if api_user else "anonymous"
+    # Key rate-limit state by (plan, identity). The site's own SSR requests
+    # (plan="ssr") MUST NOT share the anonymous "public" counter — otherwise
+    # internal SSR traffic exhausts the public budget and 429s real users.
+    base_key = api_user["email"] if api_user else "anonymous"
+    key = f"{plan}:{base_key}"
     state = _rate_limits[key]
     
     # Reset daily count if new day
@@ -163,17 +167,29 @@ def check_rate_limit(api_user, is_ssr=False):
             }
         )
     
+    # Stamp the actual counter key onto limits so headers always read the
+    # same counter that this request incremented (plan-aware).
+    limits["_key"] = key
     return limits
 
-def get_rate_limit_headers(api_user, limits):
-    """Return rate limit headers for the response."""
-    if not api_user:
-        key = "anonymous"
+def get_rate_limit_headers(api_user, limits, state=None):
+    """Return rate limit headers for the response.
+
+    `limits` is what check_rate_limit returned; if it carries a stamped `_key`,
+    read the exact same counter (plan-aware). Otherwise fall back to deriving
+    the anonymous/email key.
+    """
+    plan_key = (limits or {}).get("_key")
+    if plan_key:
+        state = _rate_limits.get(plan_key)
+        remaining = max(0, limits["daily"] - (state["count"] if state else 0))
     else:
-        key = api_user["email"] or "anonymous"
-    
-    state = _rate_limits[key]
-    remaining = max(0, limits["daily"] - state["count"])
+        if not api_user:
+            key = "anonymous"
+        else:
+            key = api_user["email"] or "anonymous"
+        state = _rate_limits.get(key)
+        remaining = max(0, limits["daily"] - (state["count"] if state else 0))
     today = datetime.now(timezone.utc).date()
     reset_ts = int(datetime.combine(today + timedelta(days=1), datetime.min.time(), tzinfo=timezone.utc).timestamp())
     
