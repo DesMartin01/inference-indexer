@@ -1803,7 +1803,13 @@ def apply_median_pricing(models, fetch_endpoints=False):
                     ORDER BY endpoint_provider, fetched_at DESC
                 """, (m["model_id"],))
                 rows = cur.fetchall()
-                if rows and len(rows) > 1:
+                # Apply endpoint pricing whenever there is AT LEAST ONE priced
+                # endpoint, not just for multi-provider models. The old
+                # `len(rows) > 1` guard left single-endpoint models unpriced
+                # even when their sole provider served+published a price
+                # (e.g. claude-haiku-4-5 only on DeepInfra). Fix: median over
+                # whatever priced endpoints exist.
+                if rows:
                     blended_prices = [r[3] for r in rows if r[3] and r[3] > 0]
                     input_prices = [r[1] for r in rows if r[1] and r[1] > 0]
                     output_prices = [r[2] for r in rows if r[2] and r[2] > 0]
@@ -1819,7 +1825,7 @@ def apply_median_pricing(models, fetch_endpoints=False):
                     else:
                         m["source_count"] = 1
                 else:
-                    m["source_count"] = 1 if not rows else len(rows)
+                    m["source_count"] = 1
             cur.close()
             conn.close()
         except Exception as e:
@@ -2548,15 +2554,21 @@ def main():
     
     # Normalize
     normalized = [normalize_model(m) for m in raw_models]
-    priced = filter_priced(normalized)
-    
-    # Apply median pricing (fetch endpoints if --fetch-endpoints, else use DB cache)
+
+    # Apply median/endpoint pricing BEFORE filtering. Models with no catalog
+    # price but a real price in model_endpoints (single-provider models like
+    # claude-haiku-4-5 on DeepInfra) must not be dropped by filter_priced.
+    # Reordering so apply_median_pricing enriches first means filter_priced
+    # keeps them priced via their endpoints.
     if args.fetch_endpoints:
         print(f"\n[{datetime.now(timezone.utc).isoformat()}] Fetching provider endpoints (daily mode)...")
-        priced, endpoint_data = apply_median_pricing(priced, fetch_endpoints=True)
+        enriched, endpoint_data = apply_median_pricing(normalized, fetch_endpoints=True)
     else:
-        priced = apply_median_pricing(priced, fetch_endpoints=False)
+        enriched = apply_median_pricing(normalized, fetch_endpoints=False)
         endpoint_data = []
+
+    # Filter to only models with pricing (catalog or endpoint-derived)
+    priced = filter_priced(enriched)
     
     # Always fetch Venice direct API (hourly - it's one HTTP call, no auth)
     venice_endpoints, venice_new_models = fetch_venice_direct()
