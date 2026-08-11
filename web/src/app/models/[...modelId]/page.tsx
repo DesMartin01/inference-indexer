@@ -311,26 +311,14 @@ export default async function ModelDetailPage({
           </div>
         ) : (
           <div style={{ background: "#16161a", border: "1px solid #2a2a2a", borderRadius: 8, padding: "20px 24px", marginBottom: 28 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-              {providerFav ? (
-                <img src={providerFav} alt={model.provider} width={24} height={24} style={{ width: "24px", height: "24px", objectFit: "contain", borderRadius: 4 }} />
-              ) : (
-                <span style={{ width: 24, height: 24, borderRadius: 4, background: "#1e1e22", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'JetBrains Mono', monospace", fontSize: 12, fontWeight: 600, color: "#8f8f96" }}>
-                  {model.provider.charAt(0)}
-                </span>
-              )}
-              <div style={{ fontSize: 14, fontWeight: 500, color: "#e5e5e5" }}>
-                {model.provider}
-              </div>
-              <span style={{ fontSize: 11, color: "#5f5f5f", marginLeft: "auto" }}>
-                no endpoint data yet
-              </span>
+            <div style={{ fontSize: 14, fontWeight: 500, color: "#e5e5e5", marginBottom: 12 }}>
+              Provider
             </div>
             <p style={{ fontSize: 13, color: "#c9c9c9", margin: 0, lineHeight: 1.5 }}>
-              Served by <strong>{model.provider}</strong> at a single OpenRouter endpoint. Input{" "}
-              {money(model.input_price_per_m)}/M, output {money(model.output_price_per_m)}/M, blended{" "}
-              <strong>{money(model.blended_price_per_m)}/M</strong>. No provider endpoint records are
-              tracked yet, so provider-level detail is not available.
+              Model by <strong>{model.provider}</strong>. Priced at blended{" "}
+              <strong>{model.blended_price_per_m != null && money(model.blended_price_per_m)}/M</strong> via
+              OpenRouter. Provider endpoint records are not available yet, so no serving providers are
+              listed for this model.
             </p>
           </div>
         )}
