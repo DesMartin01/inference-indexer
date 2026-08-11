@@ -301,13 +301,37 @@ export default async function ModelDetailPage({
         </div>
 
         {/* Provider Comparison Table */}
-        {endpoints.count > 1 && (
+        {endpoints.count > 1 ? (
           <div style={{ background: "#16161a", border: "1px solid #2a2a2a", borderRadius: 8, padding: "20px 24px", marginBottom: 28 }}>
             <ProviderComparisonTable
               endpoints={endpoints.endpoints}
               referenceBlended={model.blended_price_per_m}
               count={endpoints.count}
             />
+          </div>
+        ) : (
+          <div style={{ background: "#16161a", border: "1px solid #2a2a2a", borderRadius: 8, padding: "20px 24px", marginBottom: 28 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+              {providerFav ? (
+                <img src={providerFav} alt={model.provider} width={24} height={24} style={{ width: "24px", height: "24px", objectFit: "contain", borderRadius: 4 }} />
+              ) : (
+                <span style={{ width: 24, height: 24, borderRadius: 4, background: "#1e1e22", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'JetBrains Mono', monospace", fontSize: 12, fontWeight: 600, color: "#8f8f96" }}>
+                  {model.provider.charAt(0)}
+                </span>
+              )}
+              <div style={{ fontSize: 14, fontWeight: 500, color: "#e5e5e5" }}>
+                {model.provider}
+              </div>
+              <span style={{ fontSize: 11, color: "#5f5f5f", marginLeft: "auto" }}>
+                single source · via OpenRouter
+              </span>
+            </div>
+            <p style={{ fontSize: 13, color: "#c9c9c9", margin: 0, lineHeight: 1.5 }}>
+              Served by <strong>{model.provider}</strong> at a single OpenRouter endpoint. Input{" "}
+              {money(model.input_price_per_m)}/M, output {money(model.output_price_per_m)}/M, blended{" "}
+              <strong>{money(model.blended_price_per_m)}/M</strong>. No direct provider endpoints are
+              tracked for this model yet, so a per-provider comparison is not available.
+            </p>
           </div>
         )}
 
