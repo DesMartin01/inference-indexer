@@ -627,6 +627,7 @@ async def get_sit_latest(request: Request, authorization: Optional[str] = Header
     conn.close()
     
     headers = get_rate_limit_headers(api_user, limits)
+    headers["Cache-Control"] = "public, max-age=300"
     return JSONResponse(
         content={
             "date": str(date.today()),
@@ -696,6 +697,7 @@ async def get_sit_history(
         history.append(current_entry)
     
     headers = get_rate_limit_headers(api_user, limits)
+    headers["Cache-Control"] = "public, max-age=300"
     return JSONResponse(
         content={"history": history, "days": len(history)},
         headers=headers
@@ -717,9 +719,9 @@ async def get_models(
     conn = get_db()
     cur = conn.cursor()
     
-    # Build query using latest_prices view
+    # Build query using materialized views for performance
+    # latest_prices, price_changes_24h, and price_changes_7d are all MATVIEWs
     # ZDR/EU flags: check if any endpoint for this model is on a ZDR or EU provider
-    # 24h change from price_changes_24h view, 7d change via subquery on price_snapshots
     query = """
         SELECT m.id, m.name, m.provider, m.tier, m.context_length, m.aa_index_score,
                m.modality, m.is_reasoning,
@@ -732,14 +734,7 @@ async def get_models(
         FROM models m
         JOIN latest_prices lp ON m.id = lp.model_id
         LEFT JOIN price_changes_24h pc24 ON m.id = pc24.model_id
-        LEFT JOIN (
-            SELECT DISTINCT ON (ps.model_id) ps.model_id,
-                   ROUND(((lp2.blended_price_per_m - ps.blended_price_per_m)::numeric / NULLIF(ps.blended_price_per_m, 0)::numeric) * 100, 2) AS change_pct
-            FROM price_snapshots ps
-            JOIN latest_prices lp2 ON ps.model_id = lp2.model_id
-            WHERE ps.fetched_at < NOW() - INTERVAL '5 days'
-            ORDER BY ps.model_id, ps.fetched_at DESC
-        ) ch7 ON m.id = ch7.model_id
+        LEFT JOIN price_changes_7d ch7 ON m.id = ch7.model_id
         LEFT JOIN (
             SELECT DISTINCT me.model_id, TRUE as is_zdr
             FROM model_endpoints me
@@ -821,6 +816,7 @@ async def get_models(
         })
     
     headers = get_rate_limit_headers(api_user, limits)
+    headers["Cache-Control"] = "public, max-age=300"
     return JSONResponse(
         content={
             "count": total,

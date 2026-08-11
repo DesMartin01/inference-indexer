@@ -2760,6 +2760,16 @@ def main():
             indices["composite"] = composite_data
         
         insert_sit_values(conn, indices, today)
+        
+        # Refresh materialized views so the API sees fresh data
+        # (latest_prices, price_changes_24h, price_changes_7d are MATVIEWs for performance)
+        cur = conn.cursor()
+        cur.execute("REFRESH MATERIALIZED VIEW latest_prices")
+        cur.execute("REFRESH MATERIALIZED VIEW price_changes_24h")
+        cur.execute("REFRESH MATERIALIZED VIEW price_changes_7d")
+        conn.commit()
+        print(f"  Refreshed materialized views (latest_prices, price_changes_24h, price_changes_7d)")
+        
         print(f"\n✓ Pipeline complete at {datetime.now(timezone.utc).isoformat()}")
     except Exception as e:
         conn.rollback()

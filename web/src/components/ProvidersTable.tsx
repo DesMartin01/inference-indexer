@@ -137,7 +137,7 @@ export default function ProvidersTable({ providers }: { providers: ProviderSumma
                     {(() => {
                       const fav = providerFaviconUrl(p.name);
                       return fav ? (
-                        <img src={fav} alt={p.name} width={14} height={14} style={{ width: 14, height: 14, objectFit: "contain" }} />
+                        <img src={fav} alt={p.name} width={14} height={14} loading="lazy" style={{ width: 14, height: 14, objectFit: "contain" }} />
                       ) : (
                         <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 9, color: "#8f8f96" }}>
                           {providerInitials(p.name)}

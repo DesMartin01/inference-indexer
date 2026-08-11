@@ -512,6 +512,7 @@ export default function ModelTable({ models, totalCount }: Props) {
                               alt={m.provider}
                               width={14}
                               height={14}
+                              loading="lazy"
                               style={{ width: "14px", height: "14px", objectFit: "contain" }}
                             />
                           ) : (

@@ -199,7 +199,7 @@ export default async function ModelDetailPage({
             <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 16 }}>
               <span style={{ width: 44, height: 44, borderRadius: "50%", background: "#16161a", border: "1px solid #333", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
                 {providerFav ? (
-                  <img src={providerFav} alt={model.provider} width={28} height={28} style={{ width: "28px", height: "28px", objectFit: "contain" }} />
+                  <img src={providerFav} alt={model.provider} width={28} height={28} loading="lazy" style={{ width: "28px", height: "28px", objectFit: "contain" }} />
                 ) : (
                   <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 16, fontWeight: 600, color: "#8f8f96" }}>
                     {model.provider.charAt(0)}

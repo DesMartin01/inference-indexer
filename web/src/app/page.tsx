@@ -15,7 +15,6 @@ import ModelTable from "@/components/ModelTable";
 import { CURRENT_MODEL_COUNT, CURRENT_PROVIDER_COUNT } from "@/lib/counts";
 
 export const revalidate = 60;
-export const dynamic = "force-dynamic";
 
 export async function generateMetadata(): Promise<Metadata> {
   const count = (await getModelCount().catch(() => 0)) || CURRENT_MODEL_COUNT;

@@ -110,7 +110,7 @@ export default async function ProviderPage({ params }: { params: Promise<{ provi
             {(() => {
               const fav = providerFaviconUrl(provider.name);
               return fav ? (
-                <img src={fav} alt={provider.name} width={28} height={28} style={{ width: 28, height: 28, objectFit: "contain" }} />
+                <img src={fav} alt={provider.name} width={28} height={28} loading="lazy" style={{ width: 28, height: 28, objectFit: "contain" }} />
               ) : (
                 <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 16, color: "#8f8f96" }}>
                   {providerInitials(provider.name)}
