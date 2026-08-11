@@ -3,23 +3,19 @@ import { NextRequest } from "next/server";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const SSR_SECRET = "inferenceindexer-ssr-2026";
 
-// Simple in-memory cache for API responses
-const cache = new Map<string, { data: unknown; ts: number }>();
-const CACHE_TTL = 30_000; // 30 seconds
+// Next.js fetch with ISR revalidation. Using next: { revalidate } instead of
+// cache: "no-store" allows Vercel to serve cached pages at the edge and
+// revalidate in the background, instead of forcing dynamic rendering on every
+// request.
+const ISR_REVALIDATE = 60; // seconds
 
 async function fetchWithCache<T>(endpoint: string): Promise<T> {
-  const cached = cache.get(endpoint);
-  if (cached && Date.now() - cached.ts < CACHE_TTL) {
-    return cached.data as T;
-  }
-
   const res = await fetch(`${API_URL}${endpoint}`, {
-    cache: "no-store",
+    next: { revalidate: ISR_REVALIDATE },
     headers: { "X-SSR-Secret": SSR_SECRET },
   });
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   const data = await res.json();
-  cache.set(endpoint, { data, ts: Date.now() });
   return data as T;
 }
 
@@ -171,19 +167,19 @@ export async function getProviderCount(): Promise<number> {
 const SSR_HEADERS = { "X-SSR-Secret": SSR_SECRET };
 
 export async function getModel(modelId: string): Promise<ModelDetail> {
-  const res = await fetch(`${API_URL}/v1/models/${modelId}`, { cache: "no-store", headers: SSR_HEADERS });
+  const res = await fetch(`${API_URL}/v1/models/${modelId}`, { next: { revalidate: ISR_REVALIDATE }, headers: SSR_HEADERS });
   if (!res.ok) throw new Error(`Model not found: ${res.status}`);
   return res.json();
 }
 
 export async function getModelHistory(modelId: string, days: number = 30): Promise<ModelHistory> {
-  const res = await fetch(`${API_URL}/v1/models/${modelId}/history?days=${days}`, { cache: "no-store", headers: SSR_HEADERS });
+  const res = await fetch(`${API_URL}/v1/models/${modelId}/history?days=${days}`, { next: { revalidate: ISR_REVALIDATE }, headers: SSR_HEADERS });
   if (!res.ok) throw new Error(`History not found: ${res.status}`);
   return res.json();
 }
 
 export async function getModelEndpoints(modelId: string): Promise<ModelEndpoints> {
-  const res = await fetch(`${API_URL}/v1/models/${modelId}/endpoints`, { cache: "no-store", headers: SSR_HEADERS });
+  const res = await fetch(`${API_URL}/v1/models/${modelId}/endpoints`, { next: { revalidate: ISR_REVALIDATE }, headers: SSR_HEADERS });
   if (!res.ok) throw new Error(`Endpoints not found: ${res.status}`);
   return res.json();
 }
@@ -282,7 +278,7 @@ export async function getProviders(): Promise<ProviderList> {
 }
 
 export async function getProviderDetail(providerName: string): Promise<ProviderDetail> {
-  const res = await fetch(`${API_URL}/v1/providers/${encodeURIComponent(providerName)}`, { cache: "no-store", headers: SSR_HEADERS });
+  const res = await fetch(`${API_URL}/v1/providers/${encodeURIComponent(providerName)}`, { next: { revalidate: ISR_REVALIDATE }, headers: SSR_HEADERS });
   if (!res.ok) throw new Error(`Provider not found: ${res.status}`);
   return res.json();
 }
