@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import {
   getCompositeLatest,
   getCompositeHistory,
@@ -428,9 +429,11 @@ export default async function Home() {
         </p>
       </section>
 
-      {/* Model table (client component) */}
+      {/* Model table (client component, wrapped in Suspense for ISR) */}
       {models.length > 0 && (
-        <ModelTable models={models} totalCount={totalCount} />
+        <Suspense fallback={null}>
+          <ModelTable models={models} totalCount={totalCount} />
+        </Suspense>
       )}
 
       {/* API signup */}
