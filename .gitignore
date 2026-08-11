@@ -36,3 +36,4 @@ web/build/
 
 # Cache
 .cache/
+mcp-server/
