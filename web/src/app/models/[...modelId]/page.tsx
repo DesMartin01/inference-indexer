@@ -201,7 +201,7 @@ export default async function ModelDetailPage({
                 {providerFav ? (
                   <img src={providerFav} alt={model.provider} width={28} height={28} loading="lazy" style={{ width: "28px", height: "28px", objectFit: "contain" }} />
                 ) : (
-                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 16, fontWeight: 600, color: "#8f8f96" }}>
+                  <span style={{ fontFamily: "Inter, sans-serif", fontSize: 16, fontWeight: 600, color: "#8f8f96" }}>
                     {model.provider.charAt(0)}
                   </span>
                 )}
@@ -213,7 +213,7 @@ export default async function ModelDetailPage({
                     {model.tier}
                   </span>
                 </div>
-                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: "#6a6a6a", marginTop: 4 }}>
+                <div style={{ fontFamily: "Inter, sans-serif", fontSize: 12, color: "#6a6a6a", marginTop: 4 }}>
                   {model.model_id}
                 </div>
               </div>
@@ -236,19 +236,19 @@ export default async function ModelDetailPage({
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 32, marginBottom: 24 }}>
             <div>
               <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", color: "#6a6a6a", marginBottom: 8 }}>Input</div>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 22, fontWeight: 500, color: "#c9c9c9" }}>
+              <div style={{ fontFamily: "Inter, sans-serif", fontSize: 22, fontWeight: 500, color: "#c9c9c9" }}>
                 {money(model.input_price_per_m)}<span style={{ fontSize: 13, color: "#6a6a6a" }}> /M</span>
               </div>
             </div>
             <div>
               <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", color: "#6a6a6a", marginBottom: 8 }}>Output</div>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 22, fontWeight: 500, color: "#c9c9c9" }}>
+              <div style={{ fontFamily: "Inter, sans-serif", fontSize: 22, fontWeight: 500, color: "#c9c9c9" }}>
                 {money(model.output_price_per_m)}<span style={{ fontSize: 13, color: "#6a6a6a" }}> /M</span>
               </div>
             </div>
             <div>
               <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", color: "#6a6a6a", marginBottom: 8 }}>Blended (40/60)</div>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 28, fontWeight: 500, color: ACCENT }}>
+              <div style={{ fontFamily: "Inter, sans-serif", fontSize: 28, fontWeight: 500, color: ACCENT }}>
                 {money(model.blended_price_per_m)}<span style={{ fontSize: 14, color: "#8a8a8a" }}> /M</span>
               </div>
             </div>
@@ -256,13 +256,13 @@ export default async function ModelDetailPage({
               <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", color: "#7ec47e", marginBottom: 8 }}>
                 Cost / IQ
               </div>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 28, fontWeight: 500, color: "#7ec47e" }}>
+              <div style={{ fontFamily: "Inter, sans-serif", fontSize: 28, fontWeight: 500, color: "#7ec47e" }}>
                 {model.sit_adjusted_price != null ? `$${model.sit_adjusted_price.toFixed(4)}` : "N/A"}<span style={{ fontSize: 14, color: "#8a8a8a" }}> /M</span>
               </div>
             </div>
           </div>
           <div style={{ fontSize: 11, color: "#5f5f5f", marginTop: 4 }}>
-            Quality-adjusted price = Blended Price × (40 ÷ AA Intelligence Score). Represents the cost of producing GPT-4-Turbo-equivalent inference tokens. Lower = better value per unit of intelligence. Not a transactional price.
+            Cost / IQ = Blended Price ÷ (AA Intelligence Score ÷ 40). Normalises price by model intelligence so you can compare value across tiers. Lower = better value per unit of intelligence. Not a transactional price.
             {model.sit_adjusted_price == null && " No AA score available for this model."}
           </div>
           <div style={{ display: "flex", gap: 26, flexWrap: "wrap", borderTop: "1px solid #232327", paddingTop: 16 }}>
@@ -275,7 +275,7 @@ export default async function ModelDetailPage({
         <div style={{ background: "#16161a", border: "1px solid #2a2a2a", borderRadius: 8, padding: "20px 24px", marginBottom: 28 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
             <div style={{ fontSize: 14, fontWeight: 500, color: "#e5e5e5" }}>Price History</div>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#5f5f5f" }}>
+            <div style={{ fontFamily: "Inter, sans-serif", fontSize: 11, color: "#5f5f5f" }}>
               30-day view, daily close
             </div>
           </div>
@@ -287,7 +287,7 @@ export default async function ModelDetailPage({
                 height={180}
                 color={ACCENT}
               />
-              <div style={{ display: "flex", gap: 32, marginTop: 12, fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>
+              <div style={{ display: "flex", gap: 32, marginTop: 12, fontFamily: "Inter, sans-serif", fontSize: 12 }}>
                 <ChartStat label="Low" value={money(Math.min(...history.history.map((h) => h.blended_price_per_m)))} />
                 <ChartStat label="High" value={money(Math.max(...history.history.map((h) => h.blended_price_per_m)))} />
                 <ChartStat label="Average" value={money(history.history.reduce((s, h) => s + h.blended_price_per_m, 0) / history.history.length)} />
@@ -375,14 +375,14 @@ export default async function ModelDetailPage({
           <div style={{ marginBottom: 20 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
               <span style={{ fontSize: 12, color: "#8a8a8a" }}>SIT Score (100 = tier median)</span>
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14, fontWeight: 600, color: hasSitScore ? (sitScore < 100 ? GREEN : sitScore <= 100 ? "#e5e5e5" : ACCENT) : "#5f5f5f" }}>
+              <span style={{ fontFamily: "Inter, sans-serif", fontSize: 14, fontWeight: 600, color: hasSitScore ? (sitScore < 100 ? GREEN : sitScore <= 100 ? "#e5e5e5" : ACCENT) : "#5f5f5f" }}>
                 {hasSitScore ? `${sitScore} (${sitScore < 100 ? `${(100 - sitScore)}% below` : `${(sitScore - 100)}% above`} tier median)` : "N/A (no AA score)"}
               </span>
             </div>
             <div style={{ height: 8, background: "#1a1a1a", borderRadius: 4, overflow: "hidden" }}>
               <div style={{ width: `${sitPct}%`, height: "100%", background: hasSitScore ? (sitScore < 100 ? GREEN : sitScore <= 100 ? "#5b8def" : ACCENT) : "#333", borderRadius: 4 }} />
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "#5f5f5f" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, fontFamily: "Inter, sans-serif", fontSize: 10.5, color: "#5f5f5f" }}>
               <span>1 (cheapest)</span>
               <span>100 (tier median)</span>
             </div>
@@ -425,7 +425,9 @@ export default async function ModelDetailPage({
           <div style={{ display: "flex", gap: 16, marginBottom: 16 }}>
             <div style={{ flex: 1, border: "1px solid #2a2a2a", borderRadius: 4, padding: "10px 14px" }}>
               <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", color: "#6a6a6a" }}>Source</div>
-              <div style={{ fontSize: 13, color: "#e5e5e5", marginTop: 4 }}>{model.source === "direct" ? "Direct provider" : model.source === "blended" ? "Direct + aggregator" : "Aggregator"}</div>
+              <div style={{ fontSize: 13, color: "#e5e5e5", marginTop: 4 }}>
+                {model.source === "direct" ? "Direct provider data" : model.source === "blended" ? "Aggregator & direct provider data" : model.source_count > 1 ? "Aggregator & direct provider data" : "Aggregator"}
+              </div>
               <div style={{ fontSize: 11, color: "#5f5f5f", marginTop: 2 }}>{model.source_count} source{model.source_count !== 1 ? "s" : ""} · updated {model.fetched_at ? "recently" : "N/A"}</div>
             </div>
           </div>
@@ -467,7 +469,7 @@ function PeriodChange({ label, value }: { label: string; value: number }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
       <span style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", color: "#6a6a6a" }}>{label}</span>
-      <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14, color, fontWeight: 500 }}>{pct(value)}</span>
+      <span style={{ fontFamily: "Inter, sans-serif", fontSize: 14, color, fontWeight: 500 }}>{pct(value)}</span>
     </div>
   );
 }
