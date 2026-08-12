@@ -1783,6 +1783,115 @@ def fetch_sarvam_direct():
     return _fetch_sarvam_pricing()
 
 
+# ============================================
+# REPLICATE DIRECT CONNECTOR
+# ============================================
+
+REPLICATE_PRICING_URL = "https://replicate.com/pricing"
+
+def fetch_replicate_direct():
+    """Fetch text model pricing from Replicate's public pricing page.
+
+    Replicate's API requires auth, but their /pricing page lists official
+    text models with per-thousand-output-token and per-million-input-token
+    pricing. We scrape the page HTML for model entries.
+
+    Only text models (per-token pricing) are included. Image/video models
+    (per-output pricing) are skipped as they don't fit the $/M token model.
+
+    Returns (endpoints, new_models).
+    """
+    print(f"[{datetime.now(timezone.utc).isoformat()}] Fetching Replicate pricing page...")
+
+    try:
+        resp = requests.get(REPLICATE_PRICING_URL, timeout=30, headers={
+            "User-Agent": "InferenceIndexer/1.0 (pricing bot)"
+        })
+        resp.raise_for_status()
+        html = resp.text
+        print(f"  Replicate pricing page: {len(html)} bytes")
+    except Exception as e:
+        print(f"  ERROR fetching Replicate pricing: {e}")
+        return [], []
+
+    # Parse model entries from the HTML
+    # The pricing page is a Next.js app. After stripping HTML tags and comments,
+    # the text reads: "anthropic/claude-3.7-sonnet ... $0.015 / thousand output tokens $3.00 / million input tokens"
+    import re
+
+    # Strip HTML to get plain text
+    clean = re.sub(r'<script[^>]*>.*?</script>', '', html, flags=re.DOTALL)
+    clean = re.sub(r'<style[^>]*>.*?</style>', '', clean, flags=re.DOTALL)
+    clean = re.sub(r'<!--.*?-->', '', clean, flags=re.DOTALL)
+    clean = re.sub(r'<[^>]+>', ' ', clean)
+    clean = re.sub(r'&#x27;', "'", clean)
+    clean = re.sub(r'\s+', ' ', clean)
+
+    # Find: model_slug ... $price / thousand output tokens ... $price / million input tokens
+    # The model slug appears before the pricing text, separated by description text
+    pricing_blocks = re.findall(
+        r'([a-z0-9_-]+/[a-z0-9._-]+)\s+(?:[A-Z][^$]*?)?\$[\d.]+\s*/\s*thousand\s*output\s*tokens\s+\$[\d.]+\s*/\s*million\s*input\s*tokens',
+        clean, re.IGNORECASE
+    )
+
+    # Also extract the actual prices
+    full_matches = re.findall(
+        r'([a-z0-9_-]+/[a-z0-9._-]+)\s+(?:[A-Z][^$]*?)?\$(\d+\.?\d*)\s*/\s*thousand\s*output\s*tokens\s+\$(\d+\.?\d*)\s*/\s*million\s*input\s*tokens',
+        clean, re.IGNORECASE
+    )
+
+    endpoints = []
+    new_models = []
+    skipped = 0
+
+    for model_slug, output_per_1k_str, input_per_1m_str in full_matches:
+        # Convert: $X per 1K tokens -> $X*1000 per 1M tokens
+        output_per_1k = float(output_per_1k_str)
+        input_per_1m = float(input_per_1m_str)
+
+        output_per_m = round(output_per_1k * 1000, 6)
+        input_per_m = round(input_per_1m, 6)
+
+        # Skip if both are zero
+        if input_per_m == 0 and output_per_m == 0:
+            skipped += 1
+            continue
+
+        # Map Replicate model slug to our model_id format
+        # Replicate uses owner/model, we use owner/model (same format)
+        model_id = model_slug.lower()
+
+        # Map known Replicate slugs to our existing model IDs where possible
+        replicate_to_ii = {
+            "anthropic/claude-3.7-sonnet": "anthropic/claude-sonnet-4.5",
+            "deepseek-ai/deepseek-r1": "deepseek/deepseek-r1",
+        }
+        model_id = replicate_to_ii.get(model_id, model_id)
+
+        blended = round((input_per_m + output_per_m) / 2, 6)
+
+        ep = {
+            "model_id": model_id,
+            "endpoint_provider": "Replicate",
+            "input_price_per_m": input_per_m,
+            "output_price_per_m": output_per_m,
+            "blended_price_per_m": blended,
+            "context_length": None,
+            "source": "replicate_direct",
+            "raw_data": {
+                "provider": "replicate",
+                "slug": model_slug,
+                "input_per_m": input_per_m,
+                "output_per_m": output_per_m,
+                "url": f"https://replicate.com/{model_slug}",
+            }
+        }
+        endpoints.append(ep)
+
+    print(f"  Replicate: {len(endpoints)} text models with token pricing ({skipped} skipped)")
+    return endpoints, new_models
+
+
 def apply_median_pricing(models, fetch_endpoints=False):
     """For models with multiple endpoints, compute median price.
     
@@ -2694,6 +2803,12 @@ def main():
     if sarvam_endpoints:
         endpoint_data.extend(sarvam_endpoints)
         print(f"  Sarvam direct: {len(sarvam_endpoints)} endpoints added")
+
+    # Replicate direct (pricing page scrape, no API key needed)
+    replicate_endpoints, replicate_new_models = fetch_replicate_direct()
+    if replicate_endpoints:
+        endpoint_data.extend(replicate_endpoints)
+        print(f"  Replicate direct: {len(replicate_endpoints)} endpoints added")
     
     # Calculate tier averages and SIT scores
     # Use DAILY-STABLE tier medians so per-model SIT scores are constant across

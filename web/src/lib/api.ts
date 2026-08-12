@@ -407,6 +407,7 @@ const PROVIDER_DOMAINS: Record<string, string> = {
   "Thedrummer": "thedrummer.ai",
   "Undi95": "undi95.com",
   "Relace": "relace.ai",
+  "Replicate": "replicate.com",
 };
 
 export function providerFaviconUrl(provider: string): string {
