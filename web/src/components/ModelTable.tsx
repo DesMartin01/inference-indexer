@@ -758,15 +758,6 @@ export default function ModelTable({ models, totalCount }: Props) {
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "#6f6f6f" }}>
-            <span
-              style={{
-                width: "6px",
-                height: "6px",
-                borderRadius: "50%",
-                background: "#22c55e",
-                display: "block",
-              }}
-            />
             <span>
               {visible.length} of {totalCount} models shown · updated recently
             </span>
