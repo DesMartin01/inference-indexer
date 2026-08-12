@@ -1954,7 +1954,7 @@ def apply_median_pricing(models, fetch_endpoints=False):
             for m in models:
                 m["source_count"] = 1
                 m["source_label"] = "aggregator"
-            return models
+        return models
     
     # Daily run: fetch fresh endpoints from OpenRouter
     print(f"\n[{datetime.now(timezone.utc).isoformat()}] Fetching endpoints for {len(models)} models...")
