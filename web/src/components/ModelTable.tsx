@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect, useCallback } from "react";
+import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import type { ModelSummary } from "@/lib/api";
@@ -68,8 +68,6 @@ export default function ModelTable({ models, totalCount }: Props) {
   const [variant, setVariant] = useState("frontier");
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [extraModels, setExtraModels] = useState<ModelSummary[]>([]);
   const [provider, setProvider] = useState<string | null>(null);
   const [zdrOnly, setZdrOnly] = useState(false);
   const [euOnly, setEuOnly] = useState(false);
@@ -123,8 +121,8 @@ export default function ModelTable({ models, totalCount }: Props) {
     return m.is_eu_sovereign === true;
   };
 
-  // All models available to this component: initial server-rendered + client-fetched
-  const allModels = useMemo(() => [...models, ...extraModels], [models, extraModels]);
+  // All models are provided server-side now (API is 82ms, no need for client fetch)
+  const allModels = models;
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -224,37 +222,9 @@ export default function ModelTable({ models, totalCount }: Props) {
     }
   };
 
-  const LIMIT = 50;
+  const LIMIT = 100;
   const visible = expanded ? filtered : filtered.slice(0, LIMIT);
-  const hasMore = totalCount > models.length && extraModels.length === 0;
-  const hidden = hasMore ? totalCount - models.length : filtered.length - visible.length;
-
-  // Fetch remaining models from the API when user clicks "Show all"
-  const loadAll = useCallback(async () => {
-    if (extraModels.length > 0 || loading) {
-      setExpanded((e) => !e);
-      return;
-    }
-    setLoading(true);
-    try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://api.inferenceindexer.ai";
-      const res = await fetch(`${apiUrl}/v1/models?limit=500`);
-      if (!res.ok) throw new Error(`API error: ${res.status}`);
-      const data = await res.json();
-      if (data.models) {
-        // Filter out models we already have
-        const existingIds = new Set(models.map((m) => m.model_id));
-        const newOnes = data.models.filter((m: ModelSummary) => !existingIds.has(m.model_id));
-        setExtraModels(newOnes);
-        setExpanded(true);
-      }
-    } catch (err) {
-      // If fetch fails, just expand with what we have
-      setExpanded(true);
-    } finally {
-      setLoading(false);
-    }
-  }, [extraModels.length, loading, models]);
+  const hidden = filtered.length - visible.length;
 
   // Movers
   const droppers = filtered
@@ -804,8 +774,7 @@ export default function ModelTable({ models, totalCount }: Props) {
           {hidden > 0 && (
             <button
               type="button"
-              onClick={loadAll}
-              disabled={loading}
+              onClick={() => setExpanded((e) => !e)}
               style={{
                 fontFamily: "Inter, sans-serif",
                 fontSize: "13px",
@@ -813,14 +782,12 @@ export default function ModelTable({ models, totalCount }: Props) {
                 background: "transparent",
                 border: 0,
                 padding: 0,
-                cursor: loading ? "wait" : "pointer",
+                cursor: "pointer",
               }}
             >
-              {loading
-                ? "Loading..."
-                : expanded
-                  ? "← Show top 50 only"
-                  : `Show all ${totalCount} models →`}
+              {expanded
+                ? `← Show top ${LIMIT} only`
+                : `Show all ${filtered.length} models →`}
             </button>
           )}
         </div>

@@ -60,12 +60,11 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function Home() {
-  // Fetch data in parallel - only fetch 50 models for initial render (not all 500)
-  // ModelTable loads more on demand via client-side API calls
+  // Fetch all data in parallel - API is now 82ms (was 8.1s) so fetching all models is fine
   const [latest, history, modelsData] = await Promise.all([
     getCompositeLatest(60).catch(() => null),
     getCompositeHistory(30, 60).catch(() => null),
-    getModels(undefined, undefined, 50).catch(() => null),
+    getModels(undefined, undefined, 500).catch(() => null),
   ]);
 
   // Fallback data if API is down
@@ -429,6 +428,16 @@ export default async function Home() {
           </a>{" "}
           also exposes historic price data and shows where providers have
           diverged from aggregators.
+        </p>
+      </section>
+
+      {/* Model count heading */}
+      <section style={{ maxWidth: "1320px", margin: "0 auto", padding: "8px 28px 0" }}>
+        <h2 style={{ fontSize: "22px", fontWeight: 700, color: "#ffffff", margin: 0 }}>
+          {totalCount} Models Tracked
+        </h2>
+        <p style={{ fontSize: "13px", color: "#6a6a6a", margin: "4px 0 0" }}>
+          Live pricing across {totalCount} AI inference models. Prices pulled directly from providers.
         </p>
       </section>
 
