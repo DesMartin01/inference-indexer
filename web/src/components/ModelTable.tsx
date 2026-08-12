@@ -19,9 +19,9 @@ import { buildRowSpark } from "@/lib/charts";
 type SortKey = "name" | "provider" | "tier" | "input" | "output" | "blended" | "sitadj" | "sit" | "sources" | "c24" | "c7";
 type SortDir = "asc" | "desc";
 
-type ColKey = SortKey | "rank" | "trend";
+type ColKey = SortKey | "rank" | "trend" | "medal";
 
-const COLS_ALL: { key: ColKey; label: string; align: "left" | "right" }[] = [
+const COLS_ALL: { key: ColKey; label: string; align: "left" | "right" | "center" }[] = [
   { key: "rank", label: "#", align: "right" },
   { key: "name", label: "Model", align: "left" },
   { key: "provider", label: "Provider", align: "left" },
@@ -34,9 +34,10 @@ const COLS_ALL: { key: ColKey; label: string; align: "left" | "right" }[] = [
   { key: "c24", label: "24h", align: "right" },
   { key: "c7", label: "7d", align: "right" },
   { key: "trend", label: "7d trend", align: "left" },
+  { key: "medal", label: "Medal", align: "center" },
 ];
 
-const COLS_TIER: { key: ColKey; label: string; align: "left" | "right" }[] = [
+const COLS_TIER: { key: ColKey; label: string; align: "left" | "right" | "center" }[] = [
   { key: "rank", label: "#", align: "right" },
   { key: "name", label: "Model", align: "left" },
   { key: "provider", label: "Provider", align: "left" },
@@ -50,10 +51,11 @@ const COLS_TIER: { key: ColKey; label: string; align: "left" | "right" }[] = [
   { key: "c24", label: "24h", align: "right" },
   { key: "c7", label: "7d", align: "right" },
   { key: "trend", label: "7d trend", align: "left" },
+  { key: "medal", label: "Medal", align: "center" },
 ];
 
-const GRID_ALL = "30px minmax(130px, 275px) 84px 76px 82px 82px 108px 100px 104px 56px 64px 64px 84px";
-const GRID_TIER = "30px minmax(130px, 275px) 84px 76px 82px 82px 108px 100px 104px 56px 64px 64px 84px";
+const GRID_ALL = "30px minmax(130px, 275px) 84px 76px 82px 82px 108px 100px 104px 56px 64px 64px 84px 48px";
+const GRID_TIER = "30px minmax(130px, 275px) 84px 76px 82px 82px 108px 100px 104px 56px 64px 64px 84px 48px";
 
 interface Props {
   models: ModelSummary[];
@@ -193,8 +195,27 @@ export default function ModelTable({ models, totalCount }: Props) {
     return idx >= 0 ? idx + 1 : 0;
   };
 
+  // Per-tier SIT score rankings for medals (gold/silver/bronze = top 3 in each tier)
+  const tierMedals = useMemo(() => {
+    const medals: Record<string, number> = {}; // model_id -> 1|2|3
+    const tiers = ["frontier", "standard", "budget", "micro"];
+    for (const tier of tiers) {
+      const tierModels = allModels
+        .filter((m) => m.tier.toLowerCase() === tier && m.sit_score != null)
+        .sort((a, b) => (a.sit_score! - b.sit_score!));
+      tierModels.slice(0, 3).forEach((m, i) => {
+        medals[m.model_id] = i + 1;
+      });
+    }
+    return medals;
+  }, [allModels]);
+
+  const medalOf = (m: ModelSummary): number | null => {
+    return tierMedals[m.model_id] ?? null;
+  };
+
   const sortBy = (key: ColKey) => {
-    if (key === "rank" || key === "trend") return;
+    if (key === "rank" || key === "trend" || key === "medal") return;
     if (sort === key) {
       setDir((d) => (d === "asc" ? "desc" : "asc"));
     } else {
@@ -438,7 +459,7 @@ export default function ModelTable({ models, totalCount }: Props) {
                       letterSpacing: "0.08em",
                       color: active ? "#C4A038" : "#8a8a8a",
                       textAlign: c.align,
-                      cursor: c.key === "rank" || c.key === "trend" ? "default" : "pointer",
+                      cursor: c.key === "rank" || c.key === "trend" || c.key === "medal" ? "default" : "pointer",
                       userSelect: "none",
                       whiteSpace: "nowrap",
                       padding: "0 8px",
@@ -731,6 +752,25 @@ export default function ModelTable({ models, totalCount }: Props) {
                         strokeLinecap="round"
                       />
                     </svg>
+                  </div>
+                  {/* Medal column: gold/silver/bronze for top 3 per tier */}
+                  <div role="cell" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    {(() => {
+                      const medal = medalOf(m);
+                      if (!medal) return null;
+                      const colors: Record<number, { fill: string; ring: string; label: string }> = {
+                        1: { fill: "#FFD700", ring: "#B8860B", label: "Gold" },
+                        2: { fill: "#C0C0C0", ring: "#808080", label: "Silver" },
+                        3: { fill: "#CD7F32", ring: "#8B4513", label: "Bronze" },
+                      };
+                      const c = colors[medal];
+                      return (
+                        <svg width="20" height="20" viewBox="0 0 20 20" role="img" aria-label={`${c.label} medal - #${medal} in ${capitalizeTier(m.tier)} tier`}>
+                          <circle cx="10" cy="10" r="7" fill={c.fill} stroke={c.ring} strokeWidth="1.5" />
+                          <text x="10" y="13" textAnchor="middle" fontSize="8" fontWeight="700" fill={c.ring} fontFamily="sans-serif">{medal}</text>
+                        </svg>
+                      );
+                    })()}
                   </div>
                 </div>
               );
