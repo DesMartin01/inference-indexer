@@ -18,6 +18,8 @@ import os
 import sys
 import time
 import json
+import csv
+import io
 import secrets
 from datetime import datetime, timezone, date, timedelta
 from collections import defaultdict
@@ -26,7 +28,7 @@ from typing import Optional
 import psycopg2
 from fastapi import FastAPI, HTTPException, Header, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 import uvicorn
 
@@ -431,6 +433,7 @@ async def root():
             "/v1/models/{model_id}/history",
             "/v1/providers",
             "/v1/providers/{provider_name}",
+            "/v1/export/snapshots",
             "/health"
         ]
     }
@@ -1781,8 +1784,61 @@ async def get_model(
             break
     cur.close()
     conn.close()
-    
+
     headers = get_rate_limit_headers(api_user, limits)
+
+    # Extract cached pricing from raw_data if available
+    cached_pricing = None
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT raw_data FROM price_snapshots
+            WHERE model_id = %s ORDER BY fetched_at DESC LIMIT 1
+        """, (model_id,))
+        raw_row = cur.fetchone()
+        if raw_row and raw_row[0]:
+            import json as _json
+            raw = raw_row[0]
+            if isinstance(raw, str):
+                raw = _json.loads(raw)
+            pricing = raw.get("pricing", {}) if raw else {}
+            cache_read = pricing.get("input_cache_read")
+            cache_write = pricing.get("input_cache_write")
+            if cache_read:
+                cached_pricing = {
+                    "cache_read_per_m": round(float(cache_read) * 1_000_000, 6),
+                    "cache_write_per_m": round(float(cache_write) * 1_000_000, 6) if cache_write else None,
+                    "cache_discount_pct": round((1 - float(cache_read) / float(pricing.get("prompt", 1))) * 100, 1) if float(pricing.get("prompt", 0)) > 0 else None,
+                }
+    except Exception:
+        pass
+
+    # Look up batch pricing variant if it exists
+    batch_pricing = None
+    try:
+        cur.execute("""
+            SELECT lp.input_price_per_m, lp.output_price_per_m, lp.blended_price_per_m
+            FROM models m
+            JOIN latest_prices lp ON m.id = lp.model_id
+            WHERE m.id = %s AND m.is_active = TRUE
+        """, (model_id + ":batch",))
+        batch_row = cur.fetchone()
+        if batch_row and batch_row[2] and batch_row[2] > 0:
+            batch_pricing = {
+                "input_price_per_m": batch_row[0],
+                "output_price_per_m": batch_row[1],
+                "blended_price_per_m": batch_row[2],
+                "discount_pct": round((1 - batch_row[2] / row[12]) * 100, 1) if row[12] and row[12] > 0 else None,
+            }
+    except Exception:
+        pass
+    finally:
+        try: cur.close()
+        except: pass
+        try: conn.close()
+        except: pass
+
     return JSONResponse(
         content={
             "model_id": row[0],
@@ -1809,10 +1865,153 @@ async def get_model(
             "comparisons": comparisons,
             "source": row[16] if row[16] else "aggregator",
             "source_count": row[18] if row[18] else 1,
+            "cached_pricing": cached_pricing,
+            "batch_pricing": batch_pricing,
             "fetched_at": row[17].isoformat() if row[17] else None,
         },
         headers=headers
     )
+
+# ============================================
+# RAW DATA EXPORT
+# ============================================
+
+@app.get("/v1/export/snapshots")
+async def export_snapshots(
+    request: Request,
+    format: str = Query("csv", regex="^(csv|json)$", description="Output format: csv or json"),
+    from_date: Optional[str] = Query(None, alias="from", description="Start date YYYY-MM-DD (default: 7 days ago)"),
+    to_date: Optional[str] = Query(None, alias="to", description="End date YYYY-MM-DD (default: today)"),
+    model_id: Optional[str] = Query(None, description="Filter to a single model_id"),
+    authorization: Optional[str] = Header(None),
+):
+    """Raw data export of price_snapshots joined with models.
+
+    Returns columns: model_id, model_name, provider, source,
+    input_price_per_m, output_price_per_m, blended_price_per_m,
+    sit_score, source_count, fetched_at.
+
+    - format=csv (default) returns text/csv with a download attachment.
+    - format=json returns a standard JSON payload.
+    - Rate limited at the public tier; cached for 5 minutes.
+    - Hard-capped at 10,000 rows per request for safety.
+    """
+    api_user = get_api_user(authorization)
+    limits = check_rate_limit(api_user, is_ssr=request.headers.get("X-SSR-Secret") == SSR_SECRET)
+
+    # Parse date range (default: last 7 days)
+    today = date.today()
+    if to_date:
+        try:
+            end_date = datetime.strptime(to_date, "%Y-%m-%d").date()
+        except ValueError:
+            raise HTTPException(status_code=400, detail={
+                "error": {"code": "invalid_date", "message": "Invalid 'to' date. Use YYYY-MM-DD."}
+            })
+    else:
+        end_date = today
+
+    if from_date:
+        try:
+            start_date = datetime.strptime(from_date, "%Y-%m-%d").date()
+        except ValueError:
+            raise HTTPException(status_code=400, detail={
+                "error": {"code": "invalid_date", "message": "Invalid 'from' date. Use YYYY-MM-DD."}
+            })
+    else:
+        start_date = today - timedelta(days=7)
+
+    if start_date > end_date:
+        raise HTTPException(status_code=400, detail={
+            "error": {"code": "invalid_range", "message": "'from' date must be on or before 'to' date."}
+        })
+
+    # Build query — parameterized to avoid injection.
+    sql = """
+        SELECT ps.model_id,
+               m.name        AS model_name,
+               m.provider    AS provider,
+               ps.source,
+               ps.input_price_per_m,
+               ps.output_price_per_m,
+               ps.blended_price_per_m,
+               ps.sit_score,
+               ps.source_count,
+               ps.fetched_at
+        FROM price_snapshots ps
+        JOIN models m ON ps.model_id = m.id
+        WHERE ps.fetched_at::date BETWEEN %s AND %s
+    """
+    params = [start_date, end_date]
+    if model_id:
+        sql += " AND ps.model_id = %s"
+        params.append(model_id)
+    sql += " ORDER BY ps.fetched_at ASC LIMIT %s"
+    params.append(10000)
+
+    conn = get_db()
+    cur = conn.cursor()
+    try:
+        cur.execute(sql, params)
+        rows = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+
+    # Shared column order
+    columns = [
+        "model_id", "model_name", "provider", "source",
+        "input_price_per_m", "output_price_per_m", "blended_price_per_m",
+        "sit_score", "source_count", "fetched_at",
+    ]
+
+    def _row_to_dict(r):
+        return {
+            "model_id": r[0],
+            "model_name": r[1],
+            "provider": r[2],
+            "source": r[3],
+            "input_price_per_m": float(r[4]) if r[4] is not None else None,
+            "output_price_per_m": float(r[5]) if r[5] is not None else None,
+            "blended_price_per_m": float(r[6]) if r[6] is not None else None,
+            "sit_score": r[7],
+            "source_count": r[8],
+            "fetched_at": r[9].isoformat() if r[9] else None,
+        }
+
+    headers = get_rate_limit_headers(api_user, limits)
+    headers["Cache-Control"] = "public, max-age=300"
+    headers["X-Export-Row-Limit"] = "10000"
+    headers["X-Export-Rows-Returned"] = str(len(rows))
+
+    if format == "json":
+        return JSONResponse(
+            content={
+                "from": str(start_date),
+                "to": str(end_date),
+                "model_id": model_id,
+                "count": len(rows),
+                "truncated": len(rows) >= 10000,
+                "snapshots": [_row_to_dict(r) for r in rows],
+            },
+            headers=headers,
+        )
+
+    # CSV: text/csv with Content-Disposition attachment
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(columns)
+    for r in rows:
+        writer.writerow([
+            r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8],
+            r[9].isoformat() if r[9] else "",
+        ])
+    csv_body = buf.getvalue()
+
+    headers["Content-Disposition"] = 'attachment; filename="inferenceindexer_snapshots.csv"'
+    headers["Content-Type"] = "text/csv"
+    return Response(content=csv_body, media_type="text/csv", headers=headers)
+
 
 # ============================================
 # API KEY GENERATION (for signup)
@@ -1976,6 +2175,128 @@ async def health():
             status_code=503,
             content={"status": "unhealthy", "error": str(e)}
         )
+
+
+@app.get("/v1/health/sources")
+async def public_health_sources():
+    """Public data-quality endpoint: per-source feed health + anomaly summary.
+
+    No auth required. Returns the same per-source completeness/freshness data
+    as the admin /v1/admin/feeds endpoint, plus:
+      - anomaly_count: price_snapshots flagged is_anomalous in the last 24h
+      - summary: total models tracked, total sources, and direct vs aggregator
+        vs blended snapshot counts from price_snapshots
+
+    Cached publicly for 60 seconds.
+    """
+    conn = get_db()
+    cur = conn.cursor()
+    now = datetime.now(timezone.utc)
+    try:
+        # --- Per-source feed status (mirrors /v1/admin/feeds) ---
+        cur.execute("""
+            SELECT me.source,
+                   COUNT(DISTINCT me.model_id) AS model_count,
+                   COUNT(DISTINCT CASE WHEN me.blended_price_per_m > 0 THEN me.model_id END) AS priced_count,
+                   COUNT(*) AS endpoint_count,
+                   MAX(me.fetched_at) AS last_fetch
+            FROM model_endpoints me
+            JOIN models m ON m.id = me.model_id AND m.is_active = TRUE
+            WHERE me.fetched_at > NOW() - INTERVAL '7 days'
+            GROUP BY me.source
+            ORDER BY me.source
+        """)
+        # Hourly sources must update every ~75 min; daily sources every ~26h.
+        hourly = {"venice_direct", "deepinfra_direct", "novita_direct",
+                  "sambanova_direct", "jina_direct", "tensorx_direct"}
+        sources = []
+        for row in cur.fetchall():
+            source, model_count, priced_count, endpoint_count, last_fetch = row
+            age_min = (now - last_fetch).total_seconds() / 60.0 if last_fetch else None
+            cadence = "hourly" if source in hourly else "daily"
+            threshold_min = 85 if cadence == "hourly" else 60 * 28
+            stale = age_min is not None and age_min > threshold_min
+            status = "ok"
+            if stale:
+                status = "stale"
+            elif priced_count is None or priced_count == 0:
+                status = "no_prices"
+            elif age_min is None:
+                status = "never_fetched"
+            sources.append({
+                "source": source,
+                "cadence": cadence,
+                "model_count": model_count,
+                "priced_count": priced_count,
+                "endpoint_count": endpoint_count,
+                "last_fetch": last_fetch.isoformat() if last_fetch else None,
+                "age_minutes": round(age_min, 1) if age_min is not None else None,
+                "status": status,
+                "expected_cadence": cadence,
+                "stale": stale,
+            })
+
+        # --- Anomaly count (last 24h) ---
+        cur.execute("""
+            SELECT COUNT(*) FROM price_snapshots
+            WHERE is_anomalous = TRUE
+              AND fetched_at > NOW() - INTERVAL '24 hours'
+        """)
+        anomaly_count = cur.fetchone()[0]
+
+        # --- Summary: total models, total sources, pricing-type counts ---
+        cur.execute("SELECT COUNT(*) FROM models WHERE is_active = TRUE")
+        total_models = cur.fetchone()[0]
+
+        # Direct vs aggregator vs blended from price_snapshots (last 7d).
+        # price_snapshots.source is 'aggregator', 'blended', or a direct source
+        # ending in '_direct'. Counts are mutually exclusive by source value.
+        cur.execute("""
+            SELECT
+              COUNT(*) AS total_snapshots,
+              COUNT(*) FILTER (WHERE source ILIKE '%%_direct') AS direct_count,
+              COUNT(*) FILTER (WHERE source = 'aggregator') AS aggregator_count,
+              COUNT(*) FILTER (WHERE source = 'blended') AS blended_count
+            FROM price_snapshots
+            WHERE fetched_at > NOW() - INTERVAL '7 days'
+        """)
+        snap_row = cur.fetchone()
+        snap_total = snap_row[0] or 0
+        snap_direct = snap_row[1] or 0
+        snap_aggregator = snap_row[2] or 0
+        snap_blended = snap_row[3] or 0
+
+        problems = [s for s in sources if s["status"] != "ok"]
+        health = "healthy"
+        if problems:
+            health = "degraded"
+        if len(sources) > 0 and len(problems) >= len(sources) // 2 + 1:
+            health = "critical"
+
+        return JSONResponse(content={
+            "generated_at": now.isoformat(),
+            "health": health,
+            "source_count": len(sources),
+            "total_models_indexed": total_models,
+            "anomaly_count_24h": anomaly_count,
+            "summary": {
+                "total_models_tracked": total_models,
+                "total_sources": len(sources),
+                "price_snapshots_7d": {
+                    "total": snap_total,
+                    "direct": snap_direct,
+                    "aggregator": snap_aggregator,
+                    "blended": snap_blended,
+                },
+            },
+            "sources": sources,
+            "problem_count": len(problems),
+            "problems": problems,
+        }, headers={"Cache-Control": "public, max-age=60"})
+    finally:
+        cur.close()
+        conn.close()
+
 
 # ============================================
 # ADMIN: FEED STATUS & PRICING COMPARISON

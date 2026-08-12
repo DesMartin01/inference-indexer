@@ -92,6 +92,17 @@ export interface ModelDetail {
   };
   source: string;
   source_count: number;
+  cached_pricing: {
+    cache_read_per_m: number;
+    cache_write_per_m: number | null;
+    cache_discount_pct: number | null;
+  } | null;
+  batch_pricing: {
+    input_price_per_m: number;
+    output_price_per_m: number;
+    blended_price_per_m: number;
+    discount_pct: number | null;
+  } | null;
   fetched_at: string;
 }
 

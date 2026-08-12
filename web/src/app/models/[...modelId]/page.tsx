@@ -300,6 +300,51 @@ export default async function ModelDetailPage({
           )}
         </div>
 
+        {/* Cached & Batch Pricing */}
+        {(model.cached_pricing || model.batch_pricing) && (
+          <div style={{ background: "#16161a", border: "1px solid #2a2a2a", borderRadius: 8, padding: "20px 24px", marginBottom: 28 }}>
+            <div style={{ fontSize: 14, fontWeight: 500, color: "#e5e5e5", marginBottom: 16 }}>
+              Pricing Variants
+            </div>
+            <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+              {model.cached_pricing && (
+                <div style={{ flex: "1 1 200px", border: "1px solid #2a2a2a", borderRadius: 6, padding: "14px 16px" }}>
+                  <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", color: "#6a6a6a" }}>Cached Input</div>
+                  <div style={{ fontSize: 18, fontWeight: 600, color: "#4ade80", marginTop: 4 }}>
+                    {money(model.cached_pricing.cache_read_per_m)}/M
+                  </div>
+                  {model.cached_pricing.cache_discount_pct !== null && (
+                    <div style={{ fontSize: 12, color: "#8a8a8a", marginTop: 2 }}>
+                      {model.cached_pricing.cache_discount_pct}% cheaper than standard
+                    </div>
+                  )}
+                  {model.cached_pricing.cache_write_per_m !== null && (
+                    <div style={{ fontSize: 11, color: "#5f5f5f", marginTop: 4 }}>
+                      Cache write: {money(model.cached_pricing.cache_write_per_m)}/M
+                    </div>
+                  )}
+                </div>
+              )}
+              {model.batch_pricing && (
+                <div style={{ flex: "1 1 200px", border: "1px solid #2a2a2a", borderRadius: 6, padding: "14px 16px" }}>
+                  <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", color: "#6a6a6a" }}>Batch (async)</div>
+                  <div style={{ fontSize: 18, fontWeight: 600, color: "#4ade80", marginTop: 4 }}>
+                    {money(model.batch_pricing.blended_price_per_m)}/M
+                  </div>
+                  {model.batch_pricing.discount_pct !== null && (
+                    <div style={{ fontSize: 12, color: "#8a8a8a", marginTop: 2 }}>
+                      {model.batch_pricing.discount_pct}% cheaper than standard
+                    </div>
+                  )}
+                  <div style={{ fontSize: 11, color: "#5f5f5f", marginTop: 4 }}>
+                    In: {money(model.batch_pricing.input_price_per_m)}/M · Out: {money(model.batch_pricing.output_price_per_m)}/M
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Provider Comparison Table */}
         {endpoints.count >= 1 ? (
           <div style={{ background: "#16161a", border: "1px solid #2a2a2a", borderRadius: 8, padding: "20px 24px", marginBottom: 28 }}>
