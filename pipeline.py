@@ -1797,7 +1797,7 @@ def apply_median_pricing(models, fetch_endpoints=False):
             for m in models:
                 cur.execute("""
                     SELECT DISTINCT ON (endpoint_provider)
-                        endpoint_provider, input_price_per_m, output_price_per_m, blended_price_per_m
+                        endpoint_provider, input_price_per_m, output_price_per_m, blended_price_per_m, source
                     FROM model_endpoints
                     WHERE model_id = %s AND fetched_at >= NOW() - INTERVAL '24 hours'
                     ORDER BY endpoint_provider, fetched_at DESC
@@ -1813,26 +1813,39 @@ def apply_median_pricing(models, fetch_endpoints=False):
                     blended_prices = [r[3] for r in rows if r[3] and r[3] > 0]
                     input_prices = [r[1] for r in rows if r[1] and r[1] > 0]
                     output_prices = [r[2] for r in rows if r[2] and r[2] > 0]
+                    endpoint_sources = [r[4] for r in rows if r[3] and r[3] > 0 and r[4]]
                     if blended_prices:
                         m["blended_price_per_m"] = compute_median(blended_prices)
                         m["input_price_per_m"] = compute_median(input_prices) if input_prices else m["input_price_per_m"]
                         m["output_price_per_m"] = compute_median(output_prices) if output_prices else m["output_price_per_m"]
                         m["source_count"] = len(blended_prices)
+                        # Determine source label: direct, aggregator, or blended
+                        has_direct = any(s and s != "openrouter" for s in endpoint_sources)
+                        has_aggregator = any(s and s == "openrouter" for s in endpoint_sources)
+                        if has_direct and has_aggregator:
+                            m["source_label"] = "blended"
+                        elif has_direct:
+                            m["source_label"] = "direct"
+                        else:
+                            m["source_label"] = "aggregator"
                         # Recalculate SIT-adjusted price with updated blended price
                         m["sit_adjusted_price"] = calculate_sit_adjusted_price(
                             m["blended_price_per_m"], m.get("reasoning_multiplier", 1.0), m.get("aa_index_score")
                         )
                     else:
                         m["source_count"] = 1
+                        m["source_label"] = "aggregator"
                 else:
                     m["source_count"] = 1
+                    m["source_label"] = "aggregator"
             cur.close()
             conn.close()
         except Exception as e:
             print(f"  WARN: Could not load cached endpoints: {e}")
             for m in models:
                 m["source_count"] = 1
-        return models
+                m["source_label"] = "aggregator"
+            return models
     
     # Daily run: fetch fresh endpoints from OpenRouter
     print(f"\n[{datetime.now(timezone.utc).isoformat()}] Fetching endpoints for {len(models)} models...")
@@ -1856,12 +1869,23 @@ def apply_median_pricing(models, fetch_endpoints=False):
             m["input_price_per_m"] = compute_median(input_prices)
             m["output_price_per_m"] = compute_median(output_prices)
             m["source_count"] = len(normalized_eps)
+            # Determine source label from endpoint sources
+            ep_sources = [ep.get("source", "openrouter") for ep in normalized_eps]
+            has_direct = any(s != "openrouter" for s in ep_sources)
+            has_aggregator = any(s == "openrouter" for s in ep_sources)
+            if has_direct and has_aggregator:
+                m["source_label"] = "blended"
+            elif has_direct:
+                m["source_label"] = "direct"
+            else:
+                m["source_label"] = "aggregator"
             # Recalculate SIT-adjusted price with updated blended price
             m["sit_adjusted_price"] = calculate_sit_adjusted_price(
                 m["blended_price_per_m"], m.get("reasoning_multiplier", 1.0), m.get("aa_index_score")
             )
         else:
             m["source_count"] = 1
+            m["source_label"] = "aggregator"
         
         # Store endpoint data for DB insert
         for ep in normalized_eps:
@@ -2410,7 +2434,7 @@ def insert_price_snapshots(conn, models):
                  sit_adjusted_price, raw_data, is_anomalous, source_count)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (
-            m["model_id"], SOURCE_NAME,
+            m["model_id"], m.get("source_label", "aggregator"),
             m["input_price_per_m"], m["output_price_per_m"],
             m["blended_price_per_m"], m.get("sit_score"),
             m.get("reasoning_multiplier", 1.0),

@@ -730,7 +730,8 @@ async def get_models(
                lp.fetched_at, lp.source_count,
                COALESCE(zdr_sub.is_zdr, FALSE), COALESCE(eu_sub.is_eu, FALSE),
                COALESCE(pc24.change_24h_pct, 0),
-               COALESCE(ch7.change_pct, 0)
+               COALESCE(ch7.change_pct, 0),
+               ps.source
         FROM models m
         JOIN latest_prices lp ON m.id = lp.model_id
         LEFT JOIN price_changes_24h pc24 ON m.id = pc24.model_id
@@ -747,6 +748,11 @@ async def get_models(
             JOIN providers p ON me.endpoint_provider = p.name
             WHERE p.is_eu_sovereign = TRUE
         ) eu_sub ON m.id = eu_sub.model_id
+        LEFT JOIN LATERAL (
+            SELECT source FROM price_snapshots
+            WHERE model_id = m.id
+            ORDER BY fetched_at DESC LIMIT 1
+        ) ps ON true
         WHERE m.is_active = TRUE AND lp.blended_price_per_m > 0 AND m.id NOT LIKE '%%:batch'
     """
     params = []
@@ -809,6 +815,7 @@ async def get_models(
             "sit_adjusted_price": row[13],
             "fetched_at": row[14].isoformat() if row[14] else None,
             "source_count": row[15] if row[15] else 1,
+            "source": row[20] if row[20] else "aggregator",
             "is_zdr": row[16],
             "is_eu_sovereign": row[17],
             "change_24h": float(row[18]) if row[18] else 0,
@@ -1700,7 +1707,7 @@ async def get_model(
                m.modality, m.tokenizer, m.is_reasoning, m.created_at,
                lp.input_price_per_m, lp.output_price_per_m, lp.blended_price_per_m,
                lp.sit_score, lp.reasoning_multiplier, lp.sit_adjusted_price,
-               lp.source, lp.fetched_at
+               lp.source, lp.fetched_at, lp.source_count
         FROM models m
         JOIN latest_prices lp ON m.id = lp.model_id
         WHERE m.id = %s
@@ -1800,6 +1807,8 @@ async def get_model(
             "tier_rank": tier_rank,
             "tier_total_models": tier_total,
             "comparisons": comparisons,
+            "source": row[16] if row[16] else "aggregator",
+            "source_count": row[18] if row[18] else 1,
             "fetched_at": row[17].isoformat() if row[17] else None,
         },
         headers=headers

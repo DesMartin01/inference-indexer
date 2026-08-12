@@ -316,8 +316,7 @@ export default async function ModelDetailPage({
             </div>
             <p style={{ fontSize: 13, color: "#c9c9c9", margin: 0, lineHeight: 1.5 }}>
               Model by <strong>{model.provider}</strong>. Priced at blended{" "}
-              <strong>{model.blended_price_per_m != null && money(model.blended_price_per_m)}/M</strong> via
-              OpenRouter. Provider endpoint records are not available yet, so no serving providers are
+              <strong>{model.blended_price_per_m != null && money(model.blended_price_per_m)}/M</strong>. Provider endpoint records are not available yet, so no serving providers are
               listed for this model.
             </p>
           </div>
@@ -380,9 +379,9 @@ export default async function ModelDetailPage({
           <div style={{ fontSize: 14, fontWeight: 500, color: "#e5e5e5", marginBottom: 12 }}>Data Sources</div>
           <div style={{ display: "flex", gap: 16, marginBottom: 16 }}>
             <div style={{ flex: 1, border: "1px solid #2a2a2a", borderRadius: 4, padding: "10px 14px" }}>
-              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", color: "#6a6a6a" }}>Primary</div>
-              <div style={{ fontSize: 13, color: "#e5e5e5", marginTop: 4 }}>OpenRouter</div>
-              <div style={{ fontSize: 11, color: "#5f5f5f", marginTop: 2 }}>Updated {model.fetched_at ? "2 min ago" : "N/A"}</div>
+              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", color: "#6a6a6a" }}>Source</div>
+              <div style={{ fontSize: 13, color: "#e5e5e5", marginTop: 4 }}>{model.source === "direct" ? "Direct provider" : model.source === "blended" ? "Direct + aggregator" : "Aggregator"}</div>
+              <div style={{ fontSize: 11, color: "#5f5f5f", marginTop: 2 }}>{model.source_count} source{model.source_count !== 1 ? "s" : ""} · updated {model.fetched_at ? "recently" : "N/A"}</div>
             </div>
           </div>
         </div>

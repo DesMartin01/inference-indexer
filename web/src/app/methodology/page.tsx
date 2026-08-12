@@ -82,7 +82,7 @@ const faqSchema = {
       name: "What data sources does InferenceIndexer use?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "InferenceIndexer pulls pricing directly from provider APIs and published pricing pages, with OpenRouter as an aggregator source. When a model is available from multiple sources, priority goes to the direct provider, then the aggregator with the lowest markup. All data sources are public and verifiable.",
+        text: "InferenceIndexer pulls pricing directly from provider APIs and published pricing pages, with OpenRouter as an additional aggregator source. We currently connect to 23+ direct provider APIs (including OpenAI, Anthropic, DeepSeek, Google, Groq, Together, DeepInfra, Fireworks, Cerebras, Mistral, SiliconFlow, and others) plus OpenRouter as an aggregator. When a model is available from multiple sources, we compute a blended median price and track source_count to show where providers diverge. All data sources are public and verifiable.",
       },
     },
   ],
@@ -245,7 +245,7 @@ export default function MethodologyPage() {
                 <code style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: "#c9c9c9" }}>
                   /api/v1/models/{"{id}"}/endpoints
                 </code>{" "}
-                endpoint. Hourly pipeline runs use the cached median from the most recent daily fetch.
+                endpoint, with direct provider APIs polled hourly. Hourly pipeline runs blend both sources and use the cached median from the most recent fetch.
               </p>
             </SubSection>
           </Section>
@@ -565,7 +565,7 @@ SIT-Composite = Σ(weight_i × blended_price_i) / Σ(weight_i)`}</pre>
                   Direct provider (e.g. openai.com pricing for GPT-5.6)
                 </li>
                 <li style={numberedItem}>
-                  Aggregator with lowest markup (e.g. OpenRouter base price)
+                  Aggregator with lowest markup (e.g. OpenRouter blended price)
                 </li>
                 <li style={numberedItem}>
                   Community submission (verified against at least one other source)

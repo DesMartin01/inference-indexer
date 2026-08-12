@@ -133,7 +133,7 @@ export default function TermsPage() {
           <li style={li}>Any particular model or provider will continue to be tracked</li>
         </ul>
         <p style={p}>
-          Price data is sourced from third-party APIs (primarily OpenRouter) and may contain errors or delays from
+          Price data is sourced from third-party APIs including direct provider APIs and aggregator services. Data may contain errors or delays from
           upstream sources.
         </p>
 

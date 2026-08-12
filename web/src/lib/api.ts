@@ -52,6 +52,7 @@ export interface ModelSummary {
   change_7d: number;
   fetched_at: string;
   source_count: number;
+  source: string;
   is_zdr: boolean;
   is_eu_sovereign: boolean;
 }
@@ -90,6 +91,7 @@ export interface ModelDetail {
     above_composite_pct?: number;
   };
   source: string;
+  source_count: number;
   fetched_at: string;
 }
 
