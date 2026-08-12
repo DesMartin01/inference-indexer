@@ -2209,6 +2209,8 @@ async def public_health_sources():
         # Hourly sources must update every ~75 min; daily sources every ~26h.
         hourly = {"venice_direct", "deepinfra_direct", "novita_direct",
                   "sambanova_direct", "jina_direct", "tensorx_direct"}
+        # Aggregator sources (not direct provider connections)
+        aggregator_sources = {"openrouter"}
         sources = []
         for row in cur.fetchall():
             source, model_count, priced_count, endpoint_count, last_fetch = row
@@ -2225,6 +2227,7 @@ async def public_health_sources():
                 status = "never_fetched"
             sources.append({
                 "source": source,
+                "type": "Aggregator" if source in aggregator_sources else "Direct",
                 "cadence": cadence,
                 "model_count": model_count,
                 "priced_count": priced_count,
@@ -2236,7 +2239,7 @@ async def public_health_sources():
                 "stale": stale,
             })
 
-        # --- Anomaly count (last 24h) ---
+        # --- Anomaly count and details (last 24h) ---
         cur.execute("""
             SELECT COUNT(*) FROM price_snapshots
             WHERE is_anomalous = TRUE
@@ -2244,27 +2247,48 @@ async def public_health_sources():
         """)
         anomaly_count = cur.fetchone()[0]
 
+        # Get anomaly details (top 25)
+        cur.execute("""
+            SELECT ps.model_id, m.name, ps.previous_price, ps.new_price, ps.change_pct
+            FROM anomalies ps
+            JOIN models m ON m.id = ps.model_id
+            WHERE ps.detected_at > NOW() - INTERVAL '24 hours'
+            ORDER BY ps.change_pct DESC
+            LIMIT 25
+        """)
+        anomaly_details = []
+        for row in cur.fetchall():
+            anomaly_details.append({
+                "model_id": row[0],
+                "model_name": row[1],
+                "previous_price": float(row[2]) if row[2] else None,
+                "new_price": float(row[3]) if row[3] else None,
+                "change_pct": float(row[4]) if row[4] else None,
+            })
+
         # --- Summary: total models, total sources, pricing-type counts ---
         cur.execute("SELECT COUNT(*) FROM models WHERE is_active = TRUE")
         total_models = cur.fetchone()[0]
 
         # Direct vs aggregator vs blended from price_snapshots (last 7d).
-        # price_snapshots.source is 'aggregator', 'blended', or a direct source
-        # ending in '_direct'. Counts are mutually exclusive by source value.
+        # price_snapshots.source is 'aggregator', 'blended', or 'direct'.
+        # 'blended' = direct + aggregator, so direct_provider_count = direct + blended.
         cur.execute("""
             SELECT
               COUNT(*) AS total_snapshots,
-              COUNT(*) FILTER (WHERE source ILIKE '%%_direct') AS direct_count,
-              COUNT(*) FILTER (WHERE source = 'aggregator') AS aggregator_count,
-              COUNT(*) FILTER (WHERE source = 'blended') AS blended_count
+              COUNT(*) FILTER (WHERE source = 'aggregator') AS aggregator_only,
+              COUNT(*) FILTER (WHERE source = 'blended') AS blended_count,
+              COUNT(*) FILTER (WHERE source = 'direct') AS direct_only
             FROM price_snapshots
             WHERE fetched_at > NOW() - INTERVAL '7 days'
         """)
         snap_row = cur.fetchone()
         snap_total = snap_row[0] or 0
-        snap_direct = snap_row[1] or 0
-        snap_aggregator = snap_row[2] or 0
-        snap_blended = snap_row[3] or 0
+        snap_aggregator = snap_row[1] or 0
+        snap_blended = snap_row[2] or 0
+        snap_direct_only = snap_row[3] or 0
+        # Models with direct provider data = direct + blended
+        snap_direct = snap_direct_only + snap_blended
 
         problems = [s for s in sources if s["status"] != "ok"]
         health = "healthy"
@@ -2279,6 +2303,7 @@ async def public_health_sources():
             "source_count": len(sources),
             "total_models_indexed": total_models,
             "anomaly_count_24h": anomaly_count,
+            "anomalies": anomaly_details,
             "summary": {
                 "total_models_tracked": total_models,
                 "total_sources": len(sources),

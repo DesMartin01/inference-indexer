@@ -5,6 +5,7 @@ import type React from "react";
 
 interface SourceStatus {
   source: string;
+  type: string;
   cadence: string;
   model_count: number;
   priced_count: number;
@@ -13,6 +14,14 @@ interface SourceStatus {
   age_minutes: number | null;
   status: string;
   stale: boolean;
+}
+
+interface AnomalyDetail {
+  model_id: string;
+  model_name: string;
+  previous_price: number | null;
+  new_price: number | null;
+  change_pct: number | null;
 }
 
 interface HealthSummary {
@@ -32,6 +41,7 @@ interface HealthResponse {
   source_count: number;
   total_models_indexed: number;
   anomaly_count_24h: number;
+  anomalies: AnomalyDetail[];
   summary: HealthSummary;
   sources: SourceStatus[];
   problem_count: number;
@@ -51,16 +61,22 @@ function sourceDisplayName(source: string): string {
     groq_direct: "Groq",
     fireworks_direct: "Fireworks",
     siliconflow_direct: "SiliconFlow",
+    cerebras_direct: "Cerebras",
+    mistral_direct: "Mistral",
+    perplexity_direct: "Perplexity",
+    openai_direct: "OpenAI",
+    anthropic_direct: "Anthropic",
+    hyperbolic_direct: "Hyperbolic",
+    aiml_direct: "AI/ML API",
+    deepseek_direct: "DeepSeek",
+    moonshot_direct: "Moonshot",
     tensorx_direct: "TensorX",
     engy_direct: "Engy",
     openrelay_direct: "OpenRelay",
     sarvam_direct: "Sarvam",
+    replicate_direct: "Replicate",
   };
   return names[source] || source;
-}
-
-function sourceType(source: string): "Direct" | "Aggregator" {
-  return source === "openrouter" ? "Aggregator" : "Direct";
 }
 
 function statusColor(status: string): string {
@@ -100,7 +116,7 @@ export default function DataQualityClient() {
       }
     }
     fetchHealth();
-    const interval = setInterval(fetchHealth, 60000);
+    const interval = setInterval(fetchHealth, 120000);
     return () => { alive = false; clearInterval(interval); };
   }, []);
 
@@ -114,6 +130,9 @@ export default function DataQualityClient() {
 
   const { summary, sources } = data;
   const snaps = summary.price_snapshots_7d;
+  const directSources = sources.filter((s) => s.type === "Direct").length;
+  const aggregatorSources = sources.filter((s) => s.type === "Aggregator").length;
+  const anomalies = data.anomalies || [];
 
   return (
     <>
@@ -122,9 +141,9 @@ export default function DataQualityClient() {
         <StatCard label="Overall Health" value={data.health.toUpperCase()} color={data.health === "healthy" ? "#4ade80" : data.health === "degraded" ? "#fbbf24" : "#f87171"} />
         <StatCard label="Models Tracked" value={String(summary.total_models_tracked)} />
         <StatCard label="Data Sources" value={String(summary.total_sources)} />
+        <StatCard label="Direct Providers" value={String(directSources)} />
         <StatCard label="Direct Snapshots (7d)" value={String(snaps.direct)} />
         <StatCard label="Aggregator Snapshots (7d)" value={String(snaps.aggregator)} />
-        <StatCard label="Blended Snapshots (7d)" value={String(snaps.blended)} />
         <StatCard label="Anomalies (24h)" value={String(data.anomaly_count_24h)} color={data.anomaly_count_24h > 0 ? "#fbbf24" : "#4ade80"} />
       </div>
 
@@ -151,14 +170,14 @@ export default function DataQualityClient() {
             {sources.sort((a, b) => a.source.localeCompare(b.source)).map((s) => (
               <tr key={s.source}>
                 <td style={td}>{sourceDisplayName(s.source)}</td>
-                <td style={{ ...td, color: sourceType(s.source) === "Direct" ? "#e5e5e5" : "#C4A038" }}>
-                  {sourceType(s.source)}
+                <td style={{ ...td, color: s.type === "Direct" ? "#e5e5e5" : "#C4A038" }}>
+                  {s.type || "Direct"}
                 </td>
                 <td style={td}>{s.cadence}</td>
                 <td style={td}>{s.model_count}</td>
                 <td style={td}>{s.priced_count}</td>
                 <td style={td}>{s.endpoint_count}</td>
-                <td style={{ ...td, fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "#8a8a8a" }}>
+                <td style={{ ...td, fontFamily: "Inter, sans-serif", fontSize: 11, color: "#8a8a8a" }}>
                   {s.last_fetch ? new Date(s.last_fetch).toISOString().slice(0, 19).replace("T", " ") + " UTC" : "never"}
                 </td>
                 <td style={td}>{formatAge(s.age_minutes)}</td>
@@ -171,8 +190,41 @@ export default function DataQualityClient() {
         </table>
       </div>
 
+      {/* Anomaly details */}
+      {anomalies.length > 0 && (
+        <>
+          <h2 style={{ fontSize: "18px", fontWeight: 600, color: "#e5e5e5", marginTop: "40px", marginBottom: "16px" }}>
+            Price Anomalies (Last 24h)
+          </h2>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <thead>
+                <tr>
+                  <th style={th}>Model</th>
+                  <th style={th}>Previous</th>
+                  <th style={th}>New</th>
+                  <th style={th}>Change</th>
+                </tr>
+              </thead>
+              <tbody>
+                {anomalies.map((a, i) => (
+                  <tr key={i}>
+                    <td style={td}>{a.model_name || a.model_id}</td>
+                    <td style={td}>${a.previous_price?.toFixed(4) || "?"}/M</td>
+                    <td style={td}>${a.new_price?.toFixed(4) || "?"}/M</td>
+                    <td style={{ ...td, color: (a.change_pct || 0) > 0 ? "#f87171" : "#4ade80" }}>
+                      {(a.change_pct || 0) > 0 ? "+" : ""}{a.change_pct?.toFixed(1) || "?"}%
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
       <p style={{ fontSize: 12, color: "#5f5f5f", marginTop: "24px", lineHeight: 1.5 }}>
-        Data is fetched from {sources.length} sources: {snaps.direct} direct provider API snapshots and {snaps.aggregator} aggregator snapshots in the last 7 days.
+        Data is fetched from {sources.length} sources: {directSources} direct provider API{directSources !== 1 ? "s" : ""} and {aggregatorSources} aggregator. {snaps.direct} snapshots include direct provider data and {snaps.aggregator} are aggregator-only in the last 7 days.
         {data.anomaly_count_24h > 0
           ? ` ${data.anomaly_count_24h} price anomal${data.anomaly_count_24h !== 1 ? "ies were" : "y was"} detected in the last 24 hours.`
           : " No anomalies detected in the last 24 hours."}
@@ -212,7 +264,7 @@ function StatCard({ label, value, color }: { label: string; value: string; color
       <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", color: "#6a6a6a", marginBottom: "6px" }}>
         {label}
       </div>
-      <div style={{ fontSize: "24px", fontWeight: 700, color: color || "#e5e5e5" }}>
+      <div style={{ fontSize: "24px", fontWeight: 700, fontFamily: "Inter, sans-serif", color: color || "#e5e5e5" }}>
         {value}
       </div>
     </div>
