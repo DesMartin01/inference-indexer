@@ -2181,14 +2181,16 @@ async def health():
 async def public_health_sources():
     """Public data-quality endpoint: per-source feed health + anomaly summary.
 
-    No auth required. Returns the same per-source completeness/freshness data
-    as the admin /v1/admin/feeds endpoint, plus:
-      - anomaly_count: price_snapshots flagged is_anomalous in the last 24h
-      - summary: total models tracked, total sources, and direct vs aggregator
-        vs blended snapshot counts from price_snapshots
-
-    Cached publicly for 60 seconds.
+    No auth required. Cached in-memory for 60 seconds to avoid expensive
+    aggregate queries on price_snapshots.
     """
+    # In-memory cache (avoids 6s query on every request)
+    cache_key = "health_sources"
+    cached = getattr(public_health_sources, "_cache", None)
+    cache_time = getattr(public_health_sources, "_cache_time", None)
+    if cached and cache_time and (datetime.now(timezone.utc) - cache_time).total_seconds() < 60:
+        return JSONResponse(content=cached, headers={"Cache-Control": "public, max-age=60"})
+
     conn = get_db()
     cur = conn.cursor()
     now = datetime.now(timezone.utc)
@@ -2297,7 +2299,7 @@ async def public_health_sources():
         if len(sources) > 0 and len(problems) >= len(sources) // 2 + 1:
             health = "critical"
 
-        return JSONResponse(content={
+        response_body = {
             "generated_at": now.isoformat(),
             "health": health,
             "source_count": len(sources),
@@ -2317,7 +2319,13 @@ async def public_health_sources():
             "sources": sources,
             "problem_count": len(problems),
             "problems": problems,
-        }, headers={"Cache-Control": "public, max-age=60"})
+        }
+
+        # Cache for 60 seconds
+        public_health_sources._cache = response_body
+        public_health_sources._cache_time = now
+
+        return JSONResponse(content=response_body, headers={"Cache-Control": "public, max-age=60"})
     finally:
         cur.close()
         conn.close()
