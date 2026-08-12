@@ -31,11 +31,13 @@ export async function generateMetadata(): Promise<Metadata> {
     url: "https://www.inferenceindexer.ai",
     siteName: "InferenceIndexer.ai",
     type: "website",
+    images: [{ url: "/og-image.svg", width: 1200, height: 630, alt: "InferenceIndexer.ai - AI Inference Price Index" }],
   },
   twitter: {
     card: "summary_large_image",
     title: `AI Inference Pricing Index - ${count} Models`,
     description: "Live AI inference prices. SIT-Composite index, model pricing charts, free API.",
+    images: ["/og-image.svg"],
   },
   keywords: [
     "AI inference pricing",
@@ -58,11 +60,12 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function Home() {
-  // Fetch all data in parallel
+  // Fetch data in parallel - only fetch 50 models for initial render (not all 500)
+  // ModelTable loads more on demand via client-side API calls
   const [latest, history, modelsData] = await Promise.all([
     getCompositeLatest(60).catch(() => null),
     getCompositeHistory(30, 60).catch(() => null),
-    getModels(undefined, undefined, 500).catch(() => null),
+    getModels(undefined, undefined, 50).catch(() => null),
   ]);
 
   // Fallback data if API is down

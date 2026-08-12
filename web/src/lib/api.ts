@@ -399,7 +399,8 @@ const PROVIDER_DOMAINS: Record<string, string> = {
 export function providerFaviconUrl(provider: string): string {
   const domain = PROVIDER_DOMAINS[provider] || PROVIDER_DOMAINS[provider.toLowerCase()];
   if (!domain) return "";
-  return `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
+  // Serve from local /favicons/ directory (self-hosted, no third-party DNS lookup)
+  return `/favicons/${domain}.png`;
 }
 
 // --- Provider submissions (public self-serve listing) ---

@@ -1,0 +1,63 @@
+{
+  "schema_version": "v1",
+  "name": "InferenceIndexer",
+  "description": "Independent AI inference price reporting agency. Get live and historical pricing for AI inference models across providers, including the Standard Inference Token (SIT) composite index.",
+  "url": "https://www.inferenceindexer.ai",
+  "contact_email": "dm@desmartin.io",
+  "features": {
+    "api": {
+      "base_url": "https://api.inferenceindexer.ai",
+      "openapi_spec": "https://api.inferenceindexer.ai/openapi.json",
+      "auth": "Bearer token via POST /v1/auth/anonymous (instant, free, 10k req/day). Or anonymous read-only with rate limit.",
+      "endpoints": [
+        {
+          "path": "/v1/models",
+          "method": "GET",
+          "description": "List and search all models with current pricing, SIT scores, 24h/7d changes"
+        },
+        {
+          "path": "/v1/models/{model_id}",
+          "method": "GET",
+          "description": "Get detailed pricing for a specific model"
+        },
+        {
+          "path": "/v1/models/{model_id}/history",
+          "method": "GET",
+          "description": "Get historical price data for a model (trends over time)"
+        },
+        {
+          "path": "/v1/models/{model_id}/endpoints",
+          "method": "GET",
+          "description": "Get all provider endpoints for a model with pricing comparison"
+        },
+        {
+          "path": "/v1/providers",
+          "method": "GET",
+          "description": "List all providers with model counts and ZDR/EU status"
+        },
+        {
+          "path": "/v1/sit/composite/latest",
+          "method": "GET",
+          "description": "Get the latest SIT-Composite index value and tier breakdowns"
+        },
+        {
+          "path": "/v1/sit/composite/history",
+          "method": "GET",
+          "description": "Get historical SIT-Composite index data"
+        }
+      ]
+    },
+    "mcp": {
+      "transport": "stdio",
+      "install": "uvx inferenceindexer-mcp",
+      "config_url": "https://www.inferenceindexer.ai/.well-known/mcp-config.json"
+    }
+  },
+  "capabilities": [
+    "price-comparison",
+    "historical-pricing",
+    "provider-comparison",
+    "inference-cost-tracking",
+    "model-benchmarking"
+  ]
+}

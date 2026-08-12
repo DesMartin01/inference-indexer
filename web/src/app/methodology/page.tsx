@@ -11,6 +11,7 @@ export const metadata = {
     description: "Open methodology: blended pricing, quality tiers, index calculation, data sources, and governance.",
     url: "https://www.inferenceindexer.ai/methodology",
     siteName: "InferenceIndexer.ai",
+    images: [{ url: "/og-image.svg", width: 1200, height: 630, alt: "InferenceIndexer.ai - SIT Methodology" }],
   },
   keywords: [
     "SIT methodology",
@@ -20,6 +21,70 @@ export const metadata = {
     "blended pricing formula",
     "AA Intelligence Index tiers",
     "how inference prices are calculated",
+  ],
+};
+
+// FAQ structured data for Google rich snippets
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: [
+    {
+      "@type": "Question",
+      name: "What is the Standard Inference Token (SIT)?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "The Standard Inference Token (SIT) is a standardized unit for tracking AI inference prices. 1 SIT equals 1 million tokens of inference at a defined quality standard. The SIT-Composite tracks the cost of producing one million GPT-4-Turbo-equivalent inference tokens, serving as a commodity price index for AI compute.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "How is the SIT-Composite index calculated?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "The SIT-Composite uses a usage-weighted mean of the top 50 models by weekly token volume on OpenRouter. Only models scoring at or above the GPT-4-Turbo baseline (AA Intelligence Index >= 35) are included. Prices are quality-adjusted using the ratio of the GPT-4-Turbo reference score (40) to each model's own AA Intelligence Index score. The index is rebased to 1000 at August 4, 2026.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "What is the blended price formula?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "The blended price is a weighted average: 40% input price plus 60% output price, per million tokens. The 60% output weighting reflects production workloads where output tokens exceed input tokens (generation, coding, summarization).",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "What are the SIT quality tiers?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Models are grouped into four quality tiers based on the Artificial Analysis Intelligence Index: SIT-Frontier (AA >= 50), SIT-Standard (AA 30-49), SIT-Budget (AA 15-29), and SIT-Micro (AA < 15). Each tier has its own index tracking the median blended price across all models in that tier.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "How often is the SIT index updated?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Pricing data is pulled hourly from all sources and the database is updated. SIT indices are calculated and published daily at 00:00 UTC. Usage weights are refreshed weekly on Mondays at 06:00 UTC from OpenRouter Rankings.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Is the InferenceIndexer API free?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Yes. The InferenceIndexer API offers a free tier with 10,000 requests per day. You can get an instant API key with no email or account required via POST /v1/auth/anonymous. There is also a no-auth fallback for read-only data with a lower rate limit.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "What data sources does InferenceIndexer use?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "InferenceIndexer pulls pricing directly from provider APIs and published pricing pages, with OpenRouter as an aggregator source. When a model is available from multiple sources, priority goes to the direct provider, then the aggregator with the lowest markup. All data sources are public and verifiable.",
+      },
+    },
   ],
 };
 
@@ -39,6 +104,10 @@ const TOC_ITEMS: { n: string; title: string; href: string }[] = [
 export default function MethodologyPage() {
   return (
     <div style={{ background: "#0a0a0a", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+      />
       <Header activePage="methodology" />
       <div
         style={{

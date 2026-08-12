@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import type { ModelSummary } from "@/lib/api";
@@ -66,6 +66,8 @@ export default function ModelTable({ models, totalCount }: Props) {
   const [variant, setVariant] = useState("frontier");
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [extraModels, setExtraModels] = useState<ModelSummary[]>([]);
   const [provider, setProvider] = useState<string | null>(null);
   const [zdrOnly, setZdrOnly] = useState(false);
   const [euOnly, setEuOnly] = useState(false);
@@ -119,9 +121,12 @@ export default function ModelTable({ models, totalCount }: Props) {
     return m.is_eu_sovereign === true;
   };
 
+  // All models available to this component: initial server-rendered + client-fetched
+  const allModels = useMemo(() => [...models, ...extraModels], [models, extraModels]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    let list = models.filter(matchVariant).filter(matchZdr).filter(matchEu);
+    let list = allModels.filter(matchVariant).filter(matchZdr).filter(matchEu);
     if (provider) list = list.filter((m) => m.provider === provider);
     if (q) {
       list = list.filter(
@@ -171,17 +176,17 @@ export default function ModelTable({ models, totalCount }: Props) {
     });
 
     return list;
-  }, [models, sort, dir, variant, query, provider, zdrOnly, euOnly]);
+  }, [allModels, sort, dir, variant, query, provider, zdrOnly, euOnly]);
 
   // Compute global ranking by SIT score (nulls last)
   const ranked = useMemo(() => {
-    return models.slice().sort((a, b) => {
+    return allModels.slice().sort((a, b) => {
       if (a.sit_score == null && b.sit_score == null) return 0;
       if (a.sit_score == null) return 1;
       if (b.sit_score == null) return -1;
       return a.sit_score - b.sit_score;
     });
-  }, [models]);
+  }, [allModels]);
 
   const rankOf = (m: ModelSummary) => {
     const idx = ranked.findIndex((r) => r.model_id === m.model_id);
@@ -200,7 +205,35 @@ export default function ModelTable({ models, totalCount }: Props) {
 
   const LIMIT = 50;
   const visible = expanded ? filtered : filtered.slice(0, LIMIT);
-  const hidden = filtered.length - visible.length;
+  const hasMore = totalCount > models.length && extraModels.length === 0;
+  const hidden = hasMore ? totalCount - models.length : filtered.length - visible.length;
+
+  // Fetch remaining models from the API when user clicks "Show all"
+  const loadAll = useCallback(async () => {
+    if (extraModels.length > 0 || loading) {
+      setExpanded((e) => !e);
+      return;
+    }
+    setLoading(true);
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://api.inferenceindexer.ai";
+      const res = await fetch(`${apiUrl}/v1/models?limit=500`);
+      if (!res.ok) throw new Error(`API error: ${res.status}`);
+      const data = await res.json();
+      if (data.models) {
+        // Filter out models we already have
+        const existingIds = new Set(models.map((m) => m.model_id));
+        const newOnes = data.models.filter((m: ModelSummary) => !existingIds.has(m.model_id));
+        setExtraModels(newOnes);
+        setExpanded(true);
+      }
+    } catch (err) {
+      // If fetch fails, just expand with what we have
+      setExpanded(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [extraModels.length, loading, models]);
 
   // Movers
   const droppers = filtered
@@ -731,7 +764,8 @@ export default function ModelTable({ models, totalCount }: Props) {
           {hidden > 0 && (
             <button
               type="button"
-              onClick={() => setExpanded((e) => !e)}
+              onClick={loadAll}
+              disabled={loading}
               style={{
                 fontFamily: "Inter, sans-serif",
                 fontSize: "13px",
@@ -739,10 +773,14 @@ export default function ModelTable({ models, totalCount }: Props) {
                 background: "transparent",
                 border: 0,
                 padding: 0,
-                cursor: "pointer",
+                cursor: loading ? "wait" : "pointer",
               }}
             >
-              {expanded ? "← Show top 50 only" : `Show all ${filtered.length} models →`}
+              {loading
+                ? "Loading..."
+                : expanded
+                  ? "← Show top 50 only"
+                  : `Show all ${totalCount} models →`}
             </button>
           )}
         </div>
