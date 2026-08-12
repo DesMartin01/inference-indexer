@@ -405,39 +405,15 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* Pricing data description */}
-      <section
-        style={{
-          maxWidth: "1320px",
-          margin: "0 auto",
-          padding: "26px 28px 0",
-          fontSize: "15px",
-          lineHeight: "1.7",
-          color: "#c9c9c9",
-        }}
-      >
-        <p style={{ margin: "0" }}>
-          Below is live pricing data for AI inference, by model. We pull prices
-          directly from the inference providers, which gives a more complete
-          picture than an aggregator like OpenRouter.{" "}
-          <a
-            href="/api-docs"
-            style={{ color: "#C4A038", textDecoration: "underline" }}
-          >
-            Our API
-          </a>{" "}
-          also exposes historic price data and shows where providers have
-          diverged from aggregators.
-        </p>
-      </section>
-
       {/* Model count heading */}
-      <section style={{ maxWidth: "1320px", margin: "0 auto", padding: "8px 28px 0" }}>
+      <section style={{ maxWidth: "1320px", margin: "0 auto", padding: "26px 28px 0" }}>
         <h2 style={{ fontSize: "22px", fontWeight: 700, color: "#ffffff", margin: 0 }}>
           {totalCount} Models Tracked
         </h2>
         <p style={{ fontSize: "13px", color: "#6a6a6a", margin: "4px 0 0" }}>
-          Live pricing across {totalCount} AI inference models. Prices pulled directly from providers.
+          Live pricing across {totalCount} AI inference models. Prices pulled directly from inference providers.{" "}
+          <a href="/api-docs" style={{ color: "#C4A038", textDecoration: "underline" }}>Our API</a>{" "}
+          also exposes historic price data and shows where providers have diverged from aggregators.
         </p>
       </section>
 
