@@ -14,6 +14,7 @@ export const metadata = {
       "Complete AI inference pricing + historical trends + provider vs OpenRouter comparison, via a free API. Get a key in under a minute.",
     url: "https://www.inferenceindexer.ai/for-agents",
     siteName: "InferenceIndexer.ai",
+    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "InferenceIndexer.ai - For AI Agents" }],
   },
 };
 

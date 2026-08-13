@@ -74,11 +74,13 @@ export async function generateMetadata({ params }: { params: Promise<{ modelId: 
       url,
       siteName: "InferenceIndexer.ai",
       type: "website",
+      images: [{ url: "/og-image.png", width: 1200, height: 630, alt: `${name} - ${blended}/M | InferenceIndexer.ai` }],
     },
     twitter: {
-      card: "summary",
+      card: "summary_large_image",
       title: `${name} - ${blended}/M`,
       description: `${provider} ${tier} tier model. Input ${money(model.input_price_per_m)}/M, output ${money(model.output_price_per_m)}/M.`,
+      images: ["/og-image.png"],
     },
     keywords: [
       `${name} price`,

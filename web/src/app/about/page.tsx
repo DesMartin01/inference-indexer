@@ -13,6 +13,7 @@ export const metadata = {
     description: "Independent AI inference price index. Built by Des Martin and Frank Drebin. Open methodology, free API.",
     url: "https://www.inferenceindexer.ai/about",
     siteName: "InferenceIndexer.ai",
+    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "InferenceIndexer.ai - About" }],
   },
 };
 

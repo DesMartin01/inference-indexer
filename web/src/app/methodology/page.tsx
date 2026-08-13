@@ -11,7 +11,7 @@ export const metadata = {
     description: "Open methodology: blended pricing, quality tiers, index calculation, data sources, and governance.",
     url: "https://www.inferenceindexer.ai/methodology",
     siteName: "InferenceIndexer.ai",
-    images: [{ url: "/og-image.svg", width: 1200, height: 630, alt: "InferenceIndexer.ai - SIT Methodology" }],
+    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "InferenceIndexer.ai - SIT Methodology" }],
   },
   keywords: [
     "SIT methodology",

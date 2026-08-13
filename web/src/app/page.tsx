@@ -31,13 +31,13 @@ export async function generateMetadata(): Promise<Metadata> {
     url: "https://www.inferenceindexer.ai",
     siteName: "InferenceIndexer.ai",
     type: "website",
-    images: [{ url: "/og-image.svg", width: 1200, height: 630, alt: "InferenceIndexer.ai - AI Inference Price Index" }],
+    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "InferenceIndexer.ai - AI Inference Price Index" }],
   },
   twitter: {
     card: "summary_large_image",
     title: `AI Inference Pricing Index - ${count} Models`,
     description: "Live AI inference prices. SIT-Composite index, model pricing charts, free API.",
-    images: ["/og-image.svg"],
+    images: ["/og-image.png"],
   },
   keywords: [
     "AI inference pricing",

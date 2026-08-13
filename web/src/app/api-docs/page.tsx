@@ -15,6 +15,7 @@ export async function generateMetadata() {
     description: `Access live inference pricing for ${count}+ models via free API. SIT scores, price history, tier rankings.`,
     url: "https://www.inferenceindexer.ai/api-docs",
     siteName: "InferenceIndexer.ai",
+    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "InferenceIndexer.ai - API Documentation" }],
   },
   keywords: [
     "inference pricing API",
