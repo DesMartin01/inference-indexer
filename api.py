@@ -838,7 +838,89 @@ async def get_models(
     )
 
 # ============================================
-# PROVIDER SUBMISSIONS (self-serve listing)
+# EMBEDDINGS
+# ============================================
+
+@app.get("/v1/embeddings")
+async def get_embeddings(
+    request: Request,
+    sort: str = Query("input", regex="^(input|dimensions|context|provider)$"),
+    limit: int = Query(100, ge=1, le=500),
+    authorization: Optional[str] = Header(None)
+):
+    """Returns all tracked embedding models with current pricing."""
+    api_user = get_api_user(authorization)
+    limits = check_rate_limit(api_user, is_ssr=request.headers.get("X-SSR-Secret") == SSR_SECRET)
+
+    conn = get_db()
+    cur = conn.cursor()
+
+    query = """
+        SELECT m.id, m.name, m.provider, m.context_length, m.embedding_dimensions,
+               m.creator_country,
+               lp.input_price_per_m, lp.fetched_at, lp.source_count,
+               COALESCE(zdr_sub.is_zdr, FALSE), COALESCE(eu_sub.is_eu, FALSE)
+        FROM models m
+        JOIN latest_prices lp ON m.id = lp.model_id
+        LEFT JOIN (
+            SELECT DISTINCT me.model_id, TRUE as is_zdr
+            FROM model_endpoints me
+            JOIN providers p ON me.endpoint_provider = p.name
+            WHERE p.is_zdr = TRUE
+        ) zdr_sub ON m.id = zdr_sub.model_id
+        LEFT JOIN (
+            SELECT DISTINCT me.model_id, TRUE as is_eu
+            FROM model_endpoints me
+            JOIN providers p ON me.endpoint_provider = p.name
+            WHERE p.is_eu_sovereign = TRUE
+        ) eu_sub ON m.id = eu_sub.model_id
+        WHERE m.is_active = TRUE AND m.modality = 'embedding' AND lp.input_price_per_m > 0
+    """
+
+    sort_map = {
+        "input": "lp.input_price_per_m ASC",
+        "dimensions": "m.embedding_dimensions DESC NULLS LAST",
+        "context": "m.context_length DESC NULLS LAST",
+        "provider": "m.provider ASC",
+    }
+    query += f" ORDER BY {sort_map.get(sort, sort_map['input'])}"
+    query += " LIMIT %s"
+
+    cur.execute(query, (limit,))
+    rows = cur.fetchall()
+
+    models = []
+    for row in rows:
+        models.append({
+            "model_id": row[0],
+            "name": row[1],
+            "provider": row[2],
+            "context_length": row[3],
+            "embedding_dimensions": row[4],
+            "creator_country": row[5],
+            "input_price_per_m": row[6],
+            "fetched_at": row[7].isoformat() if row[7] else None,
+            "source_count": row[8] if row[8] else 1,
+            "is_zdr": row[9],
+            "is_eu_sovereign": row[10],
+        })
+
+    cur.execute("SELECT COUNT(*) FROM models m JOIN latest_prices lp ON m.id = lp.model_id WHERE m.is_active = TRUE AND m.modality = 'embedding' AND lp.input_price_per_m > 0")
+    total = cur.fetchone()[0]
+
+    cur.close()
+    conn.close()
+
+    headers = get_rate_limit_headers(api_user, limits)
+    headers["Cache-Control"] = "public, max-age=300"
+    return JSONResponse(
+        content={
+            "count": total,
+            "returned": len(models),
+            "models": models,
+        },
+        headers=headers
+    )
 # ============================================
 
 def _verify_provider_endpoint(api_base_url, api_key=None):
