@@ -463,7 +463,8 @@ async def get_sit_latest(request: Request, authorization: Optional[str] = Header
             JOIN models m ON uw.model_id = m.id
             WHERE m.is_active = TRUE AND lp.blended_price_per_m > 0
               AND m.aa_index_score IS NOT NULL AND m.aa_index_score >= 35
-              AND m.modality != 'embedding'
+              AND m.modality NOT IN ('embedding', 'tts', 'stt', 'reranker', 'reader',
+                                      'image-generation', 'video-generation')
             ORDER BY uw.weight_pct DESC
             LIMIT 50
         )
@@ -486,7 +487,8 @@ async def get_sit_latest(request: Request, authorization: Optional[str] = Header
             FROM latest_prices lp
             JOIN models m ON lp.model_id = m.id
             WHERE m.is_active = TRUE AND lp.blended_price_per_m > 0
-              AND m.modality != 'embedding'
+              AND m.modality NOT IN ('embedding', 'tts', 'stt', 'reranker', 'reader',
+                                      'image-generation', 'video-generation')
         )
         SELECT 
             tier,
@@ -758,7 +760,9 @@ async def get_models(
             WHERE model_id = m.id
             ORDER BY fetched_at DESC LIMIT 1
         ) ps ON true
-        WHERE m.is_active = TRUE AND lp.blended_price_per_m > 0 AND m.id NOT LIKE '%%:batch' AND m.modality != 'embedding'
+        WHERE m.is_active = TRUE AND lp.blended_price_per_m > 0 AND m.id NOT LIKE '%%:batch'
+          AND m.modality NOT IN ('embedding', 'tts', 'stt', 'reranker', 'reader',
+                                  'image-generation', 'video-generation')
     """
     params = []
     
@@ -786,7 +790,7 @@ async def get_models(
     rows = cur.fetchall()
     
     # Get total count
-    count_query = "SELECT COUNT(*) FROM models m JOIN latest_prices lp ON m.id = lp.model_id WHERE m.is_active = TRUE AND lp.blended_price_per_m > 0 AND m.id NOT LIKE '%%:batch' AND m.modality != 'embedding'"
+    count_query = "SELECT COUNT(*) FROM models m JOIN latest_prices lp ON m.id = lp.model_id WHERE m.is_active = TRUE AND lp.blended_price_per_m > 0 AND m.id NOT LIKE '%%:batch' AND m.modality NOT IN ('embedding', 'tts', 'stt', 'reranker', 'reader', 'image-generation', 'video-generation')"
     count_params = []
     if tier:
         count_query += " AND m.tier = %s"
