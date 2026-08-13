@@ -307,6 +307,7 @@ export interface EmbeddingModel {
   source_count: number;
   is_zdr: boolean;
   is_eu_sovereign: boolean;
+  change_24h: number;
 }
 
 export interface EmbeddingList {

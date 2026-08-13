@@ -859,9 +859,11 @@ async def get_embeddings(
         SELECT m.id, m.name, m.provider, m.context_length, m.embedding_dimensions,
                m.creator_country,
                lp.input_price_per_m, lp.fetched_at, lp.source_count,
-               COALESCE(zdr_sub.is_zdr, FALSE), COALESCE(eu_sub.is_eu, FALSE)
+               COALESCE(zdr_sub.is_zdr, FALSE), COALESCE(eu_sub.is_eu, FALSE),
+               COALESCE(pc24.change_24h_pct, 0)
         FROM models m
         JOIN latest_prices lp ON m.id = lp.model_id
+        LEFT JOIN price_changes_24h pc24 ON m.id = pc24.model_id
         LEFT JOIN (
             SELECT DISTINCT me.model_id, TRUE as is_zdr
             FROM model_endpoints me
@@ -903,6 +905,7 @@ async def get_embeddings(
             "source_count": row[8] if row[8] else 1,
             "is_zdr": row[9],
             "is_eu_sovereign": row[10],
+            "change_24h": float(row[11]) if row[11] else 0,
         })
 
     cur.execute("SELECT COUNT(*) FROM models m JOIN latest_prices lp ON m.id = lp.model_id WHERE m.is_active = TRUE AND m.modality = 'embedding' AND lp.input_price_per_m > 0")

@@ -4,10 +4,16 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { EmbeddingModel } from "@/lib/api";
 import {
-  formatPrice,
+  formatPct,
+  pctColor,
   providerInitials,
   providerFaviconUrl,
 } from "@/lib/api";
+
+// Format price to 3 decimal places
+function formatEmbedPrice(n: number): string {
+  return "$" + n.toFixed(3);
+}
 
 // ISO 3166-1 alpha-2 -> flag emoji and full name (same pattern as ModelTable)
 const COUNTRY_FLAG_EMOJI: Record<string, string> = {
@@ -27,7 +33,7 @@ const COUNTRY_NAMES: Record<string, string> = {
   pl: "Poland", tr: "Turkey",
 };
 
-type SortKey = "name" | "provider" | "dims" | "context" | "price" | "sources";
+type SortKey = "name" | "provider" | "dims" | "context" | "price" | "c24" | "sources";
 type SortDir = "asc" | "desc";
 
 const COLS: { key: SortKey; label: string; align: "left" | "right" | "center" }[] = [
@@ -36,12 +42,13 @@ const COLS: { key: SortKey; label: string; align: "left" | "right" | "center" }[
   { key: "dims", label: "Dims", align: "right" },
   { key: "context", label: "Max Context", align: "right" },
   { key: "price", label: "$/M tokens", align: "right" },
+  { key: "c24", label: "24h", align: "right" },
   { key: "sources", label: "Sources", align: "right" },
 ];
 
-// 8 columns total (incl. ZDR and EU Infra): name | provider | dims | context | price | sources | zdr | eu
+// 9 columns: model | creator | dims | context | price | 24h | sources | zdr | eu
 const GRID =
-  "minmax(130px, 1fr) 110px 70px 90px 92px 70px 50px 50px";
+  "minmax(120px, 200px) 100px 64px 84px 84px 56px 64px 40px 56px";
 
 interface Props {
   models: EmbeddingModel[];
@@ -78,6 +85,8 @@ export default function EmbeddingTable({ models, totalCount }: Props) {
           return (a.context_length - b.context_length) * sign;
         case "price":
           return (a.input_price_per_m - b.input_price_per_m) * sign;
+        case "c24":
+          return ((a.change_24h ?? 0) - (b.change_24h ?? 0)) * sign;
         case "sources":
           return ((a.source_count ?? 1) - (b.source_count ?? 1)) * sign;
         default:
@@ -187,13 +196,13 @@ export default function EmbeddingTable({ models, totalCount }: Props) {
                       fontSize: "11px",
                       fontWeight: 500,
                       textTransform: "uppercase",
-                      letterSpacing: "0.08em",
+                      letterSpacing: "0.06em",
                       color: active ? "#C4A038" : "#8a8a8a",
                       textAlign: c.align,
                       cursor: "pointer",
                       userSelect: "none",
                       whiteSpace: "nowrap",
-                      padding: "0 8px",
+                      padding: "0 6px",
                       height: "34px",
                       lineHeight: "34px",
                       boxShadow: active ? "inset 0 -1px 0 #C4A038" : "none",
@@ -211,11 +220,11 @@ export default function EmbeddingTable({ models, totalCount }: Props) {
                   fontSize: "11px",
                   fontWeight: 500,
                   textTransform: "uppercase",
-                  letterSpacing: "0.08em",
+                  letterSpacing: "0.06em",
                   color: "#8a8a8a",
                   textAlign: "center",
                   whiteSpace: "nowrap",
-                  padding: "0 8px",
+                  padding: "0 4px",
                   height: "34px",
                   lineHeight: "34px",
                 }}
@@ -228,11 +237,11 @@ export default function EmbeddingTable({ models, totalCount }: Props) {
                   fontSize: "11px",
                   fontWeight: 500,
                   textTransform: "uppercase",
-                  letterSpacing: "0.08em",
+                  letterSpacing: "0.06em",
                   color: "#8a8a8a",
                   textAlign: "center",
                   whiteSpace: "nowrap",
-                  padding: "0 8px",
+                  padding: "0 4px",
                   height: "34px",
                   lineHeight: "34px",
                 }}
@@ -243,6 +252,7 @@ export default function EmbeddingTable({ models, totalCount }: Props) {
 
             {/* Rows */}
             {filtered.map((m) => {
+              const c24 = m.change_24h ?? 0;
               return (
                 <div
                   key={m.model_id}
@@ -354,7 +364,7 @@ export default function EmbeddingTable({ models, totalCount }: Props) {
                       fontSize: "13px",
                       fontWeight: 500,
                       color: "#c9c9c9",
-                      padding: "0 10px",
+                      padding: "0 6px",
                       textAlign: "right",
                       fontVariantNumeric: "tabular-nums",
                       fontFamily: "var(--font-jetbrains-mono), monospace",
@@ -370,7 +380,7 @@ export default function EmbeddingTable({ models, totalCount }: Props) {
                       fontSize: "13px",
                       fontWeight: 500,
                       color: "#c9c9c9",
-                      padding: "0 10px",
+                      padding: "0 6px",
                       textAlign: "right",
                       fontVariantNumeric: "tabular-nums",
                       fontFamily: "var(--font-jetbrains-mono), monospace",
@@ -379,19 +389,35 @@ export default function EmbeddingTable({ models, totalCount }: Props) {
                     {m.context_length.toLocaleString()}
                   </div>
 
-                  {/* $/M tokens */}
+                  {/* $/M tokens (3 decimal places) */}
                   <div
                     role="cell"
                     style={{
                       fontSize: "13px",
                       fontWeight: 500,
                       color: "#c9c9c9",
-                      padding: "0 10px",
+                      padding: "0 6px",
                       textAlign: "right",
                       fontVariantNumeric: "tabular-nums",
                     }}
                   >
-                    {formatPrice(m.input_price_per_m)}
+                    {formatEmbedPrice(m.input_price_per_m)}
+                  </div>
+
+                  {/* 24h price change */}
+                  <div
+                    role="cell"
+                    title={`24h change: ${formatPct(c24)}`}
+                    style={{
+                      fontSize: "13px",
+                      fontWeight: 500,
+                      color: pctColor(c24),
+                      padding: "0 6px",
+                      textAlign: "right",
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  >
+                    {formatPct(c24)}
                   </div>
 
                   {/* Sources */}
@@ -402,7 +428,7 @@ export default function EmbeddingTable({ models, totalCount }: Props) {
                       fontSize: "13px",
                       fontWeight: 500,
                       color: (m.source_count ?? 1) > 1 ? "#c9c9c9" : "#5f5f5f",
-                      padding: "0 10px",
+                      padding: "0 6px",
                       textAlign: "right",
                       fontVariantNumeric: "tabular-nums",
                     }}
