@@ -96,15 +96,38 @@ export default async function AboutPage() {
           <div id="mission" style={{ marginBottom: 40 }}>
             <h2 style={sectionHeading}>Mission</h2>
             <p style={bodyText}>
-              InferenceIndexer exists to bring price transparency to AI inference. As the number of model providers
+              InferenceIndexer exists to bring transparency to AI inference. As the number of model providers
               explodes and pricing structures fragment, developers, investors, and enterprises need a neutral, independent
               reference point. The Standard Inference Token (SIT) is that reference: a single, standardized unit that
               makes inference pricing comparable across {modelCount} models and {providerCount} providers.
             </p>
             <p style={bodyText}>
-              We are building the CoinMarketCap of AI inference. Not an exchange. Not an aggregator. Not a routing
-              service. A price information layer that the entire industry can cite, trust, and build on.
+              We are building the reference layer for AI inference. Not an exchange. Not an aggregator. Not a routing
+              service. Three things the industry needs and cannot get elsewhere:
             </p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 16, marginTop: 24 }}>
+              <div style={cardBase}>
+                <h3 style={{ fontSize: 15, fontWeight: 600, color: "#C4A038", margin: "0 0 8px" }}>Price</h3>
+                <p style={{ fontSize: 13, color: "#8a8a8a", lineHeight: 1.6, margin: 0 }}>
+                  The best inference pricing data on the web. Pulled directly from provider APIs, not estimates or
+                  listings. Median pricing across providers, historical tracking, and the SIT-Composite index.
+                </p>
+              </div>
+              <div style={cardBase}>
+                <h3 style={{ fontSize: 15, fontWeight: 600, color: "#C4A038", margin: "0 0 8px" }}>Quality</h3>
+                <p style={{ fontSize: 13, color: "#8a8a8a", lineHeight: 1.6, margin: 0 }}>
+                  Provider quality metrics no-one else can match. Latency, uptime, time to first token, and
+                  operational reliability across every endpoint we track.
+                </p>
+              </div>
+              <div style={cardBase}>
+                <h3 style={{ fontSize: 15, fontWeight: 600, color: "#C4A038", margin: "0 0 8px" }}>Privacy</h3>
+                <p style={{ fontSize: 13, color: "#8a8a8a", lineHeight: 1.6, margin: 0 }}>
+                  The most complete repository of inference privacy data anywhere. Zero data retention status,
+                  infrastructure jurisdiction, data residency, and whether your inputs could be used for training.
+                </p>
+              </div>
+            </div>
           </div>
 
           {/* Collaboration */}
