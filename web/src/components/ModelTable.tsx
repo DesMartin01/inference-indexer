@@ -41,7 +41,7 @@ type ColKey = SortKey | "rank" | "medal";
 const COLS_ALL: { key: ColKey; label: string; align: "left" | "right" | "center" }[] = [
   { key: "rank", label: "#", align: "right" },
   { key: "name", label: "Model", align: "left" },
-  { key: "provider", label: "Provider", align: "left" },
+  { key: "provider", label: "Creator", align: "left" },
   { key: "tier", label: "Tier", align: "left" },
   { key: "input", label: "Input $/M", align: "right" },
   { key: "output", label: "Output $/M", align: "right" },
@@ -56,7 +56,7 @@ const COLS_ALL: { key: ColKey; label: string; align: "left" | "right" | "center"
 const COLS_TIER: { key: ColKey; label: string; align: "left" | "right" | "center" }[] = [
   { key: "rank", label: "#", align: "right" },
   { key: "name", label: "Model", align: "left" },
-  { key: "provider", label: "Provider", align: "left" },
+  { key: "provider", label: "Creator", align: "left" },
   { key: "tier", label: "Tier", align: "left" },
   { key: "input", label: "Input $/M", align: "right" },
   { key: "output", label: "Output $/M", align: "right" },
@@ -605,13 +605,11 @@ export default function ModelTable({ models, totalCount }: Props) {
                   </div>
                   <div role="cell" style={{ padding: "0 6px", minWidth: 0, display: "flex", alignItems: "center", gap: "4px" }}>
                     {m.creator_country && <span style={{ fontSize: "12px", lineHeight: 1, flexShrink: 0 }} title={COUNTRY_NAMES[m.creator_country] || m.creator_country}>{COUNTRY_FLAG_EMOJI[m.creator_country] || ""}</span>}
-                    <Link
-                      href={`/providers/${encodeURIComponent(m.provider)}`}
+                    <span
                       style={{
                         fontFamily: "Inter, sans-serif",
                         fontSize: "12.5px",
                         color: "#8a8a8a",
-                        textDecoration: "none",
                         display: "inline-block",
                         maxWidth: "100%",
                         overflow: "hidden",
@@ -620,7 +618,7 @@ export default function ModelTable({ models, totalCount }: Props) {
                       }}
                     >
                       {m.provider}
-                    </Link>
+                    </span>
                   </div>
                   <div role="cell" style={{ padding: "0 10px" }}>
                     <span
