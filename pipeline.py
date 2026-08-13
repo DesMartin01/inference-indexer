@@ -2784,11 +2784,24 @@ def main():
     # --- FETCH ---
     raw_models = fetch_openrouter()
     
-    # Fetch AA scores directly from Artificial Analysis (overrides stale OpenRouter scores)
-    aa_scores = fetch_aa_scores()
-    
     # Normalize
     normalized = [normalize_model(m) for m in raw_models]
+    
+    # Filter out OpenRouter alias models (~ prefix) and non-versioned "latest" aliases.
+    # These are routing pointers, not real models - their underlying model and price
+    # change without warning, making them misleading on a pricing index.
+    pre_count = len(normalized)
+    normalized = [
+        m for m in normalized
+        if not m["model_id"].startswith("~")
+        and "-latest" not in m["model_id"].split("/")[-1]
+        and not m.get("name", "").lower().endswith(" latest")
+    ]
+    if len(normalized) != pre_count:
+        print(f"  Filtered {pre_count - len(normalized)} alias models (~/latest)")
+    
+    # Fetch AA scores directly from Artificial Analysis (overrides stale OpenRouter scores)
+    aa_scores = fetch_aa_scores()
     
     # Override AA scores with direct-from-AA values (OpenRouter's copy lags by days/weeks)
     if aa_scores:
