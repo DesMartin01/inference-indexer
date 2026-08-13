@@ -2033,17 +2033,19 @@ def fetch_aa_scores():
     # The JSON is escaped with backslashes in Next.js RSC data.
     # Between name and slug there's shortName; between slug and intelligenceIndex
     # there are many fields (releaseDate, isReasoning, modelCreator*, etc.)
-    # Use [^\\""]+ to match field values without crossing into next field.
-    pattern = r'\\"name\\":\\"([^"]+)\\"[^}]*?\\"slug\\":\\"([^"]+)\\"[^}]*?\\"intelligenceIndex\\":([0-9.]+),\\"intelligenceIndexIsEstimated\\":(true|false)'
+    # Use [^\\"\"]+ to match field values without crossing into next field.
+    # Also capture modelCreatorCountry for origin flag display.
+    pattern = r'\\"name\\":\\"([^"]+)\\"[^}]*?\\"slug\\":\\"([^"]+)\\"[^}]*?\\"intelligenceIndex\\":([0-9.]+),\\"intelligenceIndexIsEstimated\\":(true|false)[^}]*?\\"modelCreatorCountry\\":\\"([a-z]{2})\\"'
     matches = re.findall(pattern, html, re.DOTALL)
 
     scores = {}
-    for name, slug, score_str, est_str in matches:
+    for name, slug, score_str, est_str, country in matches:
         if slug not in scores:
             scores[slug] = {
                 "name": name,
                 "score": float(score_str),
                 "estimated": est_str == "true",
+                "country": country,
             }
 
     print(f"  AA leaderboard: {len(scores)} models with scores")
@@ -2055,6 +2057,8 @@ def fetch_aa_scores():
 
 def match_aa_score(model_id, model_name, aa_scores):
     """Match an OpenRouter model ID/name to an AA leaderboard entry.
+
+    Returns the full AA data dict ({name, score, estimated, country}) or None.
 
     Tries multiple matching strategies:
     1. Direct slug match (e.g. "deepseek-v4-pro" in both)
@@ -2076,19 +2080,19 @@ def match_aa_score(model_id, model_name, aa_scores):
 
     # Try direct slug match
     if base in aa_scores:
-        return aa_scores[base]["score"]
+        return aa_scores[base]
 
     # Strategy 2: Try without version suffix
     # e.g. "deepseek-v4-pro-0813" -> "deepseek-v4-pro"
     base_no_version = re.sub(r'-\d{3,4}$', '', base)
     if base_no_version in aa_scores:
-        return aa_scores[base_no_version]["score"]
+        return aa_scores[base_no_version]
 
     # Strategy 3: Check if any AA slug is a substring of our model ID
     model_lower = model_id.lower()
     for slug, data in aa_scores.items():
         if slug in model_lower or model_lower in slug:
-            return data["score"]
+            return data
 
     # Strategy 4: Name-based match (normalized, lowercase, no spaces/punctuation)
     def normalize(s):
@@ -2098,10 +2102,10 @@ def match_aa_score(model_id, model_name, aa_scores):
     for slug, data in aa_scores.items():
         norm_aa_name = normalize(data["name"])
         if norm_name == norm_aa_name:
-            return data["score"]
+            return data
         # Check partial match (AA name contains model name or vice versa)
         if len(norm_name) > 5 and (norm_name in norm_aa_name or norm_aa_name in norm_name):
-            return data["score"]
+            return data
 
     return None
 
@@ -2558,8 +2562,8 @@ def upsert_models(conn, models):
     for m in models:
         cur.execute("""
             INSERT INTO models (id, name, provider, tier, context_length, aa_index_score, 
-                              modality, tokenizer, is_reasoning, updated_at, is_active)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), TRUE)
+                              modality, tokenizer, is_reasoning, creator_country, updated_at, is_active)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), TRUE)
             ON CONFLICT (id) DO UPDATE SET
                 name = EXCLUDED.name,
                 provider = EXCLUDED.provider,
@@ -2569,11 +2573,13 @@ def upsert_models(conn, models):
                 modality = EXCLUDED.modality,
                 tokenizer = EXCLUDED.tokenizer,
                 is_reasoning = EXCLUDED.is_reasoning,
+                creator_country = EXCLUDED.creator_country,
                 updated_at = NOW()
         """, (
             m["model_id"], m["name"], m["provider"], m["tier"],
             m["context_length"], m["aa_index_score"],
-            m["modality"], m["tokenizer"], m["is_reasoning"]
+            m["modality"], m["tokenizer"], m["is_reasoning"],
+            m.get("creator_country")
         ))
         count += 1
     
@@ -2808,12 +2814,15 @@ def main():
         updated = 0
         tier_changed = 0
         for m in normalized:
-            direct_score = match_aa_score(m["model_id"], m.get("name", ""), aa_scores)
-            if direct_score is not None:
+            aa_match = match_aa_score(m["model_id"], m.get("name", ""), aa_scores)
+            if aa_match is not None:
+                direct_score = aa_match["score"]
                 old_score = m.get("aa_index_score")
                 m["aa_index_score"] = direct_score
                 if old_score != direct_score:
                     updated += 1
+                # Store country of origin
+                m["creator_country"] = aa_match.get("country")
                 # Reassign tier based on the fresh AA score
                 old_tier = m.get("tier")
                 new_tier = assign_tier(direct_score, m.get("blended_price_per_m"))

@@ -43,6 +43,7 @@ export interface ModelSummary {
   aa_index_score: number | null;
   modality: string;
   is_reasoning: boolean;
+  creator_country: string | null;
   input_price_per_m: number;
   output_price_per_m: number;
   blended_price_per_m: number;

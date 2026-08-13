@@ -16,6 +16,24 @@ import {
 } from "@/lib/api";
 import { buildRowSpark } from "@/lib/charts";
 
+// ISO 3166-1 alpha-2 -> flag emoji and full name
+const COUNTRY_FLAG_EMOJI: Record<string, string> = {
+  us: "🇺🇸", cn: "🇨🇳", gb: "🇬🇧", uk: "🇬🇧", fr: "🇫🇷", de: "🇩🇪",
+  ca: "🇨🇦", jp: "🇯🇵", kr: "🇰🇷", in: "🇮🇳", sg: "🇸🇬", ae: "🇦🇪",
+  il: "🇮🇱", ch: "🇨🇭", nl: "🇳🇱", se: "🇸🇪", ie: "🇮🇪", au: "🇦🇺",
+  tw: "🇹🇼", hk: "🇭🇰", ru: "🇷🇺", br: "🇧🇷", za: "🇿🇦", it: "🇮🇹",
+  es: "🇪🇸", fi: "🇫🇮", no: "🇳🇴", dk: "🇩🇰", pl: "🇵🇱", tr: "🇹🇷",
+};
+const COUNTRY_NAMES: Record<string, string> = {
+  us: "United States", cn: "China", gb: "United Kingdom", uk: "United Kingdom",
+  fr: "France", de: "Germany", ca: "Canada", jp: "Japan", kr: "South Korea",
+  in: "India", sg: "Singapore", ae: "UAE", il: "Israel", ch: "Switzerland",
+  nl: "Netherlands", se: "Sweden", ie: "Ireland", au: "Australia",
+  tw: "Taiwan", hk: "Hong Kong", ru: "Russia", br: "Brazil", za: "South Africa",
+  it: "Italy", es: "Spain", fi: "Finland", no: "Norway", dk: "Denmark",
+  pl: "Poland", tr: "Turkey",
+};
+
 type SortKey = "name" | "provider" | "tier" | "input" | "output" | "blended" | "sitadj" | "sit" | "sources" | "c24" | "c7";
 type SortDir = "asc" | "desc";
 
@@ -574,7 +592,8 @@ export default function ModelTable({ models, totalCount }: Props) {
                       </span>
                     </span>
                   </div>
-                  <div role="cell" style={{ padding: "0 6px", minWidth: 0 }}>
+                  <div role="cell" style={{ padding: "0 6px", minWidth: 0, display: "flex", alignItems: "center", gap: "4px" }}>
+                    {m.creator_country && <span style={{ fontSize: "12px", lineHeight: 1, flexShrink: 0 }} title={COUNTRY_NAMES[m.creator_country] || m.creator_country}>{COUNTRY_FLAG_EMOJI[m.creator_country] || ""}</span>}
                     <Link
                       href={`/providers/${encodeURIComponent(m.provider)}`}
                       style={{
