@@ -2029,17 +2029,14 @@ def fetch_aa_scores():
 
     html = resp.text
 
-    # Pattern: "name":"Model Name",...,"slug":"model-slug",...,"intelligenceIndex":SCORE,...
+    # Pattern: name -> slug -> modelCreatorCountry -> ... -> intelligenceIndex -> intelligenceIndexIsEstimated
     # The JSON is escaped with backslashes in Next.js RSC data.
-    # Between name and slug there's shortName; between slug and intelligenceIndex
-    # there are many fields (releaseDate, isReasoning, modelCreator*, etc.)
-    # Use [^\\"\"]+ to match field values without crossing into next field.
-    # Also capture modelCreatorCountry for origin flag display.
-    pattern = r'\\"name\\":\\"([^"]+)\\"[^}]*?\\"slug\\":\\"([^"]+)\\"[^}]*?\\"intelligenceIndex\\":([0-9.]+),\\"intelligenceIndexIsEstimated\\":(true|false)[^}]*?\\"modelCreatorCountry\\":\\"([a-z]{2})\\"'
+    # modelCreatorCountry comes BEFORE intelligenceIndex in the JSON structure.
+    pattern = r'\\"name\\":\\"([^"]+)\\"[^}]*?\\"slug\\":\\"([^"]+)\\"[^}]*?\\"modelCreatorCountry\\":\\"([a-z]{2})\\"[^}]*?\\"intelligenceIndex\\":([0-9.]+),\\"intelligenceIndexIsEstimated\\":(true|false)'
     matches = re.findall(pattern, html, re.DOTALL)
 
     scores = {}
-    for name, slug, score_str, est_str, country in matches:
+    for name, slug, country, score_str, est_str in matches:
         if slug not in scores:
             scores[slug] = {
                 "name": name,
