@@ -1805,7 +1805,7 @@ async def get_model(
                lp.source, lp.fetched_at, lp.source_count
         FROM models m
         JOIN latest_prices lp ON m.id = lp.model_id
-        WHERE m.id = %s
+        WHERE m.id = %s AND m.is_active = TRUE
     """, (model_id,))
     
     row = cur.fetchone()
