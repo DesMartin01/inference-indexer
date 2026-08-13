@@ -18,7 +18,7 @@ export default async function EmbeddingsPage() {
   let totalCount = 0;
 
   try {
-    const data = await getEmbeddings("price");
+    const data = await getEmbeddings("input");
     models = data.models;
     totalCount = data.count;
   } catch {
