@@ -14,7 +14,6 @@ import {
   providerInitials,
   providerFaviconUrl,
 } from "@/lib/api";
-import { buildRowSpark } from "@/lib/charts";
 
 // ISO 3166-1 alpha-2 -> flag emoji and full name
 const COUNTRY_FLAG_EMOJI: Record<string, string> = {
@@ -34,10 +33,10 @@ const COUNTRY_NAMES: Record<string, string> = {
   pl: "Poland", tr: "Turkey",
 };
 
-type SortKey = "name" | "provider" | "tier" | "input" | "output" | "blended" | "sitadj" | "sit" | "sources" | "c24" | "c7";
+type SortKey = "name" | "provider" | "tier" | "input" | "output" | "blended" | "sitadj" | "sit" | "aa" | "sources" | "c24";
 type SortDir = "asc" | "desc";
 
-type ColKey = SortKey | "rank" | "trend" | "medal";
+type ColKey = SortKey | "rank" | "medal";
 
 const COLS_ALL: { key: ColKey; label: string; align: "left" | "right" | "center" }[] = [
   { key: "rank", label: "#", align: "right" },
@@ -48,10 +47,9 @@ const COLS_ALL: { key: ColKey; label: string; align: "left" | "right" | "center"
   { key: "output", label: "Output $/M", align: "right" },
   { key: "blended", label: "Blended $/M", align: "right" },
   { key: "sit", label: "SIT Score", align: "right" },
+  { key: "aa", label: "AA Score", align: "right" },
   { key: "sources", label: "Sources", align: "right" },
   { key: "c24", label: "24h", align: "right" },
-  { key: "c7", label: "7d", align: "right" },
-  { key: "trend", label: "7d trend", align: "left" },
   { key: "medal", label: "Medal", align: "center" },
 ];
 
@@ -65,15 +63,14 @@ const COLS_TIER: { key: ColKey; label: string; align: "left" | "right" | "center
   { key: "blended", label: "Blended $/M", align: "right" },
   { key: "sitadj", label: "Cost / IQ", align: "right" },
   { key: "sit", label: "SIT Score", align: "right" },
+  { key: "aa", label: "AA Score", align: "right" },
   { key: "sources", label: "Sources", align: "right" },
   { key: "c24", label: "24h", align: "right" },
-  { key: "c7", label: "7d", align: "right" },
-  { key: "trend", label: "7d trend", align: "left" },
   { key: "medal", label: "Medal", align: "center" },
 ];
 
-const GRID_ALL = "30px minmax(130px, 275px) 84px 76px 82px 82px 108px 100px 104px 56px 64px 64px 84px 48px";
-const GRID_TIER = "30px minmax(130px, 275px) 84px 76px 82px 82px 108px 100px 104px 56px 64px 64px 84px 48px";
+const GRID_ALL = "30px minmax(130px, 275px) 84px 76px 82px 82px 108px 100px 72px 56px 64px 48px";
+const GRID_TIER = "30px minmax(130px, 275px) 84px 76px 82px 82px 108px 100px 100px 72px 56px 64px 48px";
 
 interface Props {
   models: ModelSummary[];
@@ -165,7 +162,7 @@ export default function ModelTable({ models, totalCount }: Props) {
         blended: "blended_price_per_m",
         sitadj: "sit_adjusted_price",
         c24: "change_24h",
-        c7: "change_7d",
+        aa: "aa_index_score",
       };
       if (k === "sit") {
         // Null scores sort last regardless of direction
@@ -231,7 +228,7 @@ export default function ModelTable({ models, totalCount }: Props) {
   };
 
   const sortBy = (key: ColKey) => {
-    if (key === "rank" || key === "trend" || key === "medal") return;
+    if (key === "rank" || key === "medal") return;
     if (sort === key) {
       setDir((d) => (d === "asc" ? "desc" : "asc"));
     } else {
@@ -447,7 +444,7 @@ export default function ModelTable({ models, totalCount }: Props) {
                       letterSpacing: "0.08em",
                       color: active ? "#C4A038" : "#8a8a8a",
                       textAlign: c.align,
-                      cursor: c.key === "rank" || c.key === "trend" || c.key === "medal" ? "default" : "pointer",
+                      cursor: c.key === "rank" || c.key === "medal" ? "default" : "pointer",
                       userSelect: "none",
                       whiteSpace: "nowrap",
                       padding: "0 8px",
@@ -495,10 +492,7 @@ export default function ModelTable({ models, totalCount }: Props) {
             {visible.map((m) => {
               const s = m.sit_score;
               const c24 = m.change_24h ?? 0;
-              const c7 = m.change_7d ?? 0;
               const tColor = tierColor(m.tier);
-              const trendColor = c7 < 0 ? "#22c55e" : c7 > 0 ? "#ef4444" : "#4a4a4a";
-              const trendPath = buildRowSpark(m.blended_price_per_m, c7);
               return (
                 <div
                   key={m.model_id}
@@ -712,35 +706,20 @@ export default function ModelTable({ models, totalCount }: Props) {
                   >
                     {formatPct(c24)}
                   </div>
+                  {/* AA Score */}
                   <div
                     role="cell"
+                    title={m.aa_index_score != null ? `Artificial Analysis Intelligence Index: ${m.aa_index_score.toFixed(1)}` : "No AA score available"}
                     style={{
                       fontSize: "13px",
                       fontWeight: 500,
-                      color: pctColor(c7),
+                      color: m.aa_index_score != null ? (m.aa_index_score >= 50 ? "#c9c9c9" : "#8a8a8a") : "#3a3a3a",
                       padding: "0 10px",
                       textAlign: "right",
                       fontVariantNumeric: "tabular-nums",
                     }}
                   >
-                    {formatPct(c7)}
-                  </div>
-                  <div role="cell" style={{ padding: "0 10px" }}>
-                    <svg
-                      viewBox="0 0 84 18"
-                      role="img"
-                      aria-label="7 day price trend"
-                      style={{ display: "block", width: "84px", height: "18px" }}
-                    >
-                      <path
-                        d={trendPath}
-                        fill="none"
-                        stroke={trendColor}
-                        strokeWidth="1.25"
-                        strokeLinejoin="round"
-                        strokeLinecap="round"
-                      />
-                    </svg>
+                    {m.aa_index_score != null ? m.aa_index_score.toFixed(0) : "-"}
                   </div>
                   {/* Medal column: gold/silver/bronze for top 3 per tier */}
                   <div role="cell" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
