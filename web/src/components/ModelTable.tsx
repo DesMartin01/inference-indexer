@@ -69,8 +69,8 @@ const COLS_TIER: { key: ColKey; label: string; align: "left" | "right" | "center
   { key: "medal", label: "Medal", align: "center" },
 ];
 
-const GRID_ALL = "30px minmax(130px, 275px) 84px 76px 82px 82px 108px 64px 100px 72px 56px 48px";
-const GRID_TIER = "30px minmax(130px, 275px) 84px 76px 82px 82px 108px 64px 100px 100px 72px 56px 48px";
+const GRID_ALL = "30px minmax(130px, 275px) 84px 76px 82px 82px 108px 64px 100px 100px 76px 56px";
+const GRID_TIER = "30px minmax(130px, 275px) 84px 76px 82px 82px 108px 64px 100px 100px 100px 76px 56px";
 
 interface Props {
   models: ModelSummary[];
@@ -480,6 +480,23 @@ export default function ModelTable({ models, totalCount }: Props) {
                           zIndex: 9999, pointerEvents: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.5)", textAlign: "left",
                         }}>
                           SIT Score is tier-relative (100 = your tier's median). Lower = cheaper than your tier's median. Colors match tier: gold = Frontier, blue = Standard, green = Budget, grey = Micro. Scores are NOT comparable across tiers.
+                        </span>
+                      </span>
+                    )}
+                    {c.key === "aa" && (
+                      <span className="ii-tip-wrap" style={{ position: "relative", display: "inline-flex", cursor: "help", marginLeft: "3px" }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5f5f5f" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style={{ flexShrink: 0 }}>
+                          <path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 0 0 12 18Z"/>
+                          <path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 0 1 12 18Z"/>
+                        </svg>
+                        <span className="ii-tip" style={{
+                          display: "none", position: "absolute", top: "140%", left: "50%",
+                          transform: "translateX(-50%)", background: "#1a1a1a", color: "#e0e0e0",
+                          border: "1px solid #C4A038", padding: "8px 12px", borderRadius: "6px",
+                          fontSize: "12px", lineHeight: "1.5", whiteSpace: "normal", width: "260px",
+                          zIndex: 9999, pointerEvents: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.5)", textAlign: "left",
+                        }}>
+                          AA Score = Artificial Analysis Intelligence Index. A composite benchmark score from artificialanalysis.ai measuring model capability across reasoning, coding, math, and knowledge tasks. Higher = more capable. Used to quality-adjust our SIT pricing metric.
                         </span>
                       </span>
                     )}
