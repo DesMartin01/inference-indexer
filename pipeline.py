@@ -2793,6 +2793,7 @@ def main():
     # Override AA scores with direct-from-AA values (OpenRouter's copy lags by days/weeks)
     if aa_scores:
         updated = 0
+        tier_changed = 0
         for m in normalized:
             direct_score = match_aa_score(m["model_id"], m.get("name", ""), aa_scores)
             if direct_score is not None:
@@ -2800,7 +2801,18 @@ def main():
                 m["aa_index_score"] = direct_score
                 if old_score != direct_score:
                     updated += 1
+                # Reassign tier based on the fresh AA score
+                old_tier = m.get("tier")
+                new_tier = assign_tier(direct_score, m.get("blended_price_per_m"))
+                if old_tier != new_tier:
+                    m["tier"] = new_tier
+                    tier_changed += 1
+                # Recalculate SIT-adjusted price with the correct AA score
+                m["sit_adjusted_price"] = calculate_sit_adjusted_price(
+                    m.get("blended_price_per_m", 0), m.get("reasoning_multiplier", 1.0), direct_score
+                )
         print(f"  AA direct scores: {updated} models updated (out of {len(normalized)})")
+        print(f"  Tier changes: {tier_changed} models reclassified")
 
     # Apply median/endpoint pricing BEFORE filtering. Models with no catalog
     # price but a real price in model_endpoints (single-provider models like
