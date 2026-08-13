@@ -168,7 +168,7 @@ export default function EmbeddingTable({ models, totalCount }: Props) {
       {/* Table */}
       <section style={{ maxWidth: "1320px", margin: "0 auto", padding: "0 28px" }}>
         <div style={{ overflowX: "auto" }}>
-          <div role="table" aria-label="AI embedding model prices" style={{ minWidth: "auto" }}>
+          <div role="table" aria-label="AI embedding model prices" style={{ width: "100%" }}>
             {/* Header */}
             <div
               role="row"
