@@ -51,6 +51,7 @@ DEEPINFRA_API = "https://api.deepinfra.com/v1/openai/models"
 NOVITA_API = "https://api.novita.ai/v3/openai/models"
 # Novita prices are expressed as (price per 1M tokens) * 10000. Divide by 10000 to get $/M.
 NOVITA_PRICE_DIVISOR = 10000
+AA_LEADERBOARD_URL = "https://artificialanalysis.ai/leaderboards/models"
 # No-auth direct API providers
 SAMABANOVA_API = "https://api.sambanova.ai/v1/models"
 INFERENCE_NET_API = "https://api.inference.net/v1/models"
@@ -2008,6 +2009,104 @@ def apply_median_pricing(models, fetch_endpoints=False):
     return models, all_endpoint_data
 
 # ============================================
+# ARTIFICIAL ANALYSIS SCORES (direct scrape)
+# ============================================
+
+def fetch_aa_scores():
+    """Fetch Artificial Analysis Intelligence Index scores directly from AA.
+
+    AA's leaderboard page embeds all model scores in Next.js RSC data.
+    This scraper extracts them so we don't depend on OpenRouter's stale copy.
+
+    Returns dict: { aa_slug: { "name": str, "score": float, "estimated": bool } }
+    """
+    import re
+    print(f"\n[{datetime.now(timezone.utc).isoformat()}] Fetching AA leaderboard scores...")
+    resp = requests.get(AA_LEADERBOARD_URL, timeout=30, headers={"User-Agent": "InferenceIndexer/1.0"})
+    if resp.status_code != 200:
+        print(f"  WARN: AA leaderboard returned {resp.status_code}")
+        return {}
+
+    html = resp.text
+
+    # Pattern: "name":"Model Name",...,"slug":"model-slug",...,"intelligenceIndex":SCORE,...
+    # The JSON is escaped with backslashes in Next.js RSC data.
+    # Between name and slug there's shortName; between slug and intelligenceIndex
+    # there are many fields (releaseDate, isReasoning, modelCreator*, etc.)
+    # Use [^\\""]+ to match field values without crossing into next field.
+    pattern = r'\\"name\\":\\"([^"]+)\\"[^}]*?\\"slug\\":\\"([^"]+)\\"[^}]*?\\"intelligenceIndex\\":([0-9.]+),\\"intelligenceIndexIsEstimated\\":(true|false)'
+    matches = re.findall(pattern, html, re.DOTALL)
+
+    scores = {}
+    for name, slug, score_str, est_str in matches:
+        if slug not in scores:
+            scores[slug] = {
+                "name": name,
+                "score": float(score_str),
+                "estimated": est_str == "true",
+            }
+
+    print(f"  AA leaderboard: {len(scores)} models with scores")
+
+    # Also build a name->slug mapping for fuzzy matching against OpenRouter IDs
+    # AA uses hyphens, OpenRouter uses slashes and dots
+    return scores
+
+
+def match_aa_score(model_id, model_name, aa_scores):
+    """Match an OpenRouter model ID/name to an AA leaderboard entry.
+
+    Tries multiple matching strategies:
+    1. Direct slug match (e.g. "deepseek-v4-pro" in both)
+    2. Name-based fuzzy match
+    3. Partial model ID match
+    """
+    import re
+    if not aa_scores:
+        return None
+
+    # Strategy 1: Try to derive AA slug from model_id
+    # OpenRouter: "deepseek/deepseek-v4-pro-0813" -> AA slug might be "deepseek-v4-pro"
+    # Strip provider prefix, normalize
+    parts = model_id.split("/")
+    model_part = parts[-1] if len(parts) > 1 else model_id
+    # Remove version suffixes for matching (0813, 0731, etc.)
+    base = re.sub(r'-\d{4}$', '', model_part)  # Remove trailing -0813
+    base = base.replace(".", "-").replace("_", "-")
+
+    # Try direct slug match
+    if base in aa_scores:
+        return aa_scores[base]["score"]
+
+    # Strategy 2: Try without version suffix
+    # e.g. "deepseek-v4-pro-0813" -> "deepseek-v4-pro"
+    base_no_version = re.sub(r'-\d{3,4}$', '', base)
+    if base_no_version in aa_scores:
+        return aa_scores[base_no_version]["score"]
+
+    # Strategy 3: Check if any AA slug is a substring of our model ID
+    model_lower = model_id.lower()
+    for slug, data in aa_scores.items():
+        if slug in model_lower or model_lower in slug:
+            return data["score"]
+
+    # Strategy 4: Name-based match (normalized, lowercase, no spaces/punctuation)
+    def normalize(s):
+        return re.sub(r'[^a-z0-9]', '', s.lower())
+
+    norm_name = normalize(model_name or model_id)
+    for slug, data in aa_scores.items():
+        norm_aa_name = normalize(data["name"])
+        if norm_name == norm_aa_name:
+            return data["score"]
+        # Check partial match (AA name contains model name or vice versa)
+        if len(norm_name) > 5 and (norm_name in norm_aa_name or norm_aa_name in norm_name):
+            return data["score"]
+
+    return None
+
+
+# ============================================
 # NORMALIZE
 # ============================================
 
@@ -2685,8 +2784,23 @@ def main():
     # --- FETCH ---
     raw_models = fetch_openrouter()
     
+    # Fetch AA scores directly from Artificial Analysis (overrides stale OpenRouter scores)
+    aa_scores = fetch_aa_scores()
+    
     # Normalize
     normalized = [normalize_model(m) for m in raw_models]
+    
+    # Override AA scores with direct-from-AA values (OpenRouter's copy lags by days/weeks)
+    if aa_scores:
+        updated = 0
+        for m in normalized:
+            direct_score = match_aa_score(m["model_id"], m.get("name", ""), aa_scores)
+            if direct_score is not None:
+                old_score = m.get("aa_index_score")
+                m["aa_index_score"] = direct_score
+                if old_score != direct_score:
+                    updated += 1
+        print(f"  AA direct scores: {updated} models updated (out of {len(normalized)})")
 
     # Apply median/endpoint pricing BEFORE filtering. Models with no catalog
     # price but a real price in model_endpoints (single-provider models like
