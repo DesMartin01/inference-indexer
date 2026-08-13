@@ -46,10 +46,10 @@ const COLS_ALL: { key: ColKey; label: string; align: "left" | "right" | "center"
   { key: "input", label: "Input $/M", align: "right" },
   { key: "output", label: "Output $/M", align: "right" },
   { key: "blended", label: "Blended $/M", align: "right" },
+  { key: "c24", label: "24h", align: "right" },
   { key: "sit", label: "SIT Score", align: "right" },
   { key: "aa", label: "AA Score", align: "right" },
   { key: "sources", label: "Sources", align: "right" },
-  { key: "c24", label: "24h", align: "right" },
   { key: "medal", label: "Medal", align: "center" },
 ];
 
@@ -61,16 +61,16 @@ const COLS_TIER: { key: ColKey; label: string; align: "left" | "right" | "center
   { key: "input", label: "Input $/M", align: "right" },
   { key: "output", label: "Output $/M", align: "right" },
   { key: "blended", label: "Blended $/M", align: "right" },
+  { key: "c24", label: "24h", align: "right" },
   { key: "sitadj", label: "Cost / IQ", align: "right" },
   { key: "sit", label: "SIT Score", align: "right" },
   { key: "aa", label: "AA Score", align: "right" },
   { key: "sources", label: "Sources", align: "right" },
-  { key: "c24", label: "24h", align: "right" },
   { key: "medal", label: "Medal", align: "center" },
 ];
 
-const GRID_ALL = "30px minmax(130px, 275px) 84px 76px 82px 82px 108px 100px 72px 56px 64px 48px";
-const GRID_TIER = "30px minmax(130px, 275px) 84px 76px 82px 82px 108px 100px 100px 72px 56px 64px 48px";
+const GRID_ALL = "30px minmax(130px, 275px) 84px 76px 82px 82px 108px 64px 100px 72px 56px 48px";
+const GRID_TIER = "30px minmax(130px, 275px) 84px 76px 82px 82px 108px 64px 100px 100px 72px 56px 48px";
 
 interface Props {
   models: ModelSummary[];
@@ -661,6 +661,14 @@ export default function ModelTable({ models, totalCount }: Props) {
                   >
                     {formatPrice(m.blended_price_per_m)}
                   </div>
+                  {/* 24h price change */}
+                  <div
+                    role="cell"
+                    title={`24h change in blended price: ${formatPct(c24)}`}
+                    style={{ fontSize: "13px", fontWeight: 500, color: pctColor(c24), padding: "0 10px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}
+                  >
+                    {formatPct(c24)}
+                  </div>
                   {showCostIQ && (
                     <div
                       role="cell"
@@ -714,12 +722,6 @@ export default function ModelTable({ models, totalCount }: Props) {
                     style={{ fontSize: "13px", fontWeight: 500, color: (m.source_count ?? 1) > 1 ? "#c9c9c9" : "#5f5f5f", padding: "0 10px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}
                   >
                     {m.source_count ?? 1}
-                  </div>
-                  <div
-                    role="cell"
-                    style={{ fontSize: "13px", fontWeight: 500, color: pctColor(c24), padding: "0 10px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}
-                  >
-                    {formatPct(c24)}
                   </div>
                   {/* Medal column: gold/silver/bronze for top 3 per tier */}
                   <div role="cell" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
