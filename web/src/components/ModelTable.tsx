@@ -693,19 +693,6 @@ export default function ModelTable({ models, totalCount }: Props) {
                   >
                     {s != null ? s : "N/A"}
                   </div>
-                  <div
-                    role="cell"
-                    title={`${m.source_count ?? 1} provider${(m.source_count ?? 1) > 1 ? "s" : ""} offer this model`}
-                    style={{ fontSize: "13px", fontWeight: 500, color: (m.source_count ?? 1) > 1 ? "#c9c9c9" : "#5f5f5f", padding: "0 10px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}
-                  >
-                    {m.source_count ?? 1}
-                  </div>
-                  <div
-                    role="cell"
-                    style={{ fontSize: "13px", fontWeight: 500, color: pctColor(c24), padding: "0 10px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}
-                  >
-                    {formatPct(c24)}
-                  </div>
                   {/* AA Score */}
                   <div
                     role="cell"
@@ -720,6 +707,19 @@ export default function ModelTable({ models, totalCount }: Props) {
                     }}
                   >
                     {m.aa_index_score != null ? m.aa_index_score.toFixed(0) : "-"}
+                  </div>
+                  <div
+                    role="cell"
+                    title={`${m.source_count ?? 1} provider${(m.source_count ?? 1) > 1 ? "s" : ""} offer this model`}
+                    style={{ fontSize: "13px", fontWeight: 500, color: (m.source_count ?? 1) > 1 ? "#c9c9c9" : "#5f5f5f", padding: "0 10px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}
+                  >
+                    {m.source_count ?? 1}
+                  </div>
+                  <div
+                    role="cell"
+                    style={{ fontSize: "13px", fontWeight: 500, color: pctColor(c24), padding: "0 10px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}
+                  >
+                    {formatPct(c24)}
                   </div>
                   {/* Medal column: gold/silver/bronze for top 3 per tier */}
                   <div role="cell" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
