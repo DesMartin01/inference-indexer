@@ -415,6 +415,9 @@ export default async function Home() {
           <a href="/api-docs" style={{ color: "#C4A038", textDecoration: "underline" }}>Our API</a>{" "}
           also exposes historic price data and shows where providers have diverged from aggregators.
         </p>
+        <p style={{ fontSize: "13px", color: "#6a6a6a", margin: "4px 0 0" }}>
+          Models below ranked by SIT Score, which is a commodity price per unit of AI compute. To rank on intelligence, sort by AA Score.
+        </p>
       </section>
 
       {/* Model table (client component, wrapped in Suspense for ISR) */}
