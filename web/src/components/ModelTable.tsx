@@ -69,8 +69,8 @@ const COLS_TIER: { key: ColKey; label: string; align: "left" | "right" | "center
   { key: "medal", label: "Medal", align: "center" },
 ];
 
-const GRID_ALL = "30px minmax(130px, 275px) 84px 76px 82px 82px 108px 64px 100px 100px 76px 56px";
-const GRID_TIER = "30px minmax(130px, 275px) 84px 76px 82px 82px 108px 64px 100px 100px 100px 76px 56px";
+const GRID_ALL = "30px minmax(130px, 275px) 110px 76px 82px 82px 108px 64px 100px 100px 76px 56px";
+const GRID_TIER = "30px minmax(130px, 275px) 110px 76px 82px 82px 108px 64px 100px 100px 100px 76px 56px";
 
 interface Props {
   models: ModelSummary[];
