@@ -291,6 +291,37 @@ export async function getProviders(): Promise<ProviderList> {
   return fetchWithCache<ProviderList>("/v1/providers");
 }
 
+// ============================================
+// EMBEDDINGS
+// ============================================
+
+export interface EmbeddingModel {
+  model_id: string;
+  name: string;
+  provider: string;
+  context_length: number;
+  embedding_dimensions: number;
+  creator_country: string | null;
+  input_price_per_m: number;
+  fetched_at: string;
+  source_count: number;
+  is_zdr: boolean;
+  is_eu_sovereign: boolean;
+}
+
+export interface EmbeddingList {
+  count: number;
+  returned: number;
+  models: EmbeddingModel[];
+}
+
+export async function getEmbeddings(sort?: string): Promise<EmbeddingList> {
+  const q = new URLSearchParams();
+  if (sort) q.set("sort", sort);
+  const qs = q.toString();
+  return fetchWithCache<EmbeddingList>(`/v1/embeddings${qs ? `?${qs}` : ""}`);
+}
+
 export async function getProviderDetail(providerName: string): Promise<ProviderDetail> {
   const res = await fetch(`${API_URL}/v1/providers/${encodeURIComponent(providerName)}`, { next: { revalidate: ISR_REVALIDATE }, headers: SSR_HEADERS });
   if (!res.ok) throw new Error(`Provider not found: ${res.status}`);

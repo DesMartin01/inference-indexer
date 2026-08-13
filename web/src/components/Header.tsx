@@ -227,6 +227,9 @@ export function Footer({ models, providers, updatedAt = "" }: { models?: number;
           <Link href="/providers" style={{ fontSize: "12px", color: "#7a7a7a", textDecoration: "none" }}>
             Providers
           </Link>
+          <Link href="/model-type" style={{ fontSize: "12px", color: "#7a7a7a", textDecoration: "none" }}>
+            Model Type
+          </Link>
           <Link href="/methodology" style={{ fontSize: "12px", color: "#7a7a7a", textDecoration: "none" }}>
             Methodology
           </Link>
