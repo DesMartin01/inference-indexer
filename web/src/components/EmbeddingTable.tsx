@@ -47,8 +47,9 @@ const COLS: { key: SortKey; label: string; align: "left" | "right" | "center" }[
 ];
 
 // 9 columns: model | creator | dims | context | price | 24h | sources | zdr | eu
+// Model column uses 1fr to fill remaining width, preventing truncation and empty space
 const GRID =
-  "minmax(120px, 200px) 100px 64px 84px 84px 56px 64px 40px 56px";
+  "minmax(200px, 1fr) 110px 72px 92px 92px 60px 72px 44px 60px";
 
 interface Props {
   models: EmbeddingModel[];
