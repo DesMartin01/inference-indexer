@@ -76,21 +76,27 @@ def main():
     if unpriced is not None and total and unpriced > total * 0.1:
         issues.append("provider pricing: %s/%s have no priced models" % (unpriced, total))
 
-    # ---- 2. SIT score stability (no same-day swings) ----
+    # ---- 2. TPI stability (daily TPI should not move > 20%) ----
     cur.execute("""
-        SELECT COUNT(*) FROM (
-            SELECT fetched_at::date AS d, model_id
-            FROM price_snapshots
-            WHERE fetched_at >= NOW() - INTERVAL '3 days'
-            GROUP BY 1, 2
-            HAVING COUNT(DISTINCT sit_score) > 2
-        ) flips
+        SELECT date, sit_price, sit_index_points
+        FROM sit_index_values
+        WHERE tier = 'composite'
+          AND calculation_method = 'tpi_equal_weight_provider_capped'
+        ORDER BY date DESC
+        LIMIT 3
     """)
-    sit_flips = cur.fetchone()[0]
-    print("[2] SIT score stability (models with >2 distinct sit_score same-day, 3d)")
-    print("    count: %s" % sit_flips)
-    if sit_flips > 5:
-        issues.append("SIT instability: %s models flip scores within a day" % sit_flips)
+    recent_tpi = cur.fetchall()
+    print("[2] TPI stability (last 3 daily values)")
+    for r in recent_tpi:
+        print("    %s: $%s (index %s)" % (r[0], r[1], r[2]))
+    if len(recent_tpi) >= 2:
+        latest_tpi = recent_tpi[0][1]
+        prev_tpi = recent_tpi[1][1]
+        if prev_tpi > 0:
+            change = abs((latest_tpi - prev_tpi) / prev_tpi)
+            if change > 0.20:
+                issues.append("TPI moved %.1f%% in one day ($%s -> $%s)" % (
+                    change * 100, prev_tpi, latest_tpi))
 
     # ---- 3. Freshness ----
     cur.execute("""
@@ -141,7 +147,8 @@ def main():
         GROUP BY calculation_method
     """)
     methods = cur.fetchall()
-    bad_methods = [m[0] for m in methods if m[0] != "usage_weighted_quality_gated"]
+    valid_methods = {"tpi_equal_weight_provider_capped", "usage_weighted_quality_gated"}
+    bad_methods = [m[0] for m in methods if m[0] not in valid_methods]
     print("[6] Composite methodology across history:")
     for m in methods:
         print("    %s: %d row(s)" % (m[0], m[2]))
@@ -151,18 +158,17 @@ def main():
         issues.append("no composite rows in sit_index_values")
 
     # ---- 7. Index points sanity ----
-    # sit_index_points should only be 1000 at the base date; later dates should
-    # have moved. If every date is frozen at exactly 1000.00, the index isn't
-    # being computed correctly.
+    # Check only new-method rows (tpi_equal_weight_provider_capped)
     cur.execute("""
         SELECT COUNT(*) FILTER (WHERE sit_index_points = 1000)
         FROM sit_index_values
         WHERE tier = 'composite'
+          AND calculation_method = 'tpi_equal_weight_provider_capped'
     """)
     frozen = cur.fetchone()[0]
-    print("[7] Composite rows stuck at index 1000: %s" % frozen)
-    if frozen and frozen == 7:  # all historical rows frozen = rebase never ran
-        issues.append("composite index frozen at 1000 across full history")
+    print("[7] TPI rows stuck at index 1000: %s" % frozen)
+    if frozen and frozen > 1:  # >1 row at 1000 = rebase never ran properly
+        issues.append("TPI index frozen at 1000 across %d rows" % frozen)
 
     cur.close()
     conn.close()

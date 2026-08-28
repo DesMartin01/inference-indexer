@@ -1,10 +1,27 @@
+export const maxDuration = 60;
+export const revalidate = 300;
+export const dynamicParams = true;
+export const fetchCache = 'force-cache';
+
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getModel, getModelHistory, getModelEndpoints, providerFaviconUrl } from "@/lib/api";
+import { getModel, getModelHistory, getModelEndpoints, providerFaviconUrl, getModels } from "@/lib/api";
 import { Sparkline } from "@/components/Sparkline";
 import { Header } from "@/components/Header";
 import { ProviderComparisonTable } from "@/components/ProviderComparisonTable";
 import type { Metadata } from "next";
+
+// Pre-render all model pages at build time, ISR handles updates
+export async function generateStaticParams() {
+  try {
+    const data = await getModels(undefined, undefined, 500, 3600);
+    return data.models.map((m) => ({
+      modelId: m.model_id.split("/"),
+    }));
+  } catch {
+    return [];
+  }
+}
 
 const GREEN = "#22c55e";
 const RED = "#ef4444";
@@ -46,21 +63,18 @@ export async function generateMetadata({ params }: { params: Promise<{ modelId: 
   try {
     model = await getModel(modelId);
   } catch {
-    notFound();
+    return { title: "Model Not Found | InferenceIndexer" };
   }
 
   const name = cleanModelName(model.name);
   const provider = model.provider;
   const blended = money(model.blended_price_per_m);
   const tier = model.tier.charAt(0).toUpperCase() + model.tier.slice(1);
-  const sitScore = model.sit_score != null ? model.sit_score : null;
-  const sitScoreDisplay = sitScore != null ? String(sitScore) : "N/A";
 
   // Title: "GPT-5.6 Luna Price - $0.40/M | InferenceIndexer"
   const title = `${name} Price - ${blended}/M | InferenceIndexer`;
 
-  // Description: "GPT-5.6 Luna inference pricing: input $0.10/M, output $0.60/M, blended $0.40/M. SIT Score 0.01 (Frontier tier). Compare API costs across providers."
-  const description = `${name} by ${provider} inference pricing: input ${money(model.input_price_per_m)}/M, output ${money(model.output_price_per_m)}/M, blended ${blended}/M. SIT Score ${sitScoreDisplay} (${tier} tier). Compare AI inference costs across providers.`;
+  const description = `${name} by ${provider} inference pricing: input ${money(model.input_price_per_m)}/M, output ${money(model.output_price_per_m)}/M, blended ${blended}/M. Cost / IQ ${model.sit_adjusted_price != null ? `$${model.sit_adjusted_price.toFixed(4)}/M` : "N/A"} (${tier} tier). Compare AI inference costs across providers.`;
 
   const url = `https://www.inferenceindexer.ai/models/${modelId}`;
 
@@ -130,7 +144,7 @@ function modelJsonLd(model: Awaited<ReturnType<typeof getModel>>) {
       ],
     },
     additionalProperty: [
-      { "@type": "PropertyValue", name: "SIT Score", value: model.sit_score },
+      { "@type": "PropertyValue", name: "Cost / IQ", value: model.sit_adjusted_price },
       { "@type": "PropertyValue", name: "Quality Tier", value: model.tier },
       { "@type": "PropertyValue", name: "Context Length", value: model.context_length },
       ...(model.aa_index_score
@@ -156,23 +170,21 @@ export default async function ModelDetailPage({
     notFound();
   }
 
+  // Fetch history and endpoints in parallel (not sequential)
   let history;
-  try {
-    history = await getModelHistory(modelId, 30);
-  } catch {
-    history = { model_id: model.model_id, name: model.name, history: [], days: 0 };
-  }
-
   let endpoints;
   try {
-    endpoints = await getModelEndpoints(modelId);
+    [history, endpoints] = await Promise.all([
+      getModelHistory(modelId, 30).catch(() => ({ model_id: model.model_id, name: model.name, history: [], days: 0 })),
+      getModelEndpoints(modelId).catch(() => ({ model_id: model.model_id, name: model.name, endpoints: [], count: 0 })),
+    ]);
   } catch {
+    history = { model_id: model.model_id, name: model.name, history: [], days: 0 };
     endpoints = { model_id: model.model_id, name: model.name, endpoints: [], count: 0 };
   }
 
-  const sitScore = model.sit_score;
-  const hasSitScore = sitScore != null;
-  const sitPct = hasSitScore ? Math.min(sitScore / 2, 100) : 0; // Scale: 200=full bar, 100=median
+  const sitAdjusted = model.sit_adjusted_price;
+  const hasSitAdjusted = sitAdjusted != null;
   const tierColor = TIER_COLOR[model.tier] || FLAT;
 
   const providerFav = providerFaviconUrl(model.provider);
@@ -371,47 +383,38 @@ export default async function ModelDetailPage({
 
         {/* SIT Comparison Panel */}
         <div style={{ background: "#16161a", border: "1px solid #2a2a2a", borderRadius: 8, padding: "20px 24px", marginBottom: 28 }}>
-          <div style={{ fontSize: 14, fontWeight: 500, color: "#e5e5e5", marginBottom: 16 }}>SIT Comparison</div>
+          <div style={{ fontSize: 14, fontWeight: 500, color: "#e5e5e5", marginBottom: 16 }}>Cost / IQ Comparison</div>
 
-          {/* SIT Score Bar */}
+          {/* Cost / IQ value */}
           <div style={{ marginBottom: 20 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-              <span style={{ fontSize: 12, color: "#8a8a8a" }}>SIT Score (100 = tier median)</span>
-              <span style={{ fontFamily: "Inter, sans-serif", fontSize: 14, fontWeight: 600, color: hasSitScore ? (sitScore < 100 ? GREEN : sitScore <= 100 ? "#e5e5e5" : ACCENT) : "#5f5f5f" }}>
-                {hasSitScore ? `${sitScore} (${sitScore < 100 ? `${(100 - sitScore)}% below` : `${(sitScore - 100)}% above`} tier median)` : "N/A (no AA score)"}
+              <span style={{ fontSize: 12, color: "#8a8a8a" }}>Cost / IQ (quality-adjusted $/M)</span>
+              <span style={{ fontFamily: "Inter, sans-serif", fontSize: 14, fontWeight: 600, color: hasSitAdjusted ? GREEN : "#5f5f5f" }}>
+                {hasSitAdjusted ? `$${sitAdjusted!.toFixed(4)}/M` : "N/A (no AA score)"}
               </span>
             </div>
-            <div style={{ height: 8, background: "#1a1a1a", borderRadius: 4, overflow: "hidden" }}>
-              <div style={{ width: `${sitPct}%`, height: "100%", background: hasSitScore ? (sitScore < 100 ? GREEN : sitScore <= 100 ? "#5b8def" : ACCENT) : "#333", borderRadius: 4 }} />
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, fontFamily: "Inter, sans-serif", fontSize: 10.5, color: "#5f5f5f" }}>
-              <span>1 (cheapest)</span>
-              <span>100 (tier median)</span>
+            <div style={{ fontSize: 12, color: "#5f5f5f", marginTop: 4 }}>
+              Cost per GPT-4-equivalent token. Lower = better value. Comparable across all models.
             </div>
           </div>
 
           {/* Comparison Statements */}
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
-            {model.comparisons.below_tier_avg_pct !== undefined && model.comparisons.below_tier_avg_pct > 0 && (
-              <div style={{ fontSize: 13, color: GREEN }}>
-                {model.comparisons.below_tier_avg_pct}% below {model.tier} tier median ({money(model.tier_average_price)}/M)
-              </div>
-            )}
-            {model.comparisons.above_tier_avg_pct !== undefined && model.comparisons.above_tier_avg_pct > 0 && (
-              <div style={{ fontSize: 13, color: ACCENT }}>
-                {model.comparisons.above_tier_avg_pct}% above {model.tier} tier median ({money(model.tier_average_price)}/M)
-              </div>
-            )}
             {model.comparisons.above_composite_pct !== undefined && model.comparisons.above_composite_pct > 0 && (
               <div style={{ fontSize: 13, color: ACCENT }}>
                 {model.comparisons.above_composite_pct}% above SIT-Composite
               </div>
             )}
+            {model.comparisons.above_composite_pct === 0 && (
+              <div style={{ fontSize: 13, color: GREEN }}>
+                At or below SIT-Composite
+              </div>
+            )}
           </div>
 
-          {/* Tier Ranking */}
+          {/* Value Ranking */}
           <div>
-            <div style={{ fontSize: 12, color: "#8a8a8a", marginBottom: 8 }}>Tier Ranking (by SIT Score)</div>
+            <div style={{ fontSize: 12, color: "#8a8a8a", marginBottom: 8 }}>Value Ranking (by Cost / IQ)</div>
             <div style={{ fontSize: 13, color: "#e5e5e5" }}>
               Rank #{model.tier_rank} of {model.tier_total_models} {model.tier} models
             </div>
@@ -445,7 +448,7 @@ export default async function ModelDetailPage({
             </div>
             <div style={{ color: "#6a6a6a", marginTop: 12 }}># Response (truncated)</div>
             <div style={{ marginTop: 4, color: "#8a8a8a" }}>
-              {`{ "model_id": "${model.model_id}", "name": "${model.name}", "blended_price_per_m": ${model.blended_price_per_m}, "sit_score": ${model.sit_score} }`}
+              {`{ "model_id": "${model.model_id}", "name": "${model.name}", "blended_price_per_m": ${model.blended_price_per_m}, "sit_adjusted_price": ${model.sit_adjusted_price} }`}
             </div>
           </div>
           <div style={{ marginTop: 12 }}>

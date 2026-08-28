@@ -31,6 +31,11 @@ from provider_scrapers import (
 from tensorx_pricing import fetch_tensorx_pricing as _fetch_tensorx_pricing
 from openrelay_pricing import fetch_openrelay_pricing as _fetch_openrelay_pricing
 from sarvam_pricing import fetch_sarvam_pricing as _fetch_sarvam_pricing
+from direct_scrapers import (
+    fetch_zai_pricing as _fetch_zai_pricing,
+    fetch_alibaba_pricing as _fetch_alibaba_pricing,
+    fetch_moonshot_pricing as _fetch_moonshot_pricing,
+)
 
 # Try psycopg2 for Supabase, fall back to just printing
 try:
@@ -159,6 +164,10 @@ def calculate_sit_adjusted_price(blended_price, reasoning_multiplier, aa_score):
     This gives the cost of producing GPT-4-Turbo-equivalent inference tokens.
     A model scoring higher than GPT-4-Turbo will have a lower adjusted price
     (cheaper per unit of intelligence). Lower is better.
+    
+    The reasoning_multiplier parameter is kept for backward compatibility but
+    ignored: reasoning token overhead varies by task, not model, so a fixed
+    multiplier is misleading. The is_reasoning flag is shown in the UI instead.
     
     For models without an AA score, returns None.
     """
@@ -551,10 +560,28 @@ def upsert_venice_models(conn, new_models, existing_priced):
         provider = provider.replace("-", " ").replace("_", " ").title()
         provider_map = {
             "Openai": "OpenAI",
+            "Open Ai": "OpenAI",
             "X Ai": "xAI",
+            "Xai": "xAI",
             "Z.Ai": "Z.ai",
+            "Z Ai": "Z.ai",
+            "Zai Org": "Z-AI",
             "Meta Llama": "Meta Llama",
-            "Bytedance Seed": "Bytedance Seed",
+            "Bytedance Seed": "ByteDance Seed",
+            "Mistralai": "Mistral AI",
+            "Mistral Ai": "Mistral AI",
+            "Mistral": "Mistral AI",
+            "Deepseek Ai": "DeepSeek",
+            "Deepseek": "DeepSeek",
+            "Moonshotai": "Moonshot AI",
+            "Moonshot": "Moonshot AI",
+            "Minimax Ai": "MiniMax",
+            "Minimaxai": "MiniMax",
+            "Minimax": "MiniMax",
+            "Zhipu Ai": "Zhipu AI",
+            "Ibm Granite": "IBM Granite",
+            "Ibm": "IBM",
+            "Sambanova": "SambaNova",
         }
         provider = provider_map.get(provider, provider)
         
@@ -2121,12 +2148,52 @@ def normalize_model(raw):
     provider = model_id.split("/")[0] if "/" in model_id else "unknown"
     # Capitalize provider
     provider = provider.replace("-", " ").replace("_", " ").title()
-    # Fix common ones
+    # Fix common ones - consolidate naming variants from OpenRouter
     provider_map = {
         "Openai": "OpenAI",
+        "Open Ai": "OpenAI",
         "X Ai": "xAI",
+        "Xai": "xAI",
         "Z.Ai": "Z.ai",
+        "Z Ai": "Z.ai",
+        "Zai Org": "Z-AI",
         "Meta": "Meta",
+        "Meta Llama": "Meta Llama",
+        "Mistralai": "Mistral AI",
+        "Mistral Ai": "Mistral AI",
+        "Mistral": "Mistral AI",
+        "Deepseek Ai": "DeepSeek",
+        "Deepseek": "DeepSeek",
+        "Moonshotai": "Moonshot AI",
+        "Moonshot": "Moonshot AI",
+        "Minimax Ai": "MiniMax",
+        "Minimaxai": "MiniMax",
+        "Minimax": "MiniMax",
+        "Bytedance Seed": "ByteDance Seed",
+        "Bytedance": "ByteDance",
+        "Zhipu Ai": "Zhipu AI",
+        "Ibm Granite": "IBM Granite",
+        "Ibm": "IBM",
+        "Sambanova": "SambaNova",
+        "Thinkingmachines": "Thinking Machines",
+        "Aion Labs": "AionLabs",
+        "Aionlabs": "AionLabs",
+        "Stability AI": "Stability AI",
+        "Sakana": "Sakana AI",
+        "Nvidia": "NVIDIA",
+        "Perplexity": "Perplexity",
+        "Anthracite Org": "Anthracite",
+        "Stepfun Ai": "StepFun",
+        "Stepfun": "StepFun",
+        "Pearl Ai": "Pearl AI",
+        "Nex Agi": "NexAGI",
+        "Glm 5.3 Flash": "Z-AI",
+        "Allenai": "Allen AI",
+        "Aisingapore": "AI Singapore",
+        "Cognitivecomputations": "Cognitive Computations",
+        "Sao10K": "Sao10K",
+        "Nousresearch": "Nous Research",
+        "Rekaai": "Reka AI",
     }
     provider = provider_map.get(provider, provider)
     
@@ -2165,8 +2232,9 @@ def normalize_model(raw):
     # Reasoning
     is_reasoning = raw.get("reasoning") is not None and raw.get("reasoning") != False
     
-    # Reasoning multiplier (tier-based estimate)
-    reasoning_multiplier = get_reasoning_multiplier(tier, is_reasoning)
+    # Reasoning multiplier: always 1.0 (no longer used in SIT calculation).
+    # Kept in the dict for DB backward compat. The is_reasoning flag is shown in the UI.
+    reasoning_multiplier = 1.0
     
     # SIT-adjusted price (cost per unit of intelligence)
     sit_adjusted_price = calculate_sit_adjusted_price(
@@ -2455,6 +2523,67 @@ def calculate_composite_usage_weighted(conn):
         }
     return {"price": 0.0, "model_count": 0, "provider_count": 0}
 
+def calculate_tpi(conn):
+    """Calculate the Token Price Index (TPI).
+    
+    Equal weight per provider, 30% cap, quality gate AA >= 35.
+    For each provider, take their cheapest SIT-qualified model's
+    sit_adjusted_price (cost per GPT-4-equivalent token).
+    
+    This replaces the old usage_weighted_quality_gated composite calculation.
+    """
+    cur = conn.cursor()
+    
+    # For each provider, find their cheapest SIT-qualified model
+    cur.execute("""
+        WITH qualified AS (
+            SELECT m.id, m.provider,
+                   lp.blended_price_per_m,
+                   lp.sit_adjusted_price
+            FROM models m
+            JOIN latest_prices lp ON m.id = lp.model_id
+            WHERE m.is_active = TRUE
+              AND lp.blended_price_per_m > 0
+              AND lp.sit_adjusted_price IS NOT NULL
+              AND lp.sit_adjusted_price > 0
+              AND m.aa_index_score IS NOT NULL
+              AND m.aa_index_score >= 35
+              AND m.id NOT LIKE '%%:batch'
+              AND m.modality NOT IN ('embedding', 'tts', 'stt', 'reranker', 'reader',
+                                      'image-generation', 'video-generation')
+        ),
+        cheapest_per_provider AS (
+            SELECT DISTINCT ON (provider)
+                provider,
+                sit_adjusted_price
+            FROM qualified
+            ORDER BY provider, sit_adjusted_price ASC
+        )
+        SELECT provider, sit_adjusted_price
+        FROM cheapest_per_provider
+        ORDER BY provider
+    """)
+    
+    providers = cur.fetchall()
+    cur.close()
+    
+    if not providers:
+        return {"price": 0.0, "model_count": 0, "provider_count": 0}
+    
+    n = len(providers)
+    base_weight = 1.0 / n
+    capped = [min(base_weight, 0.30) for _ in providers]
+    total = sum(capped)
+    weights = [w / total for w in capped]
+    
+    tpi = sum(w * p[1] for w, p in zip(weights, providers))
+    
+    return {
+        "price": round(tpi, 6),
+        "model_count": n,
+        "provider_count": n,
+    }
+
 def calculate_tier_indices(models):
     """Calculate SIT index values for each tier and the composite."""
     results = {}
@@ -2549,6 +2678,13 @@ def get_db_connection():
         print("Set it in ~/.hermes/.env as: SUPABASE_DB_URL=postgresql://postgres:...")
         sys.exit(1)
     
+    # Longer statement timeout for materialized view refreshes which can take
+    # up to 135s on large tables (286K snapshots, latest_prices CONCURRENTLY).
+    # 300s default; override with DB_STATEMENT_TIMEOUT_MS.
+    timeout_ms = os.environ.get("DB_STATEMENT_TIMEOUT_MS", "300000")
+    if "options" not in db_url:
+        sep = "&" if "?" in db_url else "?"
+        db_url = f"{db_url}{sep}options=-c%20statement_timeout%3D{timeout_ms}"
     return psycopg2.connect(db_url, connect_timeout=10)
 
 def upsert_models(conn, models):
@@ -2607,6 +2743,132 @@ def insert_endpoints(conn, endpoint_data):
     print(f"  Inserted {count} endpoint records")
     return count
 
+def build_orphan_snapshots(conn, priced_models):
+    """Build snapshot records for models that have priced endpoints from
+    direct scrapers but were dropped by filter_priced (OpenRouter catalog
+    price = 0). These models get endpoints inserted but never appear in
+    latest_prices because latest_prices is built from price_snapshots.
+
+    This function queries model_endpoints for active models with priced
+    endpoints that are NOT in the priced_models list, builds median-priced
+    snapshot dicts, and returns them for insertion via insert_price_snapshots.
+    """
+    cur = conn.cursor()
+
+    # IDs already in the priced list (will get snapshots normally)
+    priced_ids = {m["model_id"] for m in priced_models}
+
+    # Get all model IDs that have fresh priced endpoints but are not in priced_ids
+    cur.execute("""
+        SELECT DISTINCT ep.model_id
+        FROM model_endpoints ep
+        JOIN models m ON m.id = ep.model_id
+        WHERE m.is_active
+          AND ep.blended_price_per_m > 0
+          AND ep.fetched_at >= NOW() - INTERVAL '24 hours'
+          AND m.id NOT LIKE '%%:batch'
+    """)
+    all_endpoint_model_ids = {row[0] for row in cur.fetchall()}
+    orphan_ids = all_endpoint_model_ids - priced_ids
+
+    if not orphan_ids:
+        cur.close()
+        return []
+
+    # Get model metadata for orphans
+    cur.execute("""
+        SELECT id, name, provider, tier, modality, is_reasoning, aa_index_score
+        FROM models WHERE id = ANY(%s)
+    """, (list(orphan_ids),))
+    model_meta = {}
+    for row in cur.fetchall():
+        model_meta[row[0]] = {
+            "model_id": row[0],
+            "name": row[1],
+            "provider": row[2],
+            "tier": row[3],
+            "modality": row[4],
+            "is_reasoning": row[5],
+            "aa_index_score": row[6],
+        }
+
+    # Get latest endpoint prices per provider for each orphan
+    cur.execute("""
+        SELECT DISTINCT ON (model_id, endpoint_provider)
+            model_id, endpoint_provider, input_price_per_m,
+            output_price_per_m, blended_price_per_m, source
+        FROM model_endpoints
+        WHERE model_id = ANY(%s)
+          AND blended_price_per_m > 0
+          AND fetched_at >= NOW() - INTERVAL '24 hours'
+        ORDER BY model_id, endpoint_provider, fetched_at DESC
+    """, (list(orphan_ids),))
+
+    # Group endpoints by model
+    model_endpoints = {}
+    for row in cur.fetchall():
+        model_endpoints.setdefault(row[0], []).append(row)
+
+    cur.close()
+
+    # Build snapshot dicts in the same format as normalized models
+    orphans = []
+    for mid, meta in model_meta.items():
+        eps = model_endpoints.get(mid, [])
+        if not eps:
+            continue
+
+        blended_prices = [ep[4] for ep in eps if ep[4] and ep[4] > 0]
+        input_prices = [ep[2] for ep in eps if ep[2] and ep[2] > 0]
+        output_prices = [ep[3] for ep in eps if ep[3] and ep[3] > 0]
+        ep_sources = [ep[5] for ep in eps if ep[5]]
+
+        if not blended_prices:
+            continue
+
+        blended = compute_median(blended_prices)
+        inp = compute_median(input_prices) if input_prices else 0
+        out = compute_median(output_prices) if output_prices else 0
+
+        reasoning_mult = 1.0  # No longer tier-based; is_reasoning shown in UI
+        sit_adj = calculate_sit_adjusted_price(blended, reasoning_mult, meta["aa_index_score"])
+
+        has_direct = any(s and s != "openrouter" for s in ep_sources)
+        has_aggregator = any(s and s == "openrouter" for s in ep_sources)
+        if has_direct and has_aggregator:
+            source_label = "blended"
+        elif has_direct:
+            source_label = "direct"
+        else:
+            source_label = "aggregator"
+
+        orphans.append({
+            "model_id": mid,
+            "name": meta["name"],
+            "provider": meta["provider"],
+            "tier": meta["tier"],
+            "context_length": meta.get("context_length"),
+            "aa_index_score": meta["aa_index_score"],
+            "modality": meta["modality"],
+            "is_reasoning": meta["is_reasoning"],
+            "reasoning_multiplier": reasoning_mult,
+            "sit_adjusted_price": sit_adj,
+            "input_price_per_m": inp,
+            "output_price_per_m": out,
+            "blended_price_per_m": blended,
+            "source_count": len(blended_prices),
+            "source_label": source_label,
+            "raw_data": {"orphan_from_endpoints": True},
+        })
+
+    # Per-model SIT scores (tier-relative) are no longer computed.
+    # Orphan snapshots already have sit_adjusted_price set above.
+    # Ranking is by sit_adjusted_price (absolute, cost per GPT-4-equivalent token).
+
+    print(f"  Found {len(orphans)} endpoint-only models needing snapshots")
+    return orphans
+
+
 def insert_price_snapshots(conn, models):
     """Insert price snapshots for all models."""
     cur = conn.cursor()
@@ -2614,9 +2876,12 @@ def insert_price_snapshots(conn, models):
     anomalies_found = 0
     
     # Get previous prices for anomaly detection
+    # Only look at snapshots from the last 24 hours to avoid full-table scan
+    # on the 286K-row price_snapshots table (was timing out at >30s)
     cur.execute("""
         SELECT DISTINCT ON (model_id) model_id, blended_price_per_m
         FROM price_snapshots
+        WHERE fetched_at > NOW() - INTERVAL '24 hours'
         ORDER BY model_id, fetched_at DESC
     """)
     previous = {row[0]: row[1] for row in cur.fetchall()}
@@ -2692,7 +2957,7 @@ def insert_sit_values(conn, indices, today):
         
         # Use correct calculation method name
         if tier == "composite":
-            method = "usage_weighted_quality_gated"
+            method = "tpi_equal_weight_provider_capped"
         else:
             method = "median_tier"
         
@@ -2723,7 +2988,7 @@ def insert_sit_values(conn, indices, today):
 # PRINT SUMMARY (for --fetch-only mode)
 # ============================================
 
-def print_summary(models, tier_avgs, indices):
+def print_summary(models, indices):
     """Print a summary of the fetched data."""
     print("\n" + "=" * 60)
     print("INFERENCEINDEXER DATA SUMMARY")
@@ -2739,7 +3004,9 @@ def print_summary(models, tier_avgs, indices):
     print(f"\nTier breakdown:")
     for tier in ["frontier", "standard", "budget", "micro"]:
         count = tier_counts.get(tier, 0)
-        avg = tier_avgs.get(tier, 0)
+        # Use tier indices (from calculate_tier_indices) instead of tier_avgs
+        tier_idx = indices.get(tier, {})
+        avg = tier_idx.get("price", 0)
         print(f"  {tier:10s}: {count:4d} models, median blended ${avg:.4f}/M")
     
     print(f"\nSIT-Composite: ${indices['composite']['price']:.4f}/M")
@@ -2749,25 +3016,23 @@ def print_summary(models, tier_avgs, indices):
     if "spread" in indices:
         print(f"\nSIT-Spread: ${indices['spread']['price']:.4f}/M")
     
-    # Top 10 cheapest by SIT Score
-    scored = [m for m in models if m.get("sit_score") is not None and isinstance(m.get("sit_score"), int)]
-    scored.sort(key=lambda x: x["sit_score"])
-    
-    print(f"\nTop 10 by SIT Score (cheapest for tier, adjusted, 100=median):")
-    print(f"  {'Model':<40} {'Tier':<10} {'Blended $/M':<12} {'R.Mult':<7} {'Adj $/M':<10} {'SIT':>6}")
+    # Top 10 cheapest by Cost / IQ (sit_adjusted_price)
+    scored = [m for m in models if m.get("sit_adjusted_price") is not None and m.get("sit_adjusted_price") > 0]
+    scored.sort(key=lambda x: x["sit_adjusted_price"])
+
+    print(f"\nTop 10 by Cost / IQ (cheapest first, quality-adjusted $/M):")
+    print(f"  {'Model':<40} {'Tier':<10} {'Blended $/M':<12} {'Adj $/M':<10}")
     for m in scored[:10]:
-        rm = m.get("reasoning_multiplier", 1.0)
         adj = m.get("sit_adjusted_price")
         adj_str = f"${adj:.6f}" if adj else "N/A"
-        print(f"  {m['name'][:40]:<40} {m['tier']:<10} ${m['blended_price_per_m']:<11.4f} {rm:<7.1f} {adj_str:<10} {m['sit_score']:>6}")
-    
-    # Top 5 most expensive by SIT Score
-    print(f"\nTop 5 most expensive (by SIT Score):")
+        print(f"  {m['name'][:40]:<40} {m['tier']:<10} ${m['blended_price_per_m']:<11.4f} {adj_str:<10}")
+
+    # Top 5 most expensive by Cost / IQ
+    print(f"\nTop 5 most expensive (by Cost / IQ):")
     for m in scored[-5:]:
-        rm = m.get("reasoning_multiplier", 1.0)
         adj = m.get("sit_adjusted_price")
         adj_str = f"${adj:.6f}" if adj else "N/A"
-        print(f"  {m['name'][:40]:<40} {m['tier']:<10} ${m['blended_price_per_m']:<11.4f} {rm:<7.1f} {adj_str:<10} {m['sit_score']}")
+        print(f"  {m['name'][:40]:<40} {m['tier']:<10} ${m['blended_price_per_m']:<11.4f} {adj_str:<10}")
     
     print("\n" + "=" * 60)
 
@@ -2949,23 +3214,42 @@ def main():
         endpoint_data.extend(sarvam_endpoints)
         print(f"  Sarvam direct: {len(sarvam_endpoints)} endpoints added")
 
+    # Z.AI (Zhipu) direct (markdown pricing page, no API key)
+    zai_endpoints, zai_new_models = _fetch_zai_pricing()
+    if zai_endpoints:
+        endpoint_data.extend(zai_endpoints)
+        print(f"  Z.AI direct: {len(zai_endpoints)} endpoints added")
+
+    # Alibaba Cloud (DashScope) direct (pricing page scrape, no API key)
+    alibaba_endpoints, alibaba_new_models = _fetch_alibaba_pricing()
+    if alibaba_endpoints:
+        endpoint_data.extend(alibaba_endpoints)
+        print(f"  Alibaba direct: {len(alibaba_endpoints)} endpoints added")
+
+    # Moonshot AI direct (markdown pricing pages, no API key)
+    moonshot_endpoints, moonshot_new_models = _fetch_moonshot_pricing()
+    if moonshot_endpoints:
+        endpoint_data.extend(moonshot_endpoints)
+        print(f"  Moonshot direct: {len(moonshot_endpoints)} endpoints added")
+
     # Replicate direct (pricing page scrape, no API key needed)
     replicate_endpoints, replicate_new_models = fetch_replicate_direct()
     if replicate_endpoints:
         endpoint_data.extend(replicate_endpoints)
         print(f"  Replicate direct: {len(replicate_endpoints)} endpoints added")
     
-    # Calculate tier averages and SIT scores
-    # Use DAILY-STABLE tier medians so per-model SIT scores are constant across
-    # the day's hourly runs (catalog churn no longer flips the median hourly).
-    tier_avgs = get_stable_tier_medians(get_db_connection())
-    priced = calculate_sit_scores(priced, tier_avgs)
+    # Per-model SIT scores (tier-relative) are no longer computed.
+    # Ranking is by sit_adjusted_price (absolute, cost per GPT-4-equivalent token).
+    # sit_adjusted_price is set in normalize_model() and apply_median_pricing().
+    # The calculate_sit_scores() function is kept for backward compat / backfill scripts.
+    # tier_avgs = get_stable_tier_medians(get_db_connection())
+    # priced = calculate_sit_scores(priced, tier_avgs)
     
-    # Calculate SIT indices
+    # Calculate SIT indices (per-tier medians + TPI composite)
     indices = calculate_tier_indices(priced)
     
     # Print summary
-    print_summary(priced, tier_avgs, indices)
+    print_summary(priced, indices)
     
     if args.fetch_only:
         print("\n--fetch-only: skipping database storage")
@@ -3032,25 +3316,49 @@ def main():
             upsert_venice_models(conn, openrelay_new_models, priced)
         if sarvam_new_models:
             upsert_venice_models(conn, sarvam_new_models, priced)
+        if zai_new_models:
+            upsert_venice_models(conn, zai_new_models, priced)
+        if alibaba_new_models:
+            upsert_venice_models(conn, alibaba_new_models, priced)
+        if moonshot_new_models:
+            upsert_venice_models(conn, moonshot_new_models, priced)
         
         if endpoint_data:
             insert_endpoints(conn, endpoint_data)
         insert_price_snapshots(conn, priced)
+
+        # Insert snapshots for models that have priced endpoints from direct
+        # scrapers but are NOT in the OpenRouter catalog (so filter_priced
+        # dropped them). Without this, models like anthropic/claude-haiku-4-5
+        # (only on DeepInfra) get endpoints but never appear in latest_prices.
+        orphan_snapshots = build_orphan_snapshots(conn, priced)
+        if orphan_snapshots:
+            insert_price_snapshots(conn, orphan_snapshots)
+            print(f"  Inserted {len(orphan_snapshots)} snapshots for endpoint-only models")
         
-        # Recalculate composite using usage-weighted top 50 with quality gate
-        # (the API methodology, not the simple median used in calculate_tier_indices)
-        composite_data = calculate_composite_usage_weighted(conn)
+        # Recalculate composite using TPI (equal weight per provider, 30% cap,
+        # quality gate AA >= 35, cheapest SIT-qualified model per provider).
+        # Replaces the old usage_weighted_quality_gated composite.
+        composite_data = calculate_tpi(conn)
         if composite_data["price"] > 0:
             indices["composite"] = composite_data
         
         insert_sit_values(conn, indices, today)
         
-        # Refresh materialized views so the API sees fresh data
+        # Refresh materialized views in a separate connection with autocommit
+        # and a longer timeout (these can take 130+ seconds each on 286K snapshots)
         # (latest_prices, price_changes_24h, price_changes_7d are MATVIEWs for performance)
-        cur = conn.cursor()
-        cur.execute("REFRESH MATERIALIZED VIEW latest_prices")
-        cur.execute("REFRESH MATERIALIZED VIEW price_changes_24h")
-        cur.execute("REFRESH MATERIALIZED VIEW price_changes_7d")
+        refresh_conn = get_db_connection()
+        refresh_conn.autocommit = True
+        try:
+            rcur = refresh_conn.cursor()
+            rcur.execute("SET statement_timeout = '300s'")
+            rcur.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY latest_prices")
+            rcur.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY price_changes_24h")
+            rcur.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY price_changes_7d")
+            rcur.close()
+        finally:
+            refresh_conn.close()
         conn.commit()
         print(f"  Refreshed materialized views (latest_prices, price_changes_24h, price_changes_7d)")
         

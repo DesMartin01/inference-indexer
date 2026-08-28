@@ -47,7 +47,7 @@ const COLS_ALL: { key: ColKey; label: string; align: "left" | "right" | "center"
   { key: "output", label: "Output $/M", align: "right" },
   { key: "blended", label: "Blended $/M", align: "right" },
   { key: "c24", label: "24h", align: "right" },
-  { key: "sit", label: "SIT Score", align: "right" },
+  { key: "sitadj", label: "Cost / IQ", align: "right" },
   { key: "aa", label: "AA Score", align: "right" },
   { key: "sources", label: "Sources", align: "right" },
   { key: "medal", label: "Medal", align: "center" },
@@ -63,7 +63,6 @@ const COLS_TIER: { key: ColKey; label: string; align: "left" | "right" | "center
   { key: "blended", label: "Blended $/M", align: "right" },
   { key: "c24", label: "24h", align: "right" },
   { key: "sitadj", label: "Cost / IQ", align: "right" },
-  { key: "sit", label: "SIT Score", align: "right" },
   { key: "aa", label: "AA Score", align: "right" },
   { key: "sources", label: "Sources", align: "right" },
   { key: "medal", label: "Medal", align: "center" },
@@ -78,7 +77,7 @@ interface Props {
 }
 
 export default function ModelTable({ models, totalCount }: Props) {
-  const [sort, setSort] = useState<SortKey>("sit");
+  const [sort, setSort] = useState<SortKey>("sitadj");
   const [dir, setDir] = useState<SortDir>("asc");
   const [variant, setVariant] = useState("frontier");
   const [query, setQuery] = useState("");
@@ -88,22 +87,14 @@ export default function ModelTable({ models, totalCount }: Props) {
   const [euOnly, setEuOnly] = useState(false);
   const searchParams = useSearchParams();
 
-  // Dynamic columns and grid based on tier filter
-  const showCostIQ = variant !== "all";
-  const COLS = showCostIQ ? COLS_TIER : COLS_ALL;
-  const GRID = showCostIQ ? GRID_TIER : GRID_ALL;
+  // Cost / IQ is now the primary ranking metric for all views (not just tier-filtered)
+  const COLS = COLS_ALL;
+  const GRID = GRID_ALL;
 
-  // When tier filter changes, switch default sort:
-  // "all" = sort by blended price (SIT Score not cross-tier comparable)
-  // specific tier = sort by SIT Score (within-tier ranking)
+  // When tier filter changes, switch default sort to Cost / IQ (absolute, comparable across all models)
   useEffect(() => {
-    if (variant === "all") {
-      setSort("blended");
-      setDir("asc");
-    } else {
-      setSort("sit");
-      setDir("asc");
-    }
+    setSort("sitadj");
+    setDir("asc");
   }, [variant]);
 
   // Pick up search query from URL (set by nav search bar)
@@ -193,13 +184,13 @@ export default function ModelTable({ models, totalCount }: Props) {
     return list;
   }, [allModels, sort, dir, variant, query, provider, zdrOnly, euOnly]);
 
-  // Compute global ranking by SIT score (nulls last)
+  // Compute global ranking by Cost / IQ (sit_adjusted_price, nulls last)
   const ranked = useMemo(() => {
     return allModels.slice().sort((a, b) => {
-      if (a.sit_score == null && b.sit_score == null) return 0;
-      if (a.sit_score == null) return 1;
-      if (b.sit_score == null) return -1;
-      return a.sit_score - b.sit_score;
+      if (a.sit_adjusted_price == null && b.sit_adjusted_price == null) return 0;
+      if (a.sit_adjusted_price == null) return 1;
+      if (b.sit_adjusted_price == null) return -1;
+      return a.sit_adjusted_price - b.sit_adjusted_price;
     });
   }, [allModels]);
 
@@ -208,14 +199,14 @@ export default function ModelTable({ models, totalCount }: Props) {
     return idx >= 0 ? idx + 1 : 0;
   };
 
-  // Per-tier SIT score rankings for medals (gold/silver/bronze = top 3 in each tier)
+  // Per-tier Cost / IQ rankings for medals (gold/silver/bronze = top 3 in each tier by sit_adjusted_price)
   const tierMedals = useMemo(() => {
     const medals: Record<string, number> = {}; // model_id -> 1|2|3
     const tiers = ["frontier", "standard", "budget", "micro"];
     for (const tier of tiers) {
       const tierModels = allModels
-        .filter((m) => m.tier.toLowerCase() === tier && m.sit_score != null)
-        .sort((a, b) => (a.sit_score! - b.sit_score!));
+        .filter((m) => m.tier.toLowerCase() === tier && m.sit_adjusted_price != null)
+        .sort((a, b) => (a.sit_adjusted_price! - b.sit_adjusted_price!));
       tierModels.slice(0, 3).forEach((m, i) => {
         medals[m.model_id] = i + 1;
       });
@@ -465,21 +456,7 @@ export default function ModelTable({ models, totalCount }: Props) {
                           fontSize: "12px", lineHeight: "1.5", whiteSpace: "normal", width: "260px",
                           zIndex: 9999, pointerEvents: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.5)", textAlign: "left",
                         }}>
-                          Cost / IQ = Blended Price x (40 / AA Intelligence Score). Represents the cost of producing GPT-4-Turbo-equivalent inference tokens. Lower = better value per unit of intelligence. Not a transactional price.
-                        </span>
-                      </span>
-                    )}
-                    {c.key === "sit" && (
-                      <span className="ii-tip-wrap" style={{ position: "relative", display: "inline-flex", cursor: "help", marginLeft: "3px" }}>
-                        <span style={{ width: "11px", height: "11px", borderRadius: "50%", border: "1px solid #5f5f5f", color: "#5f5f5f", fontSize: "8px", lineHeight: "10px", textAlign: "center", fontFamily: "Inter, sans-serif" }}>i</span>
-                        <span className="ii-tip" style={{
-                          display: "none", position: "absolute", top: "140%", left: "50%",
-                          transform: "translateX(-50%)", background: "#1a1a1a", color: "#e0e0e0",
-                          border: "1px solid #C4A038", padding: "8px 12px", borderRadius: "6px",
-                          fontSize: "12px", lineHeight: "1.5", whiteSpace: "normal", width: "260px",
-                          zIndex: 9999, pointerEvents: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.5)", textAlign: "left",
-                        }}>
-                          SIT Score is tier-relative (100 = your tier's median). Lower = cheaper than your tier's median. Colors match tier: gold = Frontier, blue = Standard, green = Budget, grey = Micro. Scores are NOT comparable across tiers.
+                          Cost / IQ = Blended Price × (40 / AA Intelligence Score). Quality-adjusted price per million tokens. Lower = better value. Comparable across ALL models, not just within tiers.
                         </span>
                       </span>
                     )}
@@ -507,12 +484,12 @@ export default function ModelTable({ models, totalCount }: Props) {
             </div>
             {/* Rows */}
             {visible.map((m) => {
-              const s = m.sit_score;
               const c24 = m.change_24h ?? 0;
               const tColor = tierColor(m.tier);
               return (
-                <div
+                <Link
                   key={m.model_id}
+                  href={`/models/${m.model_id}`}
                   role="row"
                   style={{
                     display: "grid",
@@ -521,6 +498,8 @@ export default function ModelTable({ models, totalCount }: Props) {
                     height: "60px",
                     borderBottom: "1px solid #171717",
                     transition: "background 90ms",
+                    textDecoration: "none",
+                    cursor: "pointer",
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.background = "#141414";
@@ -576,19 +555,17 @@ export default function ModelTable({ models, totalCount }: Props) {
                         })()}
                       </span>
                     <span style={{ display: "flex", flexDirection: "column", gap: "3px", minWidth: 0 }}>
-                      <Link
-                        href={`/models/${m.model_id}`}
+                      <span
                         style={{
                           fontSize: "13.5px",
                           color: "#f2f2f2",
-                          textDecoration: "none",
                           whiteSpace: "nowrap",
                           overflow: "hidden",
                           textOverflow: "ellipsis",
                         }}
                       >
                         {m.name}
-                      </Link>
+                      </span>
                       <span
                         style={{
                           fontFamily: "var(--font-jetbrains-mono), monospace",
@@ -684,37 +661,21 @@ export default function ModelTable({ models, totalCount }: Props) {
                   >
                     {formatPct(c24)}
                   </div>
-                  {showCostIQ && (
-                    <div
-                      role="cell"
-                      title={m.sit_adjusted_price != null ? `${m.name}: Cost / IQ $${m.sit_adjusted_price.toFixed(4)}/M (quality-adjusted, not transactional)` : `${m.name}: no AA Intelligence Index score`}
-                      style={{
-                        fontSize: "13px",
-                        fontWeight: 500,
-                        color: m.sit_adjusted_price != null ? "#7ec47e" : "#5f5f5f",
-                        padding: "0 10px",
-                        textAlign: "right",
-                        fontVariantNumeric: "tabular-nums",
-                        cursor: "help",
-                      }}
-                    >
-                      {m.sit_adjusted_price != null ? `$${m.sit_adjusted_price.toFixed(4)}` : "N/A"}
-                    </div>
-                  )}
+                  {/* Cost / IQ column: shows sit_adjusted_price for ALL models (not just tier-filtered) */}
                   <div
                     role="cell"
-                    title={s != null ? `${m.name}: SIT Score ${s} (${capitalizeTier(m.tier)} tier, 100 = tier median. Lower = cheaper than median. Score is tier-relative, not comparable across tiers.)` : `${m.name}: no AA Intelligence Index score, SIT Score not available`}
+                    title={m.sit_adjusted_price != null ? `${m.name}: Cost / IQ $${m.sit_adjusted_price.toFixed(4)}/M (quality-adjusted price per GPT-4-equivalent token. Lower = better value. Comparable across all models.)` : `${m.name}: no AA Intelligence Index score, Cost / IQ not available`}
                     style={{
                       fontSize: "13.5px",
                       fontWeight: 600,
-                      color: s != null ? tColor : "#5f5f5f",
+                      color: m.sit_adjusted_price != null ? "#7ec47e" : "#5f5f5f",
                       padding: "0 10px",
                       textAlign: "right",
                       fontVariantNumeric: "tabular-nums",
                       cursor: "help",
                     }}
                   >
-                    {s != null ? s : "N/A"}
+                    {m.sit_adjusted_price != null ? `$${m.sit_adjusted_price.toFixed(4)}` : "N/A"}
                   </div>
                   {/* AA Score */}
                   <div
@@ -757,7 +718,7 @@ export default function ModelTable({ models, totalCount }: Props) {
                       );
                     })()}
                   </div>
-                </div>
+                </Link>
               );
             })}
           </div>

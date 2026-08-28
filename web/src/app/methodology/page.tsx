@@ -370,13 +370,14 @@ export default function MethodologyPage() {
                 </li>
               </ul>
               <p style={{ ...p, marginTop: 16 }}>The formula:</p>
-              <pre style={formulaStyle}>{`Quality-Adjusted Price = Blended Price × (40 / AA Intelligence Score)
+              <pre style={formulaStyle}>{`Cost / IQ = Blended Price × (40 / AA Intelligence Score)
+  Lower = cheaper per unit of intelligence
+  Comparable across ALL models
 
-SIT Score = round(Quality-Adjusted Price / Tier Median × 100)
-  100 = tier median, lower = cheaper, minimum = 1
-
-SIT-Composite = Σ(weight_i × price_i) / Σ(weight_i)
-  for top 50 models by token volume, AA score >= 35 only`}</pre>
+SIT-Composite (TPI) = Σ(w_p × min_adjusted_price_p)
+  for each provider, cheapest SIT-qualified model
+  w_p = equal weight per provider, capped at 30%
+  quality gate: AA Intelligence Index >= 35 only`}</pre>
               <p style={p}>
                 Where:
               </p>
@@ -395,38 +396,35 @@ SIT-Composite = Σ(weight_i × price_i) / Σ(weight_i)
                 </li>
               </ul>
               <p style={{ ...p, marginTop: 16 }}>
-                Lower Cost / IQ = cheaper per unit of intelligence. A SIT Score of 100 means the model is at the
-                tier median. Scores below 100 are cheaper than the median; above 100 are more expensive. The minimum
-                score is 1. Models without an AA Intelligence Index score do not receive a SIT score and are excluded
-                from the composite basket.
+                Lower Cost / IQ = cheaper per unit of intelligence. Cost / IQ is an absolute measure,
+                not relative to any tier median. A model at $0.25/M Cost / IQ is cheaper per unit of
+                intelligence than a model at $1.50/M Cost / IQ, regardless of tier. Models without an AA
+                Intelligence Index score do not receive a Cost / IQ and are excluded from the composite basket.
               </p>
             </SubSection>
 
-            <SubSection n="4.3" title="Usage Weighting">
+            <SubSection n="4.3" title="Provider Equal Weighting (TPI)">
               <p style={p}>
-                The SIT-Composite uses a <strong style={{ color: "#e5e5e5" }}>usage-weighted mean</strong> of the
-                top 50 models by weekly token volume on OpenRouter. This ensures the headline number reflects what
-                developers actually pay for inference, not a raw average skewed by hundreds of niche models.
+                The SIT-Composite uses a <strong style={{ color: "#e5e5e5" }}>provider equal weighting</strong>:
+                each provider contributes their cheapest SIT-qualified model to the basket, and every provider
+                carries equal weight (capped at 30% of total weight). This is the Token Price Index (TPI)
+                methodology from the SIT paper (arXiv:2603.21690).
               </p>
               <p style={p}>
-                Per-model median pricing (Section 2.3) is still used for the Blended Price column in the table.
-                The usage weighting only applies to the SIT-Composite index calculation.
+                Equal weight per provider prevents any single provider from dominating the index regardless of
+                how many models they host. The 30% cap prevents large providers from overwhelming the index
+                as more providers are added.
               </p>
-              <pre style={formulaStyle}>{`weight_i = model_i_tokens / Σ(all top-50 model tokens)
+              <pre style={formulaStyle}>{`For each provider: cheapest SIT-qualified model's Cost / IQ
 
-SIT-Composite = Σ(weight_i × blended_price_i) / Σ(weight_i)`}</pre>
-              <p style={p}>
-                Usage data is sourced from{" "}
-                <a href="https://openrouter.ai/rankings" style={{ color: "#C4A038", textDecoration: "none" }}>
-                  OpenRouter Rankings
-                </a>{" "}
-                (weekly view). The basket is refreshed every Monday at 06:00 UTC. Between refreshes, the
-                weights remain fixed so price changes are measured like-for-like.
-              </p>
+TPI = Σ(w_p × min_adjusted_price_p)
+  w_p = equal weight per provider, capped at 30%
+  quality gate: AA Intelligence Index >= 35`}</pre>
               <p style={p}>
                 Per-tier indices (Frontier, Standard, Budget, Micro) use a simple median across all models
                 in that tier. This answers: "What does a typical model in this tier cost?" The
-                SIT-Composite uses usage-weighting to answer: "What do people actually pay for inference?"
+                SIT-Composite (TPI) uses provider equal weighting to answer: "What does the market charge for
+                GPT-4-equivalent inference?"
               </p>
             </SubSection>
 

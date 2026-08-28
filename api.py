@@ -715,7 +715,7 @@ async def get_models(
     request: Request,
     tier: Optional[str] = Query(None, regex="^(frontier|standard|budget|micro)$"),
     provider: Optional[str] = Query(None),
-    sort: str = Query("sit_score", regex="^(blended|input|output|sit_score)$"),
+    sort: str = Query("sit_adjusted_price", regex="^(blended|input|output|sit_score|sit_adjusted_price)$"),
     limit: int = Query(50, ge=1, le=500),
     authorization: Optional[str] = Header(None)
 ):
@@ -779,9 +779,10 @@ async def get_models(
         "blended": "lp.blended_price_per_m ASC",
         "input": "lp.input_price_per_m ASC",
         "output": "lp.output_price_per_m ASC",
-        "sit_score": "lp.sit_score ASC NULLS LAST",
+        "sit_score": "lp.sit_adjusted_price ASC NULLS LAST",  # alias, same as sit_adjusted_price
+        "sit_adjusted_price": "lp.sit_adjusted_price ASC NULLS LAST",
     }
-    query += f" ORDER BY {sort_map.get(sort, sort_map['sit_score'])}"
+    query += f" ORDER BY {sort_map.get(sort, sort_map['sit_adjusted_price'])}"
     
     query += " LIMIT %s"
     params.append(limit)

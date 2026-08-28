@@ -7,7 +7,7 @@ const SSR_SECRET = "inferenceindexer-ssr-2026";
 // cache: "no-store" allows Vercel to serve cached pages at the edge and
 // revalidate in the background, instead of forcing dynamic rendering on every
 // request.
-const ISR_REVALIDATE = 60; // seconds
+const ISR_REVALIDATE = 300; // seconds (5 min - pricing data updates hourly anyway)
 
 async function fetchWithCache<T>(endpoint: string): Promise<T> {
   const res = await fetch(`${API_URL}${endpoint}`, {

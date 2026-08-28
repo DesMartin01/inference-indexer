@@ -8,7 +8,7 @@ export async function generateMetadata() {
   return {
   title: "API Documentation - Free Inference Pricing API | InferenceIndexer.ai",
   description:
-    `Free API for AI inference pricing data. Access SIT-Composite index, model pricing, price history, and SIT scores for ${count}+ models. 100 requests/day free, no credit card required.`,
+    `Free API for AI inference pricing data. Access SIT-Composite index, model pricing, price history, and quality-adjusted prices for ${count}+ models. 100 requests/day free, no credit card required.`,
   alternates: { canonical: "https://www.inferenceindexer.ai/api-docs" },
   openGraph: {
     title: "InferenceIndexer API - Free AI Pricing Data",
@@ -326,7 +326,7 @@ function EndpointsSection() {
         params={[
           { name: "tier", type: "string", required: false, desc: "Filter by tier: frontier, standard, budget, micro" },
           { name: "provider", type: "string", required: false, desc: "Filter by provider name" },
-          { name: "sort", type: "string", required: false, desc: "Sort by: blended, input, output, sit_score (default: sit_score)" },
+          { name: "sort", type: "string", required: false, desc: "Sort by: blended, input, output, sit_adjusted_price (default: sit_adjusted_price)" },
           { name: "limit", type: "integer", required: false, desc: "Max results (default: 50, max: 500)" },
         ]}
         request={`$ curl -H "Authorization: Bearer YOUR_API_KEY" \\\n     "https://api.inferenceindexer.ai/v1/models?tier=standard&sort=blended"`}
@@ -341,7 +341,7 @@ function EndpointsSection() {
       "input_price_per_m": 0.55,
       "output_price_per_m": 2.19,
       "blended_price_per_m": 1.53,
-      "sit_score": 0.04,
+      "sit_adjusted_price": 0.04,
       "context_length": 128000,
       "change_24h": -3.0,
       "change_7d": -8.0

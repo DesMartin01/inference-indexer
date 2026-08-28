@@ -1,9 +1,10 @@
 # Standard Inference Token (SIT) — Methodology Specification
 
-**Version:** 0.1 (Draft)
-**Date:** 2026-08-03
+**Version:** 0.2
+**Date:** 2026-08-28
 **Author:** Des Martin, InferenceIndexer
-**Status:** Draft for review
+**Status:** Supersedes v0.1
+**Changes from v0.1:** Replaced tier-relative SIT Score with absolute Cost / IQ. Replaced usage-weighted composite with TPI (equal-weight per provider). Removed reasoning multiplier.
 
 ---
 
@@ -70,13 +71,11 @@ Each quality tier has its own composite index:
 
 ### 3.2 Weighting Methodology
 
-**Phase 1 (Launch — current):** Equal weighting across all models within each tier.
+**Phase 1 (v0.1, Aug 3 - Aug 28 2026):** Equal weighting across all models within each tier. Usage-weighted top 50 for composite.
 
-**Phase 2 (3-6 months):** Capacity-weighted. Models weighted by:
-- Context window (proxy for capability)
-- Provider size (proxy for market share)
+**Phase 2 (v0.2, Aug 28 2026):** Provider equal weighting. Each provider contributes their cheapest SIT-qualified model to the TPI basket, and every provider carries equal weight (capped at 30% of total weight). No external usage data required.
 
-**Phase 3 (6-12 months):** Volume-weighted. Models weighted by actual API transaction volume, sourced from:
+**Phase 3 (Future):** Volume-weighted. Models weighted by actual API transaction volume, sourced from:
 - Provider-reported volumes (where available)
 - OpenRouter routing volumes (where available)
 - Estimation model (where data is unavailable)
@@ -94,11 +93,12 @@ Each quality tier has its own composite index:
 The published SIT-Composite price is:
 
 ```
-SIT-Composite = Σ(blended_price_i × weight_i) / Σ(weight_i)
+**SIT-Composite (TPI) = Σ(w_p × min_adjusted_price_p)**
 
 where:
-  blended_price_i = 0.4 × input_price_i + 0.6 × output_price_i
-  weight_i = 1.0 (Phase 1: equal weight)
+- For each provider: cheapest SIT-qualified model's Cost / IQ
+- w_p = equal weight per provider, capped at 30% of total weight
+- quality gate: AA Intelligence Index >= 35 (GPT-4-Turbo baseline)
 ```
 
 ### 3.5 Base Date and Rebaselining
@@ -162,9 +162,9 @@ A model is excluded if:
 4. **Deprecated** — provider has announced end-of-life
 5. **Image/audio-only** — no text generation capability
 
-### 5.3 Tier Assignment
+### 5.3 Tier Assignment (v0.2: display filter only)
 
-Models are assigned to tiers based on their Artificial Analysis Intelligence Index score:
+Tiers are now **display filters only**, not ranking boundaries. Models are ranked by absolute Cost / IQ, not relative to a tier median. Tier boundaries:
 
 ```
 SIT-Frontier: AA Index >= 55
@@ -173,7 +173,7 @@ SIT-Budget:   15 <= AA Index < 30
 SIT-Micro:    AA Index < 15 or no score
 ```
 
-Tier assignments are reviewed monthly. A model that improves its benchmark score may move up; a model that is superseded may move down.
+Tier assignments are reviewed monthly. A model that improves its benchmark score may move up; a model that is superseded may move down. Moving between tiers no longer changes a model's ranking position (eliminates boundary-flip instability).
 
 ---
 
@@ -241,7 +241,7 @@ Any change to this methodology document triggers:
 
 1. **Tokenizer differences:** Different models use different tokenizers. A "million tokens" from GPT-5.6 processes more text than a million tokens from Llama 3.2. This is a known imprecision, analogous to different crude oil grades having different energy densities. The SIT accepts this imprecision as the cost of standardization.
 
-2. **Volume data:** Phase 1 uses equal weighting because real-world transaction volumes are not publicly available. This means the index may over-represent niche models with low usage.
+2. **Volume data:** Phase 2 uses provider equal weighting because real-world transaction volumes are not publicly available. This means the index may over-represent providers with many cheap models and under-represent providers with one dominant model. Phase 3 (volume-weighted) addresses this.
 
 3. **Aggregator dependency:** Many prices are sourced via OpenRouter. If OpenRouter changes its pricing model or goes offline, coverage may temporarily decrease.
 
@@ -263,7 +263,7 @@ Any change to this methodology document triggers:
 
 - [ ] Should image generation models be included (priced per image, not per token)?
 - [ ] Should embedding models be tracked (priced per token but no "output")?
-- [ ] How to handle providers who offer both token pricing and per-second pricing?
-- [ ] Should we weight by provider reliability/uptime?
+- [ ] How to handle providers who offer both token pricing and per-second pricing? (currently excluded)
+- [x] ~~Should we weight by provider reliability/uptime?~~ (v0.2: superseded by TPI design)
 - [ ] What is the right input/output blend ratio? (Currently 40/60, needs empirical validation)
-- [ ] Should we publish a "SIT-spread" (Frontier vs Budget) as a separate metric?
+- [ ] Should we publish a "spread" metric (e.g. Frontier vs Budget TPI ratio) as a separate indicator?

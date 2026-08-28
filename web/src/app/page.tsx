@@ -416,7 +416,7 @@ export default async function Home() {
           also exposes historic price data and shows where providers have diverged from aggregators.
         </p>
         <p style={{ fontSize: "13px", color: "#6a6a6a", margin: "4px 0 0" }}>
-          Ranked by SIT Score below, our price-per-intelligence metric. Switch to AA Score to rank purely on capability.
+          Ranked by Cost / IQ below, our quality-adjusted price per million tokens. Switch to AA Score to rank purely on capability.
         </p>
       </section>
 
