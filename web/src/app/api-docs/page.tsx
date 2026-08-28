@@ -8,7 +8,7 @@ export async function generateMetadata() {
   return {
   title: "API Documentation - Free Inference Pricing API | InferenceIndexer.ai",
   description:
-    `Free API for AI inference pricing data. Access SIT-Composite index, model pricing, price history, and quality-adjusted prices for ${count}+ models. 100 requests/day free, no credit card required.`,
+    `Free API for AI inference pricing data. Access the SIT Token Price Index (TPI), model pricing, price history, and quality-adjusted prices for ${count}+ models. 100 requests/day free, no credit card required.`,
   alternates: { canonical: "https://www.inferenceindexer.ai/api-docs" },
   openGraph: {
     title: "InferenceIndexer API - Free AI Pricing Data",
@@ -37,7 +37,7 @@ export default function ApiDocsPage() {
     "@type": "WebAPI",
     name: "InferenceIndexer API",
     description:
-      "Free API for AI inference pricing data. Live and historical prices by model, provider comparison, and the SIT-Composite index.",
+      "Free API for AI inference pricing data. Live and historical prices by model, provider comparison, and the SIT Token Price Index (TPI).",
     url: "https://www.inferenceindexer.ai/api-docs",
     termsOfService: "https://www.inferenceindexer.ai/terms",
     provider: {
@@ -278,7 +278,7 @@ function EndpointsSection() {
         anchor="ep-sit-composite-latest"
         method="GET"
         path="/v1/sit/composite/latest"
-        desc="Returns the current SIT-Composite index value, including tier breakdowns."
+        desc="Returns the current SIT Token Price Index (TPI), including tier breakdowns. This is the market price for GPT-4-equivalent inference (1 SIT)."
         params={[]}
         request={`$ curl -H "Authorization: Bearer YOUR_API_KEY" \\\n     https://api.inferenceindexer.ai/v1/sit/composite/latest`}
         response={`{
@@ -303,7 +303,7 @@ function EndpointsSection() {
         anchor="ep-sit-composite-history"
         method="GET"
         path="/v1/sit/composite/history?days=30"
-        desc="Returns historical SIT-Composite values."
+        desc="Returns historical SIT TPI values. Alias endpoint: GET /v1/tpi/history."
         params={[
           { name: "days", type: "integer", required: false, desc: "Number of days to return (default: 30, max: 365)" },
           { name: "tier", type: "string", required: false, desc: "Filter to a specific tier: frontier, standard, budget" },

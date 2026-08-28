@@ -27,7 +27,7 @@ export async function generateMetadata(): Promise<Metadata> {
   openGraph: {
     title: `InferenceIndexer.ai - AI Inference Price Index (${count} models)`,
     description:
-      `Live AI inference pricing for ${count} models. SIT-Composite index, tier rankings, price history, and free API access.`,
+      `Live AI inference pricing for ${count} models. SIT Token Price Index (TPI), tier rankings, price history, and free API access.`,
     url: "https://www.inferenceindexer.ai",
     siteName: "InferenceIndexer.ai",
     type: "website",
@@ -36,7 +36,7 @@ export async function generateMetadata(): Promise<Metadata> {
   twitter: {
     card: "summary_large_image",
     title: `AI Inference Pricing Index - ${count} Models`,
-    description: "Live AI inference prices. SIT-Composite index, model pricing charts, free API.",
+    description: "Live AI inference prices. SIT Token Price Index (TPI), model pricing charts, free API.",
     images: ["/og-image.png"],
   },
   keywords: [
@@ -115,8 +115,8 @@ export default async function Home() {
           __html: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "Dataset",
-            name: "InferenceIndexer SIT-Composite - AI Inference Price Index",
-            description: `Independent price index for AI inference. ${composite ? `SIT-Composite: $${composite.price_per_m.toFixed(2)}/M tokens across ${composite.models} models from ${composite.providers} providers.` : `${totalCount} models, updated hourly.`}`,
+            name: "InferenceIndexer SIT Token Price Index (TPI) - AI Inference Prices",
+            description: `Independent price index for AI inference. ${composite ? `SIT Token Price Index: $${composite.price_per_m.toFixed(4)}/M GPT-4-equivalent tokens, equal-weighted across ${composite.providers} providers.` : `${totalCount} models, updated hourly.`}`,
             url: "https://www.inferenceindexer.ai",
             creator: {
               "@type": "Organization",

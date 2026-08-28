@@ -1,8 +1,25 @@
+export const maxDuration = 60;
+export const revalidate = 300;
+export const dynamicParams = true;
+export const fetchCache = 'force-cache';
+
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getProviderDetail, providerFaviconUrl, providerInitials } from "@/lib/api";
+import { getProviderDetail, providerFaviconUrl, providerInitials, getProviders } from "@/lib/api";
 import { Header, Footer } from "@/components/Header";
 import ProviderModelTable from "@/components/ProviderModelTable";
+
+// Pre-render all provider pages at build time, ISR handles updates
+export async function generateStaticParams() {
+  try {
+    const data = await getProviders();
+    return data.providers.map((p) => ({
+      providerName: encodeURIComponent(p.name),
+    }));
+  } catch {
+    return [];
+  }
+}
 import type { Metadata } from "next";
 
 const ACCENT = "#C4A038";
@@ -46,7 +63,7 @@ export async function generateMetadata({ params }: { params: Promise<{ providerN
   try {
     provider = await getProviderDetail(decoded);
   } catch {
-    notFound();
+    return { title: "Provider Not Found | InferenceIndexer" };
   }
 
   return {

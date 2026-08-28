@@ -402,12 +402,12 @@ export default async function ModelDetailPage({
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
             {model.comparisons.above_composite_pct !== undefined && model.comparisons.above_composite_pct > 0 && (
               <div style={{ fontSize: 13, color: ACCENT }}>
-                {model.comparisons.above_composite_pct}% above SIT-Composite
+                {model.comparisons.above_composite_pct}% above SIT TPI
               </div>
             )}
             {model.comparisons.above_composite_pct === 0 && (
               <div style={{ fontSize: 13, color: GREEN }}>
-                At or below SIT-Composite
+                At or below SIT TPI
               </div>
             )}
           </div>

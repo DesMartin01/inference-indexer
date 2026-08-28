@@ -114,11 +114,16 @@ export default function ProvidersTable({ providers }: { providers: ProviderSumma
         </thead>
         <tbody>
           {sorted.map((p) => (
-            <tr key={p.name} style={{ borderBottom: "1px solid #171717", transition: "background 90ms" }}>
+            <Link
+              key={p.name}
+              href={`/providers/${encodeURIComponent(p.name)}`}
+              style={{ display: "table-row", borderBottom: "1px solid #171717", transition: "background 90ms", textDecoration: "none", cursor: "pointer" }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "#141414"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+            >
               <td style={{ padding: "12px" }}>
-                <Link
-                  href={`/providers/${encodeURIComponent(p.name)}`}
-                  style={{ display: "flex", alignItems: "center", gap: 10, color: "#f2f2f2", textDecoration: "none" }}
+                <span
+                  style={{ display: "flex", alignItems: "center", gap: 10, color: "#f2f2f2" }}
                 >
                   <span
                     style={{
@@ -146,7 +151,7 @@ export default function ProvidersTable({ providers }: { providers: ProviderSumma
                     })()}
                   </span>
                   <span style={{ fontSize: 13.5, fontWeight: 500 }}>{p.name}</span>
-                </Link>
+                </span>
               </td>
               <td style={{ padding: "12px" }}>
                 <span style={{
@@ -173,7 +178,7 @@ export default function ProvidersTable({ providers }: { providers: ProviderSumma
               <td style={{ padding: "12px", textAlign: "center" }}>
                 {p.is_eu_sovereign ? <span style={{ color: "#5b8def", fontSize: 12 }}>Yes</span> : <span style={{ color: "#3a3a3a" }}>-</span>}
               </td>
-            </tr>
+            </Link>
           ))}
         </tbody>
       </table>

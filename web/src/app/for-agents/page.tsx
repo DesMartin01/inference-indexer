@@ -267,8 +267,10 @@ export default async function ForAgentsPage() {
                     ["GET /v1/models", "All models with current pricing (search, tier filter, sort)"],
                     ["GET /v1/models/{id}/history", "Historical price trend for one model"],
                     ["GET /v1/providers", "All providers with model counts and price stats"],
-                    ["GET /v1/sit/composite/latest", "Current SIT-Composite index value"],
-                    ["GET /v1/sit/composite/history", "SIT-Composite index history / trend"],
+                    ["GET /v1/sit/composite/latest", "Current SIT TPI value (GPT-4-equivalent market price)"],
+                    ["GET /v1/sit/composite/history", "SIT TPI index history / trend"],
+                    ["GET /v1/tpi/latest", "Alias for /v1/sit/composite/latest (v0.2 naming)"],
+                    ["GET /v1/tpi/history", "Alias for /v1/sit/composite/history (v0.2 naming)"],
                   ].map((row) => (
                     <tr key={row[0]}>
                       <td style={{ padding: "10px 12px 10px 0", borderBottom: "1px solid #1f1f1f", fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: 13 }}>

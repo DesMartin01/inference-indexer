@@ -111,7 +111,7 @@ export default async function AboutPage() {
                 <h3 style={{ fontSize: 15, fontWeight: 600, color: "#C4A038", margin: "0 0 8px" }}>Price</h3>
                 <p style={{ fontSize: 13, color: "#8a8a8a", lineHeight: 1.6, margin: 0 }}>
                   The best inference pricing data on the web. Pulled directly from provider APIs, not estimates or
-                  listings. Median pricing across providers, historical tracking, and the SIT-Composite index.
+                  listings. Median pricing across providers, historical tracking, and the SIT Token Price Index (TPI).
                 </p>
               </div>
               <div style={cardBase}>

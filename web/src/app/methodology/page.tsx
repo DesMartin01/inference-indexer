@@ -34,15 +34,15 @@ const faqSchema = {
       name: "What is the Standard Inference Token (SIT)?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "The Standard Inference Token (SIT) is a standardized unit for tracking AI inference prices. 1 SIT equals 1 million tokens of inference at a defined quality standard. The SIT-Composite tracks the cost of producing one million GPT-4-Turbo-equivalent inference tokens, serving as a commodity price index for AI compute.",
+        text: "The Standard Inference Token (SIT) is a standardized unit for tracking AI inference prices. 1 SIT equals 1 million tokens of inference at GPT-4-Turbo quality (per arXiv:2603.21690). The SIT Token Price Index (TPI, formerly SIT-Composite) is the market price for one SIT, equal-weighted across providers.",
       },
     },
     {
       "@type": "Question",
-      name: "How is the SIT-Composite index calculated?",
+      name: "How is the SIT TPI (Token Price Index) calculated?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "The SIT-Composite uses a usage-weighted mean of the top 50 models by weekly token volume on OpenRouter. Only models scoring at or above the GPT-4-Turbo baseline (AA Intelligence Index >= 35) are included. Prices are quality-adjusted using the ratio of the GPT-4-Turbo reference score (40) to each model's own AA Intelligence Index score. The index is rebased to 1000 at August 4, 2026.",
+        text: "The SIT TPI uses provider equal weighting: each provider contributes their cheapest SIT-qualified model to the basket, and every provider carries equal weight (capped at 30%). Only models scoring at or above the GPT-4-Turbo baseline (AA Intelligence Index >= 35) qualify. The quality adjustment uses the ratio of the GPT-4-Turbo reference score (40) to each model's own AA Intelligence Index score. The index is rebased to 1000 at August 4, 2026 (tpi_equal_weight_provider_capped method, v0.2).",
       },
     },
     {
@@ -138,8 +138,8 @@ export default function MethodologyPage() {
           <Section n="1" title="Overview" id="overview">
             <p style={p}>
               The Standard Inference Token (SIT) tracks the marginal cost of producing AI inference tokens
-              at a defined quality standard. The SIT-Composite tracks the cost of producing one million
-              GPT-4-Turbo-equivalent inference tokens, the commodity unit for AI compute.
+              at a defined quality standard. The <strong>SIT Token Price Index (TPI, formerly SIT-Composite)</strong> tracks the
+              market price of one million GPT-4-Turbo-equivalent inference tokens (1 SIT), the commodity unit for AI compute.
             </p>
             <p style={p}>The SIT serves four purposes:</p>
             <ul style={bulletList}>
@@ -313,7 +313,7 @@ export default function MethodologyPage() {
           {/* 4. Index Calculation */}
           <Section n="4" title="Index Calculation" id="calculation">
             <SubSection n="4.1" title="Tier Indices">
-              <p style={p}>Each quality tier has its own index, tracking the median blended price per million tokens across all models in that tier. The SIT-Composite covers all tiers using usage-weighting (see Section 4.3):</p>
+              <p style={p}>Each quality tier has its own index, tracking the median blended price per million tokens across all models in that tier. The SIT TPI uses equal weight per provider, capped at 30% (see Section 4.3):</p>
               <table style={tableStyle}>
                 <thead>
                   <tr>
@@ -335,8 +335,8 @@ export default function MethodologyPage() {
                     <td style={tdStyle}>Median blended price of all Budget-tier models</td>
                   </tr>
                   <tr>
-                    <td style={{ ...tdStyle, color: "#C4A038" }}>SIT-Composite</td>
-                    <td style={tdStyle}>Usage-weighted mean of top 50 models by token volume (headline spot price)</td>
+                    <td style={{ ...tdStyle, color: "#C4A038" }}>SIT TPI (Token Price Index)</td>
+                    <td style={tdStyle}>Equal-weighted mean of cheapest SIT-qualified model per provider, 30% cap (headline price for 1 SIT)</td>
                   </tr>
                   <tr>
                     <td style={{ ...tdStyle, color: "#C4A038" }}>SIT-Spread</td>
@@ -359,7 +359,7 @@ export default function MethodologyPage() {
               <ul style={bulletList}>
                 <li style={bulletItem}>
                   <strong style={{ color: "#e5e5e5" }}>Quality gate.</strong> Only models scoring at or above the
-                  GPT-4-Turbo baseline (AA Intelligence Index &gt;= 35) are included in the SIT-Composite basket.
+                  GPT-4-Turbo baseline (AA Intelligence Index &gt;= 35) are included in the SIT TPI basket.
                   Models below this threshold are tracked but excluded from the headline number.
                 </li>
                 <li style={bulletItem}>
@@ -374,7 +374,7 @@ export default function MethodologyPage() {
   Lower = cheaper per unit of intelligence
   Comparable across ALL models
 
-SIT-Composite (TPI) = Σ(w_p × min_adjusted_price_p)
+SIT Token Price Index (TPI) = Σ(w_p × min_adjusted_price_p)
   for each provider, cheapest SIT-qualified model
   w_p = equal weight per provider, capped at 30%
   quality gate: AA Intelligence Index >= 35 only`}</pre>
@@ -405,7 +405,7 @@ SIT-Composite (TPI) = Σ(w_p × min_adjusted_price_p)
 
             <SubSection n="4.3" title="Provider Equal Weighting (TPI)">
               <p style={p}>
-                The SIT-Composite uses a <strong style={{ color: "#e5e5e5" }}>provider equal weighting</strong>:
+                The SIT TPI uses a <strong style={{ color: "#e5e5e5" }}>provider equal weighting</strong>:
                 each provider contributes their cheapest SIT-qualified model to the basket, and every provider
                 carries equal weight (capped at 30% of total weight). This is the Token Price Index (TPI)
                 methodology from the SIT paper (arXiv:2603.21690).
@@ -423,7 +423,7 @@ TPI = Σ(w_p × min_adjusted_price_p)
               <p style={p}>
                 Per-tier indices (Frontier, Standard, Budget, Micro) use a simple median across all models
                 in that tier. This answers: "What does a typical model in this tier cost?" The
-                SIT-Composite (TPI) uses provider equal weighting to answer: "What does the market charge for
+                SIT TPI uses provider equal weighting to answer: "What does the market charge for
                 GPT-4-equivalent inference?"
               </p>
             </SubSection>
@@ -463,7 +463,7 @@ TPI = Σ(w_p × min_adjusted_price_p)
                   Base date: <span style={mutedMono}>August 4, 2026</span> (first day with full data; index = 1000 at this date)
                 </li>
                 <li style={bulletItem}>
-                  Base value: <span style={mutedMono}>SIT-Composite = 1000 index points</span>
+                  Base value: <span style={mutedMono}>SIT TPI = 1000 index points at 2026-08-04</span>
                 </li>
                 <li style={bulletItem}>
                   Rebaselining only on methodology changes. All rebaselining events are published with full explanation
@@ -526,7 +526,7 @@ TPI = Σ(w_p × min_adjusted_price_p)
               </tbody>
             </table>
             <p style={p}>
-              The SIT-Composite is always the headline number. Variant indices allow users to track specific segments of
+              The SIT TPI is always the headline number. Variant indices allow users to track specific segments of
               the inference market.
             </p>
             <p style={{ ...p, marginTop: 16, fontSize: "12.5px", color: "#8a8a8a" }}>

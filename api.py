@@ -412,7 +412,7 @@ async def root():
         "version": "1.2.0",
         "description": (
             "Independent AI inference price reporting. Live and historical "
-            "pricing by model, provider comparison, and the SIT-Composite index. "
+            "pricing by model, provider comparison, and the SIT Token Price Index (TPI). "
             "Pulled direct from inference providers - a more complete picture "
             "than aggregators like OpenRouter."
         ),
@@ -427,6 +427,8 @@ async def root():
         "endpoints": [
             "/v1/sit/composite/latest",
             "/v1/sit/composite/history",
+            "/v1/tpi/latest",
+            "/v1/tpi/history",
             "/v1/models",
             "/v1/models/{model_id}",
             "/v1/models/{model_id}/endpoints",
@@ -439,12 +441,14 @@ async def root():
     }
 
 @app.get("/v1/sit/composite/latest")
+@app.get("/v1/tpi/latest")  # Alias for TPI naming (v0.2)
 async def get_sit_latest(request: Request, authorization: Optional[str] = Header(None)):
-    """Returns the current SIT-Composite index value, including tier breakdowns.
-    
-    The SIT-Composite is a usage-weighted mean of the top 50 models by OpenRouter
-    token volume. This reflects what CTOs actually pay for inference, not the
-    raw median of all models (which is dragged down by cheap micro models).
+    """Returns the current SIT Token Price Index (TPI), including tier breakdowns.
+
+    The TPI is the market price for GPT-4-Turbo-equivalent inference (1 SIT).
+    Equal weight per provider (cheapest SIT-qualified model), 30% cap,
+    AA Intelligence Index >= 35. Computed by the hourly pipeline; this
+    endpoint reads from sit_index_values (method: tpi_equal_weight_provider_capped).
     """
     api_user = get_api_user(authorization)
     limits = check_rate_limit(api_user, is_ssr=request.headers.get("X-SSR-Secret") == SSR_SECRET)
@@ -504,18 +508,33 @@ async def get_sit_latest(request: Request, authorization: Optional[str] = Header
     # anchored to the earliest data date). The API must NOT hardcode 1000.0 —
     # that froze the index and hid real price movement.
     cur.execute("""
-        SELECT DISTINCT ON (tier) tier, sit_index_points
+        SELECT DISTINCT ON (tier) tier, sit_price, sit_index_points
         FROM sit_index_values
+        WHERE calculation_method = 'tpi_equal_weight_provider_capped'
         ORDER BY tier, date DESC
     """)
-    stored_points = {row[0]: row[1] for row in cur.fetchall()}
+    tpi_rows = cur.fetchall()
+
+    # Fallback: if no TPI rows yet (e.g. mid-deploy), use any method
+    if not tpi_rows:
+        cur.execute("""
+            SELECT DISTINCT ON (tier) tier, sit_price, sit_index_points
+            FROM sit_index_values
+            ORDER BY tier, date DESC
+        """)
+        tpi_rows = cur.fetchall()
+
+    stored = {row[0]: (float(row[1]), float(row[2])) for row in tpi_rows}
 
     def idx(tier):
-        v = stored_points.get(tier)
-        return float(v) if v is not None else 1000.0
+        v = stored.get(tier)
+        return v[1] if v else 1000.0
+    def tpi_price(tier, fallback=None):
+        v = stored.get(tier)
+        return v[0] if v else fallback
 
     composite = {
-        "price_per_m": round(weighted_mean, 2),
+        "price_per_m": round(tpi_price("composite", weighted_mean), 4),
         "index_points": idx("composite"),
         "models": model_count,
         "providers": provider_count,
@@ -646,6 +665,7 @@ async def get_sit_latest(request: Request, authorization: Optional[str] = Header
     )
 
 @app.get("/v1/sit/composite/history")
+@app.get("/v1/tpi/history")  # Alias for TPI naming (v0.2)
 async def get_sit_history(
     request: Request,
     days: int = Query(30, ge=1, le=365),
