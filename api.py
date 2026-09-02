@@ -952,6 +952,517 @@ async def get_embeddings(
         headers=headers
     )
 # ============================================
+# RECOMMEND + EXPLAIN (PRD FR-4 / FR-5)
+# ============================================
+
+from pydantic import BaseModel as _PydanticBaseModel
+from typing import Optional as _Optional
+
+_recommend_cache: dict = {}   # key -> (expires_at_monotonic, payload)
+_RECOMMEND_CACHE_TTL = 300    # 5 min, matches pipeline cadence + ISR
+
+METHODOLOGY_VERSION = "0.2"
+
+# Friendly modality aliases -> DB modality values. Unknown values pass through unchanged.
+MODALITY_MAP = {
+    "text": "text->text",
+    "vision": "text+image->text",
+    "any": None,  # handled in code: no modality filter
+}
+
+class RecommendRequest(_PydanticBaseModel):
+    budget_max_usd_per_m: _Optional[float] = None
+    context_min: _Optional[int] = None
+    modality: str = "text"
+    zdr: bool = False
+    eu_sovereign: bool = False
+    reasoning: _Optional[bool] = None
+    exclude_reasoning_penalty: bool = True
+    limit: int = 5
+    providers: list[str] = []
+
+@app.post("/v1/recommend")
+async def recommend(
+    request: Request,
+    body: RecommendRequest,
+    authorization: Optional[str] = Header(None)
+):
+    """Constraint-filtered model ranking with evidence-in-response (PRD FR-4).
+
+    Ranks by Cost/IQ (sit_adjusted_price ascending). No quality/latency data in
+    v1 ranking (probe coverage too thin). No LLM in the path: deterministic
+    templates only.
+    """
+    import time as _time
+    api_user = get_api_user(authorization)
+    limits = check_rate_limit(api_user, is_ssr=request.headers.get("X-SSR-Secret") == SSR_SECRET)
+
+    # Validation: at least one real constraint (modality defaults to text, not a constraint)
+    if body.budget_max_usd_per_m is None and body.context_min is None \
+            and not body.zdr and not body.eu_sovereign \
+            and body.reasoning is None and not body.providers:
+        raise HTTPException(
+            status_code=400,
+            detail={"error": {"code": "no_constraints",
+                    "message": "Set at least one of: budget_max_usd_per_m, context_min, zdr, eu_sovereign, reasoning, providers. For unconstrained browsing use /v1/models."}}
+        )
+    if body.limit < 1 or body.limit > 20:
+        raise HTTPException(status_code=400, detail="limit must be 1-20")
+    if body.budget_max_usd_per_m is not None and body.budget_max_usd_per_m <= 0:
+        raise HTTPException(status_code=400, detail="budget_max_usd_per_m must be > 0")
+    if body.context_min is not None and body.context_min < 0:
+        raise HTTPException(status_code=400, detail="context_min must be >= 0")
+
+    cache_key = json.dumps(body.dict(), sort_keys=True, default=str)
+    now_mono = _time.monotonic()
+    cached = _recommend_cache.get(cache_key)
+    cache_hit = False
+    if cached and cached[0] > now_mono:
+        payload = cached[1]
+        cache_hit = True
+    else:
+        payload = _compute_recommendation(body)
+        _recommend_cache[cache_key] = (now_mono + _RECOMMEND_CACHE_TTL, payload)
+        # keep the cache bounded
+        if len(_recommend_cache) > 500:
+            for k in [k for k, v in _recommend_cache.items() if v[0] < now_mono][:250]:
+                _recommend_cache.pop(k, None)
+
+    headers = get_rate_limit_headers(api_user, limits)
+    headers["Cache-Control"] = "public, max-age=300"
+    headers["X-Cache"] = "HIT" if cache_hit else "MISS"
+    return JSONResponse(content=payload, headers=headers)
+
+
+def _compute_recommendation(body: "RecommendRequest") -> dict:
+    conn = get_db()
+    cur = conn.cursor()
+
+    modality_val = MODALITY_MAP.get(body.modality, body.modality)
+    query = """
+        SELECT m.id, m.name, m.provider, m.tier, m.context_length, m.aa_index_score,
+               m.is_reasoning, m.modality,
+               lp.input_price_per_m, lp.output_price_per_m, lp.blended_price_per_m,
+               lp.sit_adjusted_price, lp.fetched_at,
+               COALESCE(zdr_sub.is_zdr, FALSE), COALESCE(eu_sub.is_eu, FALSE)
+        FROM models m
+        JOIN latest_prices lp ON m.id = lp.model_id
+        LEFT JOIN (
+            SELECT DISTINCT me.model_id, TRUE as is_zdr
+            FROM model_endpoints me
+            JOIN providers p ON me.endpoint_provider = p.name
+            WHERE p.is_zdr = TRUE
+        ) zdr_sub ON m.id = zdr_sub.model_id
+        LEFT JOIN (
+            SELECT DISTINCT me.model_id, TRUE as is_eu
+            FROM model_endpoints me
+            JOIN providers p ON me.endpoint_provider = p.name
+            WHERE p.is_eu_sovereign = TRUE
+        ) eu_sub ON m.id = eu_sub.model_id
+        WHERE m.is_active = TRUE AND lp.blended_price_per_m > 0
+          AND lp.sit_adjusted_price IS NOT NULL
+          AND m.id NOT LIKE '%%:batch'
+    """
+    params: list = []
+    if modality_val is not None:
+        query += " AND m.modality = %s"
+        params.append(modality_val)
+
+    if body.budget_max_usd_per_m is not None:
+        query += " AND lp.blended_price_per_m <= %s"
+        params.append(body.budget_max_usd_per_m)
+    if body.context_min is not None:
+        query += " AND m.context_length >= %s"
+        params.append(body.context_min)
+    if body.reasoning is not None:
+        query += " AND m.is_reasoning = %s"
+        params.append(body.reasoning)
+    if body.zdr:
+        query += " AND COALESCE(zdr_sub.is_zdr, FALSE) = TRUE"
+    if body.eu_sovereign:
+        query += " AND COALESCE(eu_sub.is_eu, FALSE) = TRUE"
+
+    # provider restriction: model must have an endpoint at one of the named providers
+    if body.providers:
+        query += """
+          AND EXISTS (
+            SELECT 1 FROM model_endpoints me
+            WHERE me.model_id = m.id AND me.endpoint_provider = ANY(%s)
+          )
+        """
+        params.append(body.providers)
+
+    query += " ORDER BY lp.sit_adjusted_price ASC LIMIT %s"
+    params.append(body.limit + 3)  # fetch a few extra for runner-ups
+
+    cur.execute(query, params)
+    rows = cur.fetchall()
+
+    # verified base urls (hand-checked endpoint_provider_config table)
+    verified: dict = {}
+    ep_map: dict = {}
+    if rows:
+        model_ids = [r[0] for r in rows]
+        cur.execute("""
+            SELECT provider_name, base_url
+            FROM endpoint_provider_config
+            WHERE base_url IS NOT NULL
+        """)
+        verified = {r[0]: r[1] for r in cur.fetchall()}
+        # native model ids from provider_model_alias (verified against live provider /models)
+        native_map: dict = {}
+        if verified:
+            cur.execute("""
+                SELECT provider_name, canonical_model_id, native_model_id
+                FROM provider_model_alias
+                WHERE canonical_model_id = ANY(%s) AND provider_name = ANY(%s)
+            """, (model_ids, list(verified.keys())))
+            for prov, canon, nat in cur.fetchall():
+                native_map[(prov, canon)] = nat
+        if body.providers:
+            # restricted: only fetch endpoints AT the requested providers
+            cur.execute("""
+                SELECT DISTINCT ON (model_id, endpoint_provider)
+                       model_id, endpoint_provider, input_price_per_m, output_price_per_m, blended_price_per_m
+                FROM model_endpoints
+                WHERE model_id = ANY(%s) AND endpoint_provider = ANY(%s)
+                      AND blended_price_per_m IS NOT NULL
+                ORDER BY model_id, endpoint_provider, blended_price_per_m ASC
+            """, (model_ids, body.providers))
+        else:
+            cur.execute("""
+                SELECT DISTINCT ON (model_id, endpoint_provider)
+                       model_id, endpoint_provider, input_price_per_m, output_price_per_m, blended_price_per_m
+                FROM model_endpoints
+                WHERE model_id = ANY(%s) AND endpoint_provider = ANY(%s)
+                      AND blended_price_per_m IS NOT NULL
+                ORDER BY model_id, endpoint_provider, blended_price_per_m ASC
+            """, (model_ids, list(verified.keys())))
+        for mid, prov, ip, op, bp in cur.fetchall():
+            best = ep_map.get(mid)
+            if best is None or bp < best[1]:
+                ep_map[mid] = (prov, bp, ip, op)
+
+    cur.close()
+    conn.close()
+
+    recommendations = []
+    runner_ups = []
+    total_considered = len(rows)
+    budget = body.budget_max_usd_per_m
+
+    for i, row in enumerate(rows):
+        (model_id, name, creator, tier, ctx, aa, is_reasoning, modality,
+         inp, outp, blended, cpiq, fetched_at, is_zdr, is_eu) = row
+
+        ep = ep_map.get(model_id)
+        endpoint_config = None
+        if ep and ep[0] in verified:
+            prov, bp, ip, op = ep
+            # native id: alias table (verified live) first, heuristic fallback
+            native_id = native_map.get((prov, model_id)) or _provider_model_id(model_id, prov)
+            endpoint_config = {
+                "provider": prov,
+                "base_url": verified[prov],
+                "model_id_on_provider": native_id,
+                "model_id_source": "verified" if (prov, model_id) in native_map else "heuristic",
+                "input_price_per_m": float(ip) if ip is not None else None,
+                "output_price_per_m": float(op) if op is not None else None,
+                "auth_scheme": "bearer",
+            }
+
+        caveats = []
+        if is_reasoning and body.exclude_reasoning_penalty:
+            caveats.append("reasoning model: thinking tokens not reflected in output price; effective cost per useful token is higher")
+        if endpoint_config is None:
+            caveats.append("no hand-verified endpoint base_url for this model yet; see /v1/models/{id}/endpoints for provider pricing")
+
+        # deterministic `why` string
+        bits = []
+        if budget is not None:
+            bits.append(f"under ${budget}/M blended")
+        if body.context_min:
+            bits.append(f">= {body.context_min:,} token context")
+        if body.zdr:
+            bits.append("on a zero-data-retention provider")
+        if body.eu_sovereign:
+            bits.append("on an EU-sovereign provider")
+        constraint_txt = " and ".join(bits) if bits else "matching the given constraints"
+        if i < body.limit:
+            why = f"Rank {i+1} by Cost/IQ (${float(cpiq)}/GPT-4-equiv M tokens) of models {constraint_txt}"
+            if endpoint_config:
+                why += f"; cheapest verified endpoint at {endpoint_config['provider']} (${float(ep[1])}/M blended)"
+        else:
+            why = f"Ranks just below the top {body.limit} on Cost/IQ"
+
+        entry = {
+            "model_id": model_id,
+            "name": name,
+            "tier": tier,
+            "context_length": ctx,
+            "is_reasoning": is_reasoning,
+            "aa_index_score": float(aa) if aa is not None else None,
+            "blended_price_per_m": float(blended) if blended is not None else None,
+            "cost_per_iq": float(cpiq) if cpiq is not None else None,
+            "input_price_per_m": float(inp) if inp is not None else None,
+            "output_price_per_m": float(outp) if outp is not None else None,
+            "zdr": bool(is_zdr),
+            "eu_sovereign": bool(is_eu),
+            "why": why,
+            "endpoint_config": endpoint_config,
+            "as_of": {
+                "price": fetched_at.isoformat() if fetched_at else None,
+                "aa_score": _aa_as_of(),
+            },
+            "caveats": caveats,
+        }
+        if i < body.limit:
+            entry["rank"] = i + 1
+            recommendations.append(entry)
+        else:
+            runner_ups.append(entry)
+
+    runner_ups = runner_ups[:3]
+
+    return {
+        "query": {
+            "budget_max_usd_per_m": body.budget_max_usd_per_m,
+            "context_min": body.context_min,
+            "modality": body.modality,
+            "zdr": body.zdr,
+            "eu_sovereign": body.eu_sovereign,
+            "reasoning": body.reasoning,
+            "providers": body.providers,
+        },
+        "methodology_version": METHODOLOGY_VERSION,
+        "recommendations": recommendations,
+        "alternatives_considered": {
+            "count": total_considered,
+            "runner_ups": runner_ups,
+        },
+        "ranking_basis": {
+            "method": "cost_per_iq_ascending",
+            "description": "Blended price x (40 / AA Intelligence score). Lower is better, comparable across all models. Quality gate AA >= 35 (models without AA scores are excluded).",
+            "excludes": "Models without AA scores; batch variants; non-text modalities unless requested",
+            "quality_latency_data": "Not used in v1 ranking: provider probe coverage is too thin. Will be added per FR-15.",
+        },
+        "disclaimer": "Estimates based on aggregated public pricing. Verify with the provider before committing spend.",
+    }
+
+
+def _provider_model_id(model_id: str, provider: str) -> str:
+    """Best-effort canonical -> provider-native model id mapping.
+
+    Verified conventions (checked against live provider APIs):
+    - Mistral: 'mistralai/codestral-2508' -> 'codestral-2508' (verified live)
+    - DeepInfra/Together/Novita/SiliconFlow/Groq/SambaNova/OpenAI: creator prefix
+      stripped where the canonical prefix differs from the provider's namespace.
+    - Others: canonical id returned as-is; the caveat tells agents to check
+      /v1/models/{id}/endpoints when the call 404s.
+    """
+    creator, _, slug = model_id.partition("/")
+    if not slug:
+        return model_id
+    # providers whose native ids drop the creator prefix
+    if provider in ("OpenAI", "DeepInfra", "Together", "Novita", "SiliconFlow",
+                    "Groq", "SambaNova", "Mistral", "Fireworks"):
+        # but only when the creator prefix isn't the provider's own namespace
+        # (e.g. DeepInfra hosts 'deepseek-ai/DeepSeek-V4-Flash' WITH a namespace)
+        return slug
+    return model_id
+
+
+def _aa_as_of():
+    try:
+        conn2 = get_db()
+        cur2 = conn2.cursor()
+        cur2.execute("SELECT max(fetched_at)::date FROM price_snapshots WHERE aa_index_score IS NOT NULL")
+        row = cur2.fetchone()
+        cur2.close()
+        conn2.close()
+        return row[0].isoformat() if row and row[0] else None
+    except Exception:
+        return None
+
+@app.get("/v1/explain")
+async def explain(
+    request: Request,
+    model_id: str = Query(..., description="Canonical model id, e.g. 'anthropic/claude-sonnet-5'"),
+    history_days: int = Query(30, ge=1, le=365),
+    authorization: Optional[str] = Header(None)
+):
+    """One call answers 'what is this model like right now' (PRD FR-5).
+
+    Composes pricing, changes, history summary, endpoints, privacy flags and
+    AA score. Everything is as-of stamped. No LLM in the path.
+    """
+    api_user = get_api_user(authorization)
+    limits = check_rate_limit(api_user, is_ssr=request.headers.get("X-SSR-Secret") == SSR_SECRET)
+
+    conn = get_db()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT m.id, m.name, m.provider, m.tier, m.context_length, m.modality,
+               m.is_reasoning, m.aa_index_score, m.creator_country,
+               lp.input_price_per_m, lp.output_price_per_m, lp.blended_price_per_m,
+               lp.sit_adjusted_price, lp.fetched_at, lp.source_count,
+               COALESCE(pc24.change_24h_pct, 0),
+               COALESCE(ch7.change_pct, 0)
+        FROM models m
+        JOIN latest_prices lp ON m.id = lp.model_id
+        LEFT JOIN price_changes_24h pc24 ON m.id = pc24.model_id
+        LEFT JOIN price_changes_7d ch7 ON m.id = ch7.model_id
+        WHERE m.id = %s AND m.is_active = TRUE
+    """, (model_id,))
+    row = cur.fetchone()
+    if not row:
+        # suggestions: same model-name tail, or same creator's models
+        tail = model_id.split("/")[-1]
+        creator = model_id.split("/")[0]
+        cur.execute("""
+            (SELECT id FROM models WHERE is_active AND id ILIKE %s LIMIT 3)
+            UNION ALL
+            (SELECT id FROM models WHERE is_active AND id ILIKE %s
+             AND id NOT ILIKE %s ORDER BY id LIMIT 3)
+        """, (f"%{tail}%", f"{creator}/%", f"%{tail}%"))
+        suggestions = []
+        for r in cur.fetchall():
+            if r[0] not in suggestions:
+                suggestions.append(r[0])
+        cur.close(); conn.close()
+        raise HTTPException(status_code=404, detail={
+            "error": {"code": "not_found", "message": f"Model '{model_id}' not found or inactive"},
+            "suggestions": suggestions[:5],
+        })
+
+    (mid, name, creator, tier, ctx, modality, is_reasoning, aa, country,
+     inp, outp, blended, cpiq, fetched_at, source_count, ch24, ch7) = row
+
+    cur.execute("""
+        SELECT min(blended_price_per_m), max(blended_price_per_m), count(*)
+        FROM price_snapshots
+        WHERE model_id = %s AND fetched_at > now() - interval '%s days'
+    """, (model_id, history_days))
+    hmin, hmax, hcount = cur.fetchone()
+
+    # trend: first-3 vs last-3 average in window (labelled estimate, NFR-2)
+    cur.execute("""
+        SELECT blended_price_per_m FROM price_snapshots
+        WHERE model_id = %s AND fetched_at > now() - interval '%s days'
+              AND blended_price_per_m IS NOT NULL
+        ORDER BY fetched_at ASC
+    """, (model_id, history_days))
+    series = [r[0] for r in cur.fetchall() if r[0]]
+    trend = "insufficient data"
+    if len(series) >= 4:
+        first = sum(series[:3]) / 3
+        last = sum(series[-3:]) / 3
+        if last > first * 1.03:
+            trend = "rising"
+        elif last < first * 0.97:
+            trend = "declining"
+        else:
+            trend = "flat"
+
+    cur.execute("""
+        SELECT DISTINCT ON (endpoint_provider)
+               endpoint_provider, input_price_per_m, output_price_per_m, blended_price_per_m
+        FROM model_endpoints
+        WHERE model_id = %s AND blended_price_per_m IS NOT NULL
+        ORDER BY endpoint_provider, fetched_at DESC
+    """, (model_id,))
+    eps_raw = cur.fetchall()
+    eps = sorted(eps_raw, key=lambda r: r[3])
+
+    cur.execute("""
+        SELECT DISTINCT p.is_zdr, p.is_eu_sovereign
+        FROM model_endpoints me JOIN providers p ON me.endpoint_provider = p.name
+        WHERE me.model_id = %s
+    """, (model_id,))
+    prows = cur.fetchall()
+    zdr_avail = any(r[0] for r in prows)
+    eu_avail = any(r[1] for r in prows)
+
+    cur.execute("SELECT provider_name, base_url FROM endpoint_provider_config WHERE base_url IS NOT NULL")
+    verified = {r[0]: r[1] for r in cur.fetchall()}
+    # native id aliases for this model at verified providers
+    native_map: dict = {}
+    if verified and eps:
+        cur.execute("""
+            SELECT provider_name, native_model_id
+            FROM provider_model_alias
+            WHERE canonical_model_id = %s AND provider_name = ANY(%s)
+        """, (model_id, list(verified.keys())))
+        native_map = {r[0]: r[1] for r in cur.fetchall()}
+    cheapest_verified = None
+    for prov, ip, op, bp in eps:
+        if prov in verified:
+            cheapest_verified = {
+                "provider": prov,
+                "base_url": verified[prov],
+                "model_id_on_provider": native_map.get(prov) or _provider_model_id(model_id, prov),
+                "model_id_source": "verified" if prov in native_map else "heuristic",
+                "blended_per_m": float(bp),
+                "auth_scheme": "bearer",
+            }
+            break
+
+    cur.close()
+    conn.close()
+
+    result = {
+        "model_id": mid,
+        "name": name,
+        "tier": tier,
+        "context_length": ctx,
+        "modality": modality,
+        "is_reasoning": is_reasoning,
+        "creator_country": country,
+        "as_of": fetched_at.isoformat() if fetched_at else None,
+        "pricing": {
+            "input_per_m": float(inp) if inp is not None else None,
+            "output_per_m": float(outp) if outp is not None else None,
+            "blended_per_m": float(blended) if blended is not None else None,
+            "cost_per_iq": float(cpiq) if cpiq is not None else None,
+            "change_24h": float(ch24) if ch24 else 0.0,
+            "change_7d": float(ch7) if ch7 else 0.0,
+        },
+        "price_history_summary": {
+            "days_observed": history_days,
+            "snapshots": hcount,
+            "min_blended": float(hmin) if hmin is not None else None,
+            "max_blended": float(hmax) if hmax is not None else None,
+            "trend": trend,
+            "trend_note": "estimate: first-3 vs last-3 average in window",
+            "series_url": f"/v1/models/{mid}/history?days={history_days}",
+        },
+        "endpoints": [
+            {"provider": p,
+             "input_per_m": float(ip) if ip is not None else None,
+             "output_per_m": float(op) if op is not None else None,
+             "blended_per_m": float(bp) if bp is not None else None}
+            for p, ip, op, bp in eps
+        ],
+        "cheapest_verified_endpoint": cheapest_verified,
+        "privacy": {
+            "zdr_available": zdr_avail,
+            "eu_sovereign_available": eu_avail,
+            "note": "Provider-level claims, aggregated not certified. Check /v1/providers/{name} for verification dates.",
+        },
+        "quality": {
+            "aa_score": float(aa) if aa is not None else None,
+            "cost_per_iq": float(cpiq) if cpiq is not None else None,
+            "probe_data": "insufficient coverage",
+            "note": "Latency/reliability probing covers few providers so far (FR-15 pending).",
+        },
+        "sources": source_count or 1,
+        "methodology_version": METHODOLOGY_VERSION,
+    }
+
+    headers = get_rate_limit_headers(api_user, limits)
+    headers["Cache-Control"] = "public, max-age=300"
+    return JSONResponse(content=result, headers=headers)
 
 def _verify_provider_endpoint(api_base_url, api_key=None):
     """Test that a submitted API base URL responds on /v1/models.
