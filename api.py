@@ -981,6 +981,7 @@ class RecommendRequest(_PydanticBaseModel):
     limit: int = 5
     providers: list[str] = []
     use_case: _Optional[str] = None  # support | coding | research | extraction | summarization | volume
+    prefer_callable: bool = True     # demote results without a verified call recipe
 
 # Task-aware ranking adjustments (deterministic, documented in ranking_basis).
 # Each use case expresses: reasoning preference, minimum AA floor, and a
@@ -1186,6 +1187,8 @@ def _compute_recommendation(body: "RecommendRequest") -> dict:
         rows = cur.fetchall()
         rows = sorted(rows, key=lambda r: (r[11] or 1e9) * _use_case_score(r[5], r[6], profile))
 
+    # PR-2: prefer_callable is applied AFTER endpoint lookup (needs ep_map), below.
+
     # verified base urls (hand-checked endpoint_provider_config table)
     verified: dict = {}
     ep_map: dict = {}
@@ -1271,6 +1274,7 @@ def _compute_recommendation(body: "RecommendRequest") -> dict:
             }
 
         caveats = []
+        callability = "callable" if endpoint_config is not None else "unverified"
         if is_reasoning and body.exclude_reasoning_penalty:
             caveats.append("reasoning model: thinking tokens not reflected in output price; effective cost per useful token is higher")
         if endpoint_config is None:
@@ -1310,6 +1314,7 @@ def _compute_recommendation(body: "RecommendRequest") -> dict:
             "cost_per_iq": float(cpiq) if cpiq is not None else None,
             "input_price_per_m": float(inp) if inp is not None else None,
             "output_price_per_m": float(outp) if outp is not None else None,
+            "callability": callability,
             "zdr": bool(is_zdr),
             "eu_sovereign": bool(is_eu),
             "why": why,
@@ -1318,6 +1323,7 @@ def _compute_recommendation(body: "RecommendRequest") -> dict:
                 "price": fetched_at.isoformat() if fetched_at else None,
                 "aa_score": _aa_as_of(),
             },
+            "freshness": _freshness_block(fetched_at, _aa_as_of()),
             "caveats": caveats,
         }
         if i < body.limit:
@@ -1327,6 +1333,22 @@ def _compute_recommendation(body: "RecommendRequest") -> dict:
             runner_ups.append(entry)
 
     runner_ups = runner_ups[:3]
+
+    # PR-2: prefer_callable - demote unverified-callability results below callable ones.
+    # Applied to the display split (recommendations vs runner_ups), keeping raw order otherwise.
+    if body.prefer_callable and recommendations:
+        callable_recs = [r for r in recommendations if r["callability"] == "callable"]
+        unverified_recs = [r for r in recommendations if r["callability"] != "callable"]
+        if callable_recs and unverified_recs:
+            merged = callable_recs + unverified_recs
+            for idx, r in enumerate(merged):
+                r["rank"] = idx + 1
+                if idx >= len(callable_recs):
+                    r["caveats"].append("demoted: no verified call recipe; callable alternatives exist")
+                else:
+                    r["why"] += " (callable: verified endpoint recipe included)"
+            recommendations = merged
+    total_considered = max(total_considered, len(recommendations))
 
     return {
         "query": {
@@ -1338,6 +1360,7 @@ def _compute_recommendation(body: "RecommendRequest") -> dict:
             "reasoning": body.reasoning,
             "providers": body.providers,
             "use_case": body.use_case,
+            "prefer_callable": body.prefer_callable,
         },
         "methodology_version": METHODOLOGY_VERSION,
         "recommendations": recommendations,
@@ -1391,6 +1414,69 @@ def _aa_as_of():
     except Exception:
         return None
 
+def _resolve_model_id(model_id: str) -> tuple[str, str | None]:
+    """Resolve a possibly-dirty model id to canonical (PR-6).
+
+    Order: exact models.id -> model_aliases exact (case-insensitive) ->
+    trigram similarity >= 0.35. Returns (canonical_id, resolved_from).
+    resolved_from is None when the input was already canonical.
+    """
+    mid = (model_id or "").strip()
+    if not mid:
+        return model_id, None
+    conn2 = get_db()
+    cur2 = conn2.cursor()
+    try:
+        # 1. exact canonical
+        cur2.execute("SELECT id FROM models WHERE id = %s AND is_active", (mid,))
+        if cur2.fetchone():
+            return mid, None
+        # 2. exact alias (case-insensitive)
+        cur2.execute("SELECT canonical_model_id FROM model_aliases WHERE lower(alias) = lower(%s)", (mid,))
+        row = cur2.fetchone()
+        if row:
+            return row[0], "alias"
+        # 3. trigram fuzzy
+        cur2.execute("""
+            SELECT canonical_model_id, alias FROM model_aliases
+            WHERE alias %% %s AND similarity(alias, %s) >= 0.35
+            ORDER BY similarity(alias, %s) DESC LIMIT 1
+        """, (mid, mid, mid))
+        row = cur2.fetchone()
+        if row:
+            return row[0], f"fuzzy:{row[1]}"
+        return mid, None
+    finally:
+        cur2.close()
+        conn2.close()
+
+def _freshness_block(price_fetched_at, aa_as_of) -> dict:
+    """PR-7: freshness flags per field group (SLA: prices 6h, AA 7d)."""
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    flags = []
+    price_age_h = None
+    if price_fetched_at:
+        price_age_h = round((now - price_fetched_at).total_seconds() / 3600, 1)
+        if price_age_h > 6:
+            flags.append({"field": "price", "age_hours": price_age_h, "sla_hours": 6})
+    aa_age_d = None
+    if aa_as_of:
+        try:
+            aa_dt = datetime.fromisoformat(aa_as_of)
+            aa_age_d = round((now - aa_dt).total_seconds() / 86400, 1)
+            if aa_age_d > 7:
+                flags.append({"field": "aa_score", "age_days": aa_age_d, "sla_days": 7})
+        except ValueError:
+            pass
+    return {
+        "price_age_hours": price_age_h,
+        "aa_age_days": aa_age_d,
+        "stale": len(flags) > 0,
+        "stale_fields": flags,
+        "sla": {"price_hours": 6, "aa_days": 7},
+    }
+
 @app.get("/v1/explain")
 async def explain(
     request: Request,
@@ -1405,6 +1491,9 @@ async def explain(
     """
     api_user = get_api_user(authorization)
     limits = check_rate_limit(api_user, is_ssr=request.headers.get("X-SSR-Secret") == SSR_SECRET)
+
+    # PR-6: resolve dirty/aliased model ids to canonical
+    canonical_id, resolved_from = _resolve_model_id(model_id)
 
     conn = get_db()
     cur = conn.cursor()
@@ -1421,18 +1510,17 @@ async def explain(
         LEFT JOIN price_changes_24h pc24 ON m.id = pc24.model_id
         LEFT JOIN price_changes_7d ch7 ON m.id = ch7.model_id
         WHERE m.id = %s AND m.is_active = TRUE
-    """, (model_id,))
+    """, (canonical_id,))
     row = cur.fetchone()
     if not row:
-        # suggestions: same model-name tail, or same creator's models
-        tail = model_id.split("/")[-1]
-        creator = model_id.split("/")[0]
+        # suggestions: trigram-nearest aliases, then same-name-tail models
         cur.execute("""
-            (SELECT id FROM models WHERE is_active AND id ILIKE %s LIMIT 3)
-            UNION ALL
-            (SELECT id FROM models WHERE is_active AND id ILIKE %s
-             AND id NOT ILIKE %s ORDER BY id LIMIT 3)
-        """, (f"%{tail}%", f"{creator}/%", f"%{tail}%"))
+            (SELECT canonical_model_id FROM model_aliases
+             WHERE alias %% %s AND similarity(alias, %s) >= 0.3
+             ORDER BY similarity(alias, %s) DESC LIMIT 3)
+            UNION
+            (SELECT id FROM models WHERE is_active AND id ILIKE %s LIMIT 2)
+        """, (canonical_id if canonical_id else model_id, canonical_id if canonical_id else model_id, canonical_id if canonical_id else model_id, f"%{(canonical_id or model_id).split('/')[-1]}%"))
         suggestions = []
         for r in cur.fetchall():
             if r[0] not in suggestions:
@@ -1450,7 +1538,7 @@ async def explain(
         SELECT min(blended_price_per_m), max(blended_price_per_m), count(*)
         FROM price_snapshots
         WHERE model_id = %s AND fetched_at > now() - interval '%s days'
-    """, (model_id, history_days))
+    """, (canonical_id, history_days))
     hmin, hmax, hcount = cur.fetchone()
 
     # trend: first-3 vs last-3 average in window (labelled estimate, NFR-2)
@@ -1459,7 +1547,7 @@ async def explain(
         WHERE model_id = %s AND fetched_at > now() - interval '%s days'
               AND blended_price_per_m IS NOT NULL
         ORDER BY fetched_at ASC
-    """, (model_id, history_days))
+    """, (canonical_id, history_days))
     series = [r[0] for r in cur.fetchall() if r[0]]
     trend = "insufficient data"
     if len(series) >= 4:
@@ -1486,7 +1574,7 @@ async def explain(
         SELECT DISTINCT p.is_zdr, p.is_eu_sovereign
         FROM model_endpoints me JOIN providers p ON me.endpoint_provider = p.name
         WHERE me.model_id = %s
-    """, (model_id,))
+    """, (canonical_id,))
     prows = cur.fetchall()
     zdr_avail = any(r[0] for r in prows)
     eu_avail = any(r[1] for r in prows)
@@ -1520,6 +1608,7 @@ async def explain(
 
     result = {
         "model_id": mid,
+        "resolved_from": resolved_from,
         "name": name,
         "tier": tier,
         "context_length": ctx,
@@ -1564,6 +1653,7 @@ async def explain(
             "note": "Latency/reliability probing covers few providers so far (FR-15 pending).",
         },
         "sources": source_count or 1,
+        "freshness": _freshness_block(fetched_at, _aa_as_of()),
         "methodology_version": METHODOLOGY_VERSION,
     }
 

@@ -128,8 +128,8 @@ This is a data-product PRD: the core design is the **interface + data specificat
 
 **Prerequisites (honest):** the probe runner must be repaired BEFORE fields are exposed:
 1. Fix stale model IDs (TensorX 400, Fireworks 404 — identified Sep 2).
-2. Add keys for Tier-A providers (DeepInfra, Novita, Groq, Together, SambaNova need keys from Des).
-3. Budget cap per provider (~$20-80/mo total, per FR-15; needs Des approval).
+2. Add keys for Tier-A providers (DeepInfra, Novita, Together, Groq, SambaNova, Inference.net — free-tier eligible; keys from Des).
+3. Budget: probe cost is ~$0.002-0.05/provider/month (20-token probes, hourly, 720/month). 25 providers ≈ under $1.50/mo total. **Money is not a constraint; keys are.**
 4. Multi-region is Phase 2 (NFR-8): until then `vantage: dublin-eu-west` on every quality field, and latency drops out of the sort when the agent requests a different region.
 
 **Ranking integration:** performance is a *filter and tie-break*, not a sort key. `max_ttft_ms_p95` constraint optional. If probe coverage for a model < N samples, `performance: null` + caveat. Never fake it.
@@ -259,11 +259,12 @@ Already true (no LLM in path). Formalize: ranking inputs versioned (AA snapshot 
 
 ## 9. Open Questions (owner: Des unless noted)
 
-1. Approve probe budget $20-80/mo + provide Tier-A API keys (needed-by: probe repair start).
-2. Approve the six `use_case` profiles as bake-off seed (validate in Phase -1).
-3. AA license conversation (from PRD v7, still open) — happens before FR-4-wide use of AA in marketing claims.
-4. Freshness SLA numbers (6h prices / 7d AA / 24h probes): agree or adjust?
-5. Signed methodology changelog: PGP-signed file in repo sufficient, or status-page service?
+1. ~~Approve probe budget~~ RESOLVED Sep 3: real probe cost <$1.50/mo total (not $20-80); keys are the constraint, not money. 6 free-tier keys needed from Des.
+2. Provide 6 API keys: DeepInfra, Novita, Together, Groq, SambaNova, Inference.net (needed-by: probe expansion).
+3. Approve the six `use_case` profiles as bake-off seed (validate in Phase -1).
+4. AA license conversation (from PRD v7, still open) — happens before FR-4-wide use of AA in marketing claims.
+5. Freshness SLA numbers (6h prices / 7d AA / 24h probes): agree or adjust?
+6. Signed methodology changelog: signed changelog file in repo (v1); status-page service only if two agents actually disagree.
 
 ## 10. Effort & Sequence
 

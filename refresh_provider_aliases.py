@@ -87,5 +87,39 @@ def main():
     cur.close()
     conn.close()
 
+    try:
+        refresh_model_aliases()
+    except Exception as e:
+        print(f"model_aliases refresh failed: {e}", flush=True)
+
+
+def refresh_model_aliases():
+    """PR-6: keep model_aliases fresh (identity/slug/display-name/native)."""
+    conn = psycopg2.connect(DB_URL)
+    conn.autocommit = True
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO model_aliases (alias, canonical_model_id, source)
+        SELECT id, id, 'identity' FROM models WHERE is_active
+        ON CONFLICT (alias) DO NOTHING
+    """)
+    cur.execute("""
+        INSERT INTO model_aliases (alias, canonical_model_id, source)
+        SELECT split_part(id, '/', 2), id, 'slug' FROM models WHERE is_active AND id LIKE '%/%'
+        ON CONFLICT (alias) DO NOTHING
+    """)
+    cur.execute("""
+        INSERT INTO model_aliases (alias, canonical_model_id, source)
+        SELECT lower(name), id, 'display_name' FROM models WHERE is_active AND name IS NOT NULL
+        ON CONFLICT (alias) DO NOTHING
+    """)
+    cur.execute("""
+        INSERT INTO model_aliases (alias, canonical_model_id, source)
+        SELECT native_model_id, canonical_model_id, 'provider_native' FROM provider_model_alias
+        ON CONFLICT (alias) DO NOTHING
+    """)
+    cur.execute("SELECT count(*) FROM model_aliases")
+    print("model_aliases total:", cur.fetchone()[0], flush=True)
+
 if __name__ == "__main__":
     main()

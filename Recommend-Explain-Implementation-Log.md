@@ -76,6 +76,32 @@ Grok independently tested the API with 5 agent-shaped jobs (support, coding, res
 
 **Honest finding from testing use_case:** for extraction, solar-pro4 (reasoning, aa=41.6, $0.081/M) still legitimately beats non-reasoning models even after the 25% reasoning penalty - it's 8x cheaper AND smarter. Task hints reorder near-ties; they don't override genuine price/quality dominance. That's correct behavior, not a bug.
 
+## Build progress (Sep 3, Des out): PR-2, PR-6, PR-7 shipped; PR-3 repaired
+
+### Probe runner repair (PR-3 critical path)
+- **Fireworks probe FIXED**: stale model ID gpt-oss-20b -> gpt-oss-120b (verified live). Probe now returns TTFT 393ms / TPS 54.5. First working latency data since the runner broke.
+- **TensorX diagnosis**: probe key has $0.0 budget cap on TensorX's side - Des must raise the budget in the TensorX console. Model ID is correct.
+- **xAI added to registry** (key present on Lightsail but invalid - Des must regenerate at console.x.ai).
+- **Mistral**: transient 503/timeout during testing (their high load; key valid, worked yesterday). Probe will recover on next hourly run.
+- Root cause note: shell-quoting masked the Fireworks key validity earlier - always test keys via python urllib, not nested-ssh curl.
+
+### PR-6 Canonical IDs + fuzzy resolution: DEPLOYED
+- `model_aliases` table (2253 rows: identity + slug + display-name + provider-native) with pg_trgm index.
+- `_resolve_model_id()` in api.py: exact -> alias (case-insensitive) -> trigram >= 0.35. Wired into /v1/explain.
+- Verified: "DeepSeek V4 Flash 0731" (display name), "deepsik-v4-flsh" (typo), "deepseek-v4-flash" (slug) all resolve. Canonical calls unaffected.
+- `resolved_from` field in explain responses ("alias" | "fuzzy:..." | null).
+- Refresh script maintains aliases daily (4am cron) + fixed function-ordering bug.
+- **Data-quality finding**: 132 potential case-variant model pairs in models table (e.g. deepseek-ai/deepseek-v4-flash-0731 AND deepseek/deepseek-v4-flash-0731 both active). Resolver returns whichever twin the alias table hits. Consolidation = existing `migrate_consolidate_case_dups.py` pattern, separate task.
+
+### PR-2 Callable-recipe guarantee: DEPLOYED
+- `callability` field per result: "callable" | "unverified".
+- `prefer_callable: true` (default): callable results ranked above unverified; demoted items get explicit caveat.
+- Verified: extraction query now ranks callable ling-3.0-flash above unverified solar-pro4.
+
+### PR-7 Freshness SLA: DEPLOYED
+- `freshness` block in every recommend result + explain response: price_age_hours, aa_age_days, stale flag, stale_fields, published SLA (prices 6h, AA 7d).
+- Verified live: price_age_hours=0.5, stale=false.
+
 ## Open items (updated Sep 3)
 
 - [ ] DB connection pooling for the API (cold calls 2-6s vs <500ms target)
