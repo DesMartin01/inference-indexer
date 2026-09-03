@@ -51,11 +51,28 @@ Query: precise-not-smart, <$1.50/M, large context. Findings:
 - Historical data untouched throughout: 383,079 price_snapshots (Aug 4 -> present).
 - Personal VPS security re-audited Sep 2: SSH is the only open inbound port (8000/9119/631 externally verified blocked; UFW default-deny; no docker bypass; MCP server config has zero references to the personal VPS IP; stale README default fixed on Lightsail).
 
-## Open items
+## External review: Grok adversarial test (Sep 3)
 
-- [ ] DB connection pooling for the API (cold calls 2-6s vs <500ms target)
-- [ ] model_endpoints daily dedup
-- [ ] Scrape-vs-live reconciliation for model_endpoints (z-ai/glm-5.2 @ Mistral case)
-- [ ] NextBit/Parasail verification (only if those models matter)
-- [ ] Bake-off harness (blocked on Phase -1: the 20 constraint cards come from Des's demand-discovery conversations)
-- [ ] `use_case` field on recommend (precision -> down-rank reasoning) - validate in Phase -1
+Grok independently tested the API with 5 agent-shaped jobs (support, coding, research, EU compliance, sales volume). Full findings:
+
+### Bug found and FIXED same day
+**`modality: "text"` excluded vision-capable models.** Grok's ZDR + $1 + non-reasoning query returned 0. Root cause: DB has 96 pure `text->text` but **209 vision-capable `text+X->text` models** - the filter excluded the 209. A vision-capable model can do text-only jobs. Fix: `"text"` now matches both (`text->text OR text+X->text`). Grok's empty-set scenario now returns 4 (gemma-3-27b $0.168, mistral-small-3.2 $0.1875...). Lesson: an "honest empty set" can still be a filter bug masquerading as honesty.
+
+### Confirmed accurate (accept, don't argue)
+- **Cost/IQ is a price-efficiency sort, not task fitness.** Five different jobs collapsed onto the same cheap long-context reasoners. Correct criticism: recommend is `filter_models(policy) -> shortlist`, not `choose_model_for_task(prompt)`.
+- **AA>=35 gate is not enforced in recommend results.** Verified: low-AA models (Sao10K aa=23.9, cpiq $0.077) rank top on cheap queries. This is by design (gate applies to what the pipeline computes) but the docs claim reads otherwise. Fix the docs, not the gate.
+- **Reasoning-token caveat is real and material.** Blended price understates reasoning-model cost.
+- **GET /v1/recommend returns 405.** Grok's harness tried GET first. Fix: add GET with query-param constraints as an alias (agents/proxies sometimes can't POST), or at least a 405 with Allow header pointing at POST.
+- **`suggestions: []` on unknown explain IDs.** Agent needs canonical ID knowledge; recommend is the discovery step. Acceptable, but richer suggestions would help.
+- **Explain is the stronger agent tool.** Grok's verdict: "recommend proposes; explain justifies and gives a host." Their proposed loop (recommend -> explain -> check privacy flags on the actual host -> skip null-endpoint picks -> cache on as_of) matches the PRD's intent exactly.
+
+### Build next (priority order from this feedback)
+1. **task/use_case hint on recommend** (support/coding/research/extraction) - the single biggest gap: "choose_model_for_task" needs a task dimension. Even a coarse enum that adjusts ranking (e.g. precision->down-rank reasoning, coding->prefer high-AA) beats nothing. Validate enum against Phase -1 conversations.
+2. **Privacy flags at the endpoint level** - zdr/eu on the specific host in endpoint_config, not model-level "some provider matches". Grok: "easy to mis-route if the agent treats the flag as certified."
+3. **GET alias for recommend** + 405 Allow header.
+4. **Docs fix**: AA>=35 gate claim vs reality; state clearly Cost/IQ = price-efficiency sort.
+5. **endpoint_config completion**: every verified-provider model should have a config (backfill was done for 3, check rate).
+6. Later (FR-15 dependent): latency/uptime in ranking; tool-calling/JSON-mode signal.
+
+### Strategic takeaway
+Grok's framing is the product positioning, for free: **"useful infrastructure, not a decision brain."** Procurement tool for agents: high value. Router/replacement for evals: explicitly not. The combined loop (recommend -> explain -> verified host) is the embed pattern to document in llms.txt recipes and the FR-8 embed kit.

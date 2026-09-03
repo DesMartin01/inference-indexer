@@ -1064,7 +1064,11 @@ def _compute_recommendation(body: "RecommendRequest") -> dict:
           AND m.id NOT LIKE '%%:batch'
     """
     params: list = []
-    if modality_val is not None:
+    # "text" means "can do text jobs": pure text AND vision-capable (text+X->text)
+    # models both qualify. Only an explicit vision/other request narrows it.
+    if body.modality == "text":
+        query += " AND (m.modality = 'text->text' OR m.modality LIKE 'text+%%->text')"
+    elif modality_val is not None:
         query += " AND m.modality = %s"
         params.append(modality_val)
 
