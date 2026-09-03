@@ -66,13 +66,25 @@ Grok independently tested the API with 5 agent-shaped jobs (support, coding, res
 - **`suggestions: []` on unknown explain IDs.** Agent needs canonical ID knowledge; recommend is the discovery step. Acceptable, but richer suggestions would help.
 - **Explain is the stronger agent tool.** Grok's verdict: "recommend proposes; explain justifies and gives a host." Their proposed loop (recommend -> explain -> check privacy flags on the actual host -> skip null-endpoint picks -> cache on as_of) matches the PRD's intent exactly.
 
-### Build next (priority order from this feedback)
-1. **task/use_case hint on recommend** (support/coding/research/extraction) - the single biggest gap: "choose_model_for_task" needs a task dimension. Even a coarse enum that adjusts ranking (e.g. precision->down-rank reasoning, coding->prefer high-AA) beats nothing. Validate enum against Phase -1 conversations.
-2. **Privacy flags at the endpoint level** - zdr/eu on the specific host in endpoint_config, not model-level "some provider matches". Grok: "easy to mis-route if the agent treats the flag as certified."
-3. **GET alias for recommend** + 405 Allow header.
-4. **Docs fix**: AA>=35 gate claim vs reality; state clearly Cost/IQ = price-efficiency sort.
-5. **endpoint_config completion**: every verified-provider model should have a config (backfill was done for 3, check rate).
-6. Later (FR-15 dependent): latency/uptime in ranking; tool-calling/JSON-mode signal.
+### Built from this feedback (all deployed + verified Sep 3)
+
+1. **`use_case` task hint on recommend** - six profiles: support, volume, extraction, summarization, coding, research. Each has an AA floor + reasoning preference; deterministic multiplicative adjustment on Cost/IQ (documented in `ranking_basis.use_case_adjustment`). `why` strings show raw AND adjusted Cost/IQ. Invalid enum -> 400. Verified: coding ranks surface high-AA models (solar-pro4 aa=41.6, muse-spark aa=44.3).
+2. **Endpoint-level privacy flags** - `endpoint_config.zdr_at_this_host` + `eu_sovereign_at_this_host` on the specific recommended host (e.g. deepseek-v4-flash @ DeepInfra: zdr_at_this_host=False, even though model-level zdr=True via other hosts). Closes Grok's mis-routing concern.
+3. **GET alias** - `GET /v1/recommend?budget_max_usd_per_m=1&use_case=support` works; same logic as POST.
+4. **Docs fixes** - `ranking_basis.description` now: "PRICE-EFFICIENCY sort, not a task-fitness score"; `aa_gate_note` explains gate applies to having Cost/IQ at all and that low-AA + very low price can mean "cheap because limited".
+5. **Endpoint coverage** - verified providers 15 -> 20 (added xAI, Alibaba, Perplexity, Google AI Studio + notes). Azure honestly set NULL (per-deployment base_url, can't hot-swap generically). Uncovered rankable models 55 -> ~30.
+
+**Honest finding from testing use_case:** for extraction, solar-pro4 (reasoning, aa=41.6, $0.081/M) still legitimately beats non-reasoning models even after the 25% reasoning penalty - it's 8x cheaper AND smarter. Task hints reorder near-ties; they don't override genuine price/quality dominance. That's correct behavior, not a bug.
+
+## Open items (updated Sep 3)
+
+- [ ] DB connection pooling for the API (cold calls 2-6s vs <500ms target)
+- [ ] model_endpoints daily dedup (~160k hourly rows, 7-day cleanup only)
+- [ ] Scrape-vs-live reconciliation for model_endpoints (z-ai/glm-5.2 @ Mistral case)
+- [ ] NextBit/Parasail + remaining small-provider verification (~30 uncovered rankable models remain)
+- [ ] Bake-off harness (blocked on Phase -1: the 20 constraint cards come from Des's demand-discovery conversations)
+- [ ] Validate the 6 use_case profile heuristics (AA floors, reasoning preferences) against Phase -1 findings
+- [ ] MCP server: expose use_case param on recommend_models tool (currently API-only)
 
 ### Strategic takeaway
 Grok's framing is the product positioning, for free: **"useful infrastructure, not a decision brain."** Procurement tool for agents: high value. Router/replacement for evals: explicitly not. The combined loop (recommend -> explain -> verified host) is the embed pattern to document in llms.txt recipes and the FR-8 embed kit.

@@ -980,6 +980,75 @@ class RecommendRequest(_PydanticBaseModel):
     exclude_reasoning_penalty: bool = True
     limit: int = 5
     providers: list[str] = []
+    use_case: _Optional[str] = None  # support | coding | research | extraction | summarization | volume
+
+# Task-aware ranking adjustments (deterministic, documented in ranking_basis).
+# Each use case expresses: reasoning preference, minimum AA floor, and a
+# secondary sort nudge. These are heuristics pending bake-off validation (FR-10b).
+USE_CASE_PROFILES: dict = {
+    # support: high volume, precision over brilliance, cost-sensitive
+    "support":       {"prefer_reasoning": False, "aa_floor": 15, "note": "high-volume drafting: precision and cost matter more than peak intelligence"},
+    # volume: cheapest acceptable output (sales/outbound firehose)
+    "volume":        {"prefer_reasoning": False, "aa_floor": 10, "note": "high-volume generation: cost dominates"},
+    # extraction: structured output from documents; precision critical, no thinking needed
+    "extraction":    {"prefer_reasoning": False, "aa_floor": 20, "note": "structured extraction: JSON/field precision, reasoning adds latency without accuracy gains on schema tasks"},
+    # summarization: long context matters most, moderate quality floor
+    "summarization": {"prefer_reasoning": False, "aa_floor": 20, "note": "summarization: long context and cost efficiency matter more than reasoning depth"},
+    # coding: reasoning helps, quality floor higher
+    "coding":        {"prefer_reasoning": True,  "aa_floor": 30, "note": "coding: reasoning and higher intelligence correlate with patch quality"},
+    # research: long-context reasoning, higher floor
+    "research":      {"prefer_reasoning": True,  "aa_floor": 35, "note": "research/synthesis: reasoning depth and large context matter most"},
+}
+
+def _use_case_score(aa, is_reasoning, profile):
+    """Deterministic task-fit adjustment applied AFTER Cost/IQ ranking.
+
+    Returns a sort tuple (lower = better): Cost/IQ stays primary but
+    task penalties/rewards reorder near-ties. Penalties are multiplicative
+    on Cost/IQ so absolute prices still dominate.
+    """
+    cpiq_adj = 1.0
+    if aa is None:
+        cpiq_adj *= 1.5  # unrated models penalized when a task floor is set
+    elif aa < profile.get("aa_floor", 0):
+        # below the task floor: penalize proportionally to the shortfall
+        cpiq_adj *= 1.0 + (profile["aa_floor"] - aa) / profile["aa_floor"]
+    if profile.get("prefer_reasoning") is False and is_reasoning:
+        cpiq_adj *= 1.25  # reasoning overhead not in listed price
+    if profile.get("prefer_reasoning") is True and not is_reasoning:
+        cpiq_adj *= 1.15  # task benefits from reasoning
+    return cpiq_adj
+
+@app.get("/v1/recommend")
+async def recommend_get_alias(request: Request, authorization: Optional[str] = Header(None)):
+    """GET alias for /v1/recommend: query-param constraints (agent/proxy ergonomics).
+
+    Some agents and HTTP layers can't POST. Accepts the same constraints as
+    query params and dispatches to the same logic.
+    """
+    body = RecommendRequest(
+        budget_max_usd_per_m=request.query_params.get("budget_max_usd_per_m"),
+        context_min=request.query_params.get("context_min"),
+        modality=request.query_params.get("modality", "text"),
+        zdr=request.query_params.get("zdr", "").lower() in ("1", "true", "yes"),
+        eu_sovereign=request.query_params.get("eu_sovereign", "").lower() in ("1", "true", "yes"),
+        reasoning=(lambda v: None if v is None else v.lower() in ("1", "true", "yes"))(request.query_params.get("reasoning")),
+        limit=int(request.query_params.get("limit", 5)),
+        providers=[p for p in request.query_params.get("providers", "").split(",") if p],
+        use_case=request.query_params.get("use_case"),
+    )
+    # int coercion for context_min
+    if body.context_min is not None:
+        try:
+            body.context_min = int(body.context_min)
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="context_min must be an integer")
+    if body.budget_max_usd_per_m is not None:
+        try:
+            body.budget_max_usd_per_m = float(body.budget_max_usd_per_m)
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="budget_max_usd_per_m must be a number")
+    return await recommend(request, body, authorization)
 
 @app.post("/v1/recommend")
 async def recommend(
@@ -1000,11 +1069,12 @@ async def recommend(
     # Validation: at least one real constraint (modality defaults to text, not a constraint)
     if body.budget_max_usd_per_m is None and body.context_min is None \
             and not body.zdr and not body.eu_sovereign \
-            and body.reasoning is None and not body.providers:
+            and body.reasoning is None and not body.providers \
+            and body.use_case is None:
         raise HTTPException(
             status_code=400,
             detail={"error": {"code": "no_constraints",
-                    "message": "Set at least one of: budget_max_usd_per_m, context_min, zdr, eu_sovereign, reasoning, providers. For unconstrained browsing use /v1/models."}}
+                    "message": "Set at least one of: budget_max_usd_per_m, context_min, zdr, eu_sovereign, reasoning, providers, use_case. For unconstrained browsing use /v1/models."}}
         )
     if body.limit < 1 or body.limit > 20:
         raise HTTPException(status_code=400, detail="limit must be 1-20")
@@ -1012,6 +1082,10 @@ async def recommend(
         raise HTTPException(status_code=400, detail="budget_max_usd_per_m must be > 0")
     if body.context_min is not None and body.context_min < 0:
         raise HTTPException(status_code=400, detail="context_min must be >= 0")
+    if body.use_case is not None and body.use_case not in USE_CASE_PROFILES:
+        raise HTTPException(status_code=400, detail={
+            "error": {"code": "invalid_use_case",
+                      "message": f"use_case must be one of: {', '.join(sorted(USE_CASE_PROFILES))}"}})
 
     cache_key = json.dumps(body.dict(), sort_keys=True, default=str)
     now_mono = _time.monotonic()
@@ -1102,9 +1176,20 @@ def _compute_recommendation(body: "RecommendRequest") -> dict:
     cur.execute(query, params)
     rows = cur.fetchall()
 
+    # Task-aware reordering (use_case): fetch all matching rows (up to 100) then
+    # re-rank by adjusted Cost/IQ so the task profile can reorder near-ties.
+    profile = USE_CASE_PROFILES.get(body.use_case) if body.use_case else None
+    if profile is not None and len(rows) >= (body.limit + 3):
+        # fetch a wider window for reordering
+        wide_query = query.rsplit("LIMIT", 1)[0] + " LIMIT 100"
+        cur.execute(wide_query, params[:-1])
+        rows = cur.fetchall()
+        rows = sorted(rows, key=lambda r: (r[11] or 1e9) * _use_case_score(r[5], r[6], profile))
+
     # verified base urls (hand-checked endpoint_provider_config table)
     verified: dict = {}
     ep_map: dict = {}
+    ep_privacy: dict = {}  # (model_id, provider) -> {zdr, eu} at the SPECIFIC host
     if rows:
         model_ids = [r[0] for r in rows]
         cur.execute("""
@@ -1123,8 +1208,12 @@ def _compute_recommendation(body: "RecommendRequest") -> dict:
             """, (model_ids, list(verified.keys())))
             for prov, canon, nat in cur.fetchall():
                 native_map[(prov, canon)] = nat
+        endpoint_providers = list(verified.keys())
         if body.providers:
-            # restricted: only fetch endpoints AT the requested providers
+            endpoint_providers = [p for p in body.providers if p in verified]
+            if not endpoint_providers:
+                endpoint_providers = ["__none__"]  # matches nothing
+        if endpoint_providers:
             cur.execute("""
                 SELECT DISTINCT ON (model_id, endpoint_provider)
                        model_id, endpoint_provider, input_price_per_m, output_price_per_m, blended_price_per_m
@@ -1132,20 +1221,23 @@ def _compute_recommendation(body: "RecommendRequest") -> dict:
                 WHERE model_id = ANY(%s) AND endpoint_provider = ANY(%s)
                       AND blended_price_per_m IS NOT NULL
                 ORDER BY model_id, endpoint_provider, blended_price_per_m ASC
-            """, (model_ids, body.providers))
-        else:
+            """, (model_ids, endpoint_providers))
+            for mid, prov, ip, op, bp in cur.fetchall():
+                best = ep_map.get(mid)
+                if best is None or bp < best[1]:
+                    ep_map[mid] = (prov, bp, ip, op)
+            # privacy flags at the SPECIFIC host (not model-level aggregation)
             cur.execute("""
-                SELECT DISTINCT ON (model_id, endpoint_provider)
-                       model_id, endpoint_provider, input_price_per_m, output_price_per_m, blended_price_per_m
-                FROM model_endpoints
-                WHERE model_id = ANY(%s) AND endpoint_provider = ANY(%s)
-                      AND blended_price_per_m IS NOT NULL
-                ORDER BY model_id, endpoint_provider, blended_price_per_m ASC
-            """, (model_ids, list(verified.keys())))
-        for mid, prov, ip, op, bp in cur.fetchall():
-            best = ep_map.get(mid)
-            if best is None or bp < best[1]:
-                ep_map[mid] = (prov, bp, ip, op)
+                SELECT me.model_id, me.endpoint_provider, p.is_zdr, p.is_eu_sovereign
+                FROM model_endpoints me
+                JOIN providers p ON me.endpoint_provider = p.name
+                WHERE me.model_id = ANY(%s) AND me.endpoint_provider = ANY(%s)
+            """, (model_ids, endpoint_providers))
+            for mid, prov, z, e in cur.fetchall():
+                key = (mid, prov)
+                prev = ep_privacy.get(key)
+                if prev is None or (z or e) and not (prev["zdr"] or prev["eu"]):
+                    ep_privacy[key] = {"zdr": bool(z), "eu": bool(e)}
 
     cur.close()
     conn.close()
@@ -1165,6 +1257,7 @@ def _compute_recommendation(body: "RecommendRequest") -> dict:
             prov, bp, ip, op = ep
             # native id: alias table (verified live) first, heuristic fallback
             native_id = native_map.get((prov, model_id)) or _provider_model_id(model_id, prov)
+            host_privacy = ep_privacy.get((model_id, prov), {"zdr": False, "eu": False})
             endpoint_config = {
                 "provider": prov,
                 "base_url": verified[prov],
@@ -1172,6 +1265,8 @@ def _compute_recommendation(body: "RecommendRequest") -> dict:
                 "model_id_source": "verified" if (prov, model_id) in native_map else "heuristic",
                 "input_price_per_m": float(ip) if ip is not None else None,
                 "output_price_per_m": float(op) if op is not None else None,
+                "zdr_at_this_host": host_privacy["zdr"],
+                "eu_sovereign_at_this_host": host_privacy["eu"],
                 "auth_scheme": "bearer",
             }
 
@@ -1183,6 +1278,8 @@ def _compute_recommendation(body: "RecommendRequest") -> dict:
 
         # deterministic `why` string
         bits = []
+        if body.use_case:
+            bits.append(f"for {body.use_case} ({profile['note']})")
         if budget is not None:
             bits.append(f"under ${budget}/M blended")
         if body.context_min:
@@ -1193,11 +1290,14 @@ def _compute_recommendation(body: "RecommendRequest") -> dict:
             bits.append("on an EU-sovereign provider")
         constraint_txt = " and ".join(bits) if bits else "matching the given constraints"
         if i < body.limit:
-            why = f"Rank {i+1} by Cost/IQ (${float(cpiq)}/GPT-4-equiv M tokens) of models {constraint_txt}"
+            if body.use_case:
+                why = f"Rank {i+1} of models {constraint_txt}: task-adjusted Cost/IQ ${float(cpiq) * _use_case_score(aa, is_reasoning, profile)}/GPT-4-equiv M tokens (raw ${float(cpiq)})"
+            else:
+                why = f"Rank {i+1} by Cost/IQ (${float(cpiq)}/GPT-4-equiv M tokens) of models {constraint_txt}"
             if endpoint_config:
                 why += f"; cheapest verified endpoint at {endpoint_config['provider']} (${float(ep[1])}/M blended)"
         else:
-            why = f"Ranks just below the top {body.limit} on Cost/IQ"
+            why = f"Ranks just below the top {body.limit} on task-adjusted Cost/IQ" if body.use_case else f"Ranks just below the top {body.limit} on Cost/IQ"
 
         entry = {
             "model_id": model_id,
@@ -1237,6 +1337,7 @@ def _compute_recommendation(body: "RecommendRequest") -> dict:
             "eu_sovereign": body.eu_sovereign,
             "reasoning": body.reasoning,
             "providers": body.providers,
+            "use_case": body.use_case,
         },
         "methodology_version": METHODOLOGY_VERSION,
         "recommendations": recommendations,
@@ -1245,9 +1346,11 @@ def _compute_recommendation(body: "RecommendRequest") -> dict:
             "runner_ups": runner_ups,
         },
         "ranking_basis": {
-            "method": "cost_per_iq_ascending",
-            "description": "Blended price x (40 / AA Intelligence score). Lower is better, comparable across all models. Quality gate AA >= 35 (models without AA scores are excluded).",
-            "excludes": "Models without AA scores; batch variants; non-text modalities unless requested",
+            "method": "cost_per_iq_ascending" if not body.use_case else f"cost_per_iq_task_adjusted_{body.use_case}",
+            "description": "Blended price x (40 / AA Intelligence score). Lower is better; this is a PRICE-EFFICIENCY sort, not a task-fitness score.",
+            "aa_gate_note": "The AA >= 35 quality gate applies to whether a model HAS a Cost/IQ at all (sit_adjusted_price is only computed for AA >= 35 by the pipeline). Within results, low-AA models can outrank high-AA ones because Cost/IQ divides by AA. Check aa_index_score per model; low AA + very low price can mean 'cheap because limited'.",
+            "use_case_adjustment": (f"Task profile '{body.use_case}': {profile['note']}. Adjusted Cost/IQ = raw Cost/IQ x task penalty (reasoning preference, AA floor {profile['aa_floor']}). Heuristics pending bake-off validation." if body.use_case else None),
+            "excludes": "Models without AA scores; batch variants. 'text' modality includes vision-capable models (text+image->text).",
             "quality_latency_data": "Not used in v1 ranking: provider probe coverage is too thin. Will be added per FR-15.",
         },
         "disclaimer": "Estimates based on aggregated public pricing. Verify with the provider before committing spend.",
