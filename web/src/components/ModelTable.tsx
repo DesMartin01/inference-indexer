@@ -144,6 +144,18 @@ export default function ModelTable({ models, totalCount }: Props) {
     }
 
     list = list.slice().sort((a, b) => {
+      // Option A (Sep 2026): "All" view groups by tier (Frontier first,
+      // value-ordered within tier) so the taxonomy order matches what the
+      // tier names promise. Individual tiers sort purely by Cost / IQ.
+      if (variant === "all" && sort === "sitadj") {
+        const tierOrder: Record<string, number> = { frontier: 0, standard: 1, budget: 2, micro: 3 };
+        const ta = tierOrder[a.tier.toLowerCase()] ?? 9;
+        const tb = tierOrder[b.tier.toLowerCase()] ?? 9;
+        if (ta !== tb) return ta - tb;
+        const av = a.sit_adjusted_price ?? Infinity;
+        const bv = b.sit_adjusted_price ?? Infinity;
+        return av - bv;
+      }
       const k = sort;
       const sign = dir === "asc" ? 1 : -1;
       // Map sort keys to actual model field names
@@ -184,7 +196,12 @@ export default function ModelTable({ models, totalCount }: Props) {
     return list;
   }, [allModels, sort, dir, variant, query, provider, zdrOnly, euOnly]);
 
-  // Compute global ranking by Cost / IQ (sit_adjusted_price, nulls last)
+  // Compute ranking by Cost / IQ (sit_adjusted_price, nulls last).
+  // Tier-scoped (option A, Sep 2026): the # column shows the model's rank
+  // WITHIN its own tier, not a global position. A global Cost/IQ rank puts
+  // every 8B model above every frontier model and made the first Frontier
+  // row read "#99" - reads like the taxonomy is broken when it's just two
+  // different axes (value vs quality) colliding in one number.
   const ranked = useMemo(() => {
     return allModels.slice().sort((a, b) => {
       if (a.sit_adjusted_price == null && b.sit_adjusted_price == null) return 0;
@@ -194,9 +211,27 @@ export default function ModelTable({ models, totalCount }: Props) {
     });
   }, [allModels]);
 
+  const tierRanked = useMemo(() => {
+    const byTier: Record<string, number> = {};
+    const tiers = ["frontier", "standard", "budget", "micro"];
+    for (const tier of tiers) {
+      allModels
+        .filter((m) => m.tier.toLowerCase() === tier)
+        .sort((a, b) => {
+          if (a.sit_adjusted_price == null && b.sit_adjusted_price == null) return 0;
+          if (a.sit_adjusted_price == null) return 1;
+          if (b.sit_adjusted_price == null) return -1;
+          return a.sit_adjusted_price - b.sit_adjusted_price;
+        })
+        .forEach((m, i) => {
+          byTier[m.model_id] = i + 1;
+        });
+    }
+    return byTier;
+  }, [allModels]);
+
   const rankOf = (m: ModelSummary) => {
-    const idx = ranked.findIndex((r) => r.model_id === m.model_id);
-    return idx >= 0 ? idx + 1 : 0;
+    return tierRanked[m.model_id] ?? 0;
   };
 
   // Per-tier Cost / IQ rankings for medals (gold/silver/bronze = top 3 in each tier by sit_adjusted_price)

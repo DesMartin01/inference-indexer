@@ -466,7 +466,13 @@ export default async function Home() {
           also exposes historic price data and shows where providers have diverged from aggregators.
         </p>
         <p style={{ fontSize: "13px", color: "#6a6a6a", margin: "4px 0 0" }}>
-          Ranked by Cost / IQ below, our quality-adjusted price per million tokens. Switch to AA Score to rank purely on capability.
+          Grouped by quality tier (Frontier first), ranked by Cost / IQ within each tier. Switch to the{" "}
+          <a href="/api-docs" style={{ color: "#C4A038", textDecoration: "underline" }}>API</a> for the raw value
+          ranking across all tiers.
+        </p>
+        <p style={{ fontSize: "13px", color: "#6a6a6a", margin: "4px 0 0" }}>
+          Cost / IQ is our quality-adjusted price per million tokens. Within a tier, lower is better value. Switch to
+          AA Score to rank purely on capability.
         </p>
       </section>
 

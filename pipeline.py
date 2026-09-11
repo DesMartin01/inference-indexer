@@ -2184,6 +2184,22 @@ def match_aa_score(model_id, model_name, aa_scores):
     # Strip provider prefix, normalize
     parts = model_id.split("/")
     model_part = parts[-1] if len(parts) > 1 else model_id
+
+    # Variant models (Sep 2026 fix): ":batch" / "Contributor" variants must
+    # resolve to their BASE model's AA record, never fuzzy-matched on their
+    # own. Fuzzy-matching variants independently landed 78 models on wrong
+    # records (gpt-5.6-terra:batch -> "GPT-5 (high)", "Muse Spark 1.3
+    # Contributor" -> bare "Muse Spark"). The variant's parent slug is the
+    # model_id minus the variant suffix; resolve THAT, then inherit.
+    variant_match = re.search(r"^(.*?)(:batch|[-_ ]contributor)$", model_part, re.IGNORECASE)
+    if variant_match:
+        parent_id = "/".join(parts[:-1] + [variant_match.group(1)])
+        parent = match_aa_score(parent_id, model_name, aa_scores)
+        if parent is not None:
+            return parent
+        # Parent unresolved: fall through to normal matching but with the
+        # variant suffix stripped from the name too (below).
+
     # Remove version suffixes for matching (0813, 0731, etc.)
     base = re.sub(r'-\d{4}$', '', model_part)  # Remove trailing -0813
     base = base.replace(".", "-").replace("_", "-")
@@ -2198,24 +2214,36 @@ def match_aa_score(model_id, model_name, aa_scores):
     if base_no_version in aa_scores:
         return aa_scores[base_no_version]
 
-    # Strategy 3: Check if any AA slug is a substring of our model ID
+    # Strategy 3: Check if any AA slug is a substring of our model ID.
+    # Longest-match wins (Sep 2026): short wrong records ("GPT-5", "Muse
+    # Spark") previously beat specific right ones on first-encounter order.
     model_lower = model_id.lower()
+    best_slug = None
+    best_len = 0
     for slug, data in aa_scores.items():
-        if slug in model_lower or model_lower in slug:
-            return data
+        if (slug in model_lower or model_lower in slug) and len(slug) > best_len:
+            best_slug, best_len = slug, len(slug)
+    if best_slug:
+        return aa_scores[best_slug]
 
-    # Strategy 4: Name-based match (normalized, lowercase, no spaces/punctuation)
+    # Strategy 4: Name-based match (normalized, lowercase, no spaces/punctuation).
+    # Variant suffixes are stripped before matching so "X Contributor" resolves
+    # like its parent. Among candidates, LONGEST containment wins, not first.
     def normalize(s):
         return re.sub(r'[^a-z0-9]', '', s.lower())
 
-    norm_name = normalize(model_name or model_id)
+    norm_name = normalize(re.sub(r'(?i)\(batch\)|contributor', '', model_name or model_id))
+    candidates = []
     for slug, data in aa_scores.items():
         norm_aa_name = normalize(data["name"])
         if norm_name == norm_aa_name:
             return data
-        # Check partial match (AA name contains model name or vice versa)
         if len(norm_name) > 5 and (norm_name in norm_aa_name or norm_aa_name in norm_name):
-            return data
+            candidates.append((len(norm_aa_name), data))
+    if candidates:
+        # Prefer the most specific (longest) AA record among containment hits.
+        candidates.sort(key=lambda t: t[0], reverse=True)
+        return candidates[0][1]
 
     return None
 
@@ -2821,6 +2849,12 @@ def rescore_db_models(conn, aa_scores, aa_version, pct_thresholds=None):
     kept a v4.1 score of 63.1 for a week after the rebase). Match them against
     the AA leaderboard directly and update score/tier/version.
 
+    Also rewrites scores that DISAGREE with the current matcher result even
+    when the version stamp matches: a wrong fuzzy match gets stamped with the
+    current version just like a right one, so version alone cannot prove
+    freshness (the Sep 2026 variant bug put 78 models on wrong AA records
+    under the then-current version stamp).
+
     Returns (updated_count, unmatched_count).
     """
     cur = conn.cursor()
@@ -2831,12 +2865,10 @@ def rescore_db_models(conn, aa_scores, aa_version, pct_thresholds=None):
           AND (aa_score_version IS NULL OR aa_score_version != %s)
     """, (aa_version,))
     stale = cur.fetchall()
-    if not stale:
-        cur.close()
-        return 0, 0
 
     updated = 0
     unmatched = 0
+    checked = 0
     for model_id, name, old_score, old_ver in stale:
         aa_match = match_aa_score(model_id, name, aa_scores)
         if aa_match is None:
@@ -2846,6 +2878,8 @@ def rescore_db_models(conn, aa_scores, aa_version, pct_thresholds=None):
             new_tier = assign_tier_percentile(new_score, pct_thresholds) or assign_tier(new_score)
         else:
             new_tier = assign_tier(new_score)
+        if abs(new_score - (old_score or 0)) < 0.01 and old_ver == aa_version:
+            continue  # already correct
         cur.execute("""
             UPDATE models
             SET aa_index_score = %s, aa_score_version = %s, tier = %s, updated_at = NOW()
@@ -2857,6 +2891,42 @@ def rescore_db_models(conn, aa_scores, aa_version, pct_thresholds=None):
     cur.close()
     print(f"  DB rescore pass: {updated} models updated to {aa_version}, {unmatched} had no AA match (left as-is, marked stale by version)")
     return updated, unmatched
+
+
+def rescore_all_active(conn, aa_scores, aa_version, pct_thresholds=None):
+    """Full-coverage consistency pass: verify EVERY active scored model
+    against the current matcher and rewrite disagreements.
+
+    This is the defense against matcher bugs that pre-date a version stamp:
+    it re-derives each score from the live AA scrape rather than trusting the
+    stored version tag. Run after any match_aa_score change.
+    """
+    cur = conn.cursor()
+    cur.execute("SELECT id, name, aa_index_score FROM models WHERE is_active AND aa_index_score IS NOT NULL")
+    rows = cur.fetchall()
+    fixed = 0
+    verified = 0
+    for model_id, name, old_score in rows:
+        m = match_aa_score(model_id, name, aa_scores)
+        if m is None:
+            continue
+        verified += 1
+        new_score = m["score"]
+        if abs(new_score - (old_score or 0)) >= 0.01:
+            if pct_thresholds is not None:
+                new_tier = assign_tier_percentile(new_score, pct_thresholds) or assign_tier(new_score)
+            else:
+                new_tier = assign_tier(new_score)
+            cur.execute("""
+                UPDATE models
+                SET aa_index_score = %s, aa_score_version = %s, tier = %s, updated_at = NOW()
+                WHERE id = %s
+            """, (new_score, aa_version, new_tier, model_id))
+            fixed += 1
+    conn.commit()
+    cur.close()
+    print(f"  Full rescore: verified {verified}, corrected {fixed} models")
+    return fixed
 
 
 def upsert_models(conn, models):
@@ -3500,6 +3570,10 @@ def main():
         # (Opus 5 Fast carried v4.1's 63.1 for a week). Re-score them directly.
         if aa_scores and aa_version:
             rescore_db_models(conn, aa_scores, aa_version, pct_thresholds if aa_scores else None)
+            # Full-coverage verification: re-derive every scored model from
+            # the live scrape, catches wrong-match bugs the version stamp
+            # cannot see (Sep 2026 variant bug: 78 models on wrong records).
+            rescore_all_active(conn, aa_scores, aa_version, pct_thresholds if aa_scores else None)
         
         # Always upsert provider-discovered models
         if venice_endpoints:
