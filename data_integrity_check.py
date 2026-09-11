@@ -150,7 +150,8 @@ def main():
         GROUP BY calculation_method
     """)
     methods = cur.fetchall()
-    valid_methods = {"tpi_equal_weight_provider_capped", "usage_weighted_quality_gated"}
+    valid_methods = {"tpi_equal_weight_provider_capped", "usage_weighted_quality_gated",
+                     "tpi_equal_weight_provider_capped_gate35"}  # archived pre-backfill series (Sep 2026)
     bad_methods = [m[0] for m in methods if m[0] not in valid_methods]
     print("[6] Composite methodology across history:")
     for m in methods:
