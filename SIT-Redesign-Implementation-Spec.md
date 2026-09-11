@@ -670,7 +670,12 @@ cd /home/ubuntu/obsidian-vault/10-Projects/inference-futures-exchange
 ```bash
 # api.py runs on Lightsail. SSH to deploy.
 # After updating api.py, restart the API:
-ssh ubuntu@3.255.179.226 "cd /home/ubuntu/inferenceindexer-api && pkill -f 'uvicorn api:app' && nohup .venv/bin/uvicorn api:app --host 0.0.0.0 --port 8000 > /tmp/api.log 2>&1 &"
+ssh ubuntu@3.255.179.226 "cd /home/ubuntu/inference-indexer && sudo systemctl restart inferenceindexer-api"
+
+# NEVER use `pkill -f uvicorn` + nohup: a leftover nohup uvicorn holding port 8000
+# caused a 13,800-restart systemd crash-loop on Aug 27-28 2026. The service is
+# systemd-managed; restart it with systemctl only. api.py can be copied over with
+# scp from the vault repo before restarting.
 ```
 
 ### Step 5: Website changes

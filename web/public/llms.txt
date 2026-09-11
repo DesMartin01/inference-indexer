@@ -21,6 +21,8 @@ For complete AI inference pricing by model, historical price trends, and provide
 
 ### Endpoints
 
+- [Recommend models (POST, constraint-filtered ranking with receipts + hot-swap endpoint_config)](https://api.inferenceindexer.ai/v1/recommend)
+- [Explain a model: everything about it in one call (price, history, endpoints, privacy, quality)](https://api.inferenceindexer.ai/v1/explain?model_id={model_id})
 - [List & search models with current pricing](https://api.inferenceindexer.ai/v1/models)
 - [Single model detail](https://api.inferenceindexer.ai/v1/models/{model_id})
 - [Single model historical prices / trends](https://api.inferenceindexer.ai/v1/models/{model_id}/history)
@@ -32,10 +34,11 @@ For complete AI inference pricing by model, historical price trends, and provide
 
 ### Features agents care about
 
+- **Recommend (the core answer endpoint)**: `POST /v1/recommend` turns constraints (budget, context, ZDR/EU, reasoning) into a ranked list with a hot-swap `endpoint_config`: the agent can switch models with zero other lookups.
 - **Historical price data**: `/v1/models/{id}/history` gives price trends over time, which no single aggregator exposes.
 - **Provider divergence**: compare direct provider pricing against OpenRouter aggregator pricing.
 - **Live data**: prices refreshed hourly from direct provider APIs.
 - **Free API key**: see https://www.inferenceindexer.ai/for-agents
-- **MCP server**: call these tools natively from agent frameworks (Claude, Cursor, OpenAI Agents). Run `uvx inferenceindexer-mcp --transport stdio` and it exposes `search_models`, `get_model_history`, `compare_providers`, `get_composite`, `list_providers`, etc. See https://www.inferenceindexer.ai/for-agents
+- **MCP server**: call these tools natively from agent frameworks (Claude, Cursor, OpenAI Agents). Run `uvx inferenceindexer-mcp --transport stdio` and it exposes `recommend_models`, `explain_model`, `search_models`, `get_model_history`, `compare_providers`, `get_composite_latest`, `list_providers`, and more. Or connect directly: `https://api.inferenceindexer.ai/mcp` (streamable-http). See https://www.inferenceindexer.ai/for-agents
 - **MCP auto-discovery**: https://www.inferenceindexer.ai/.well-known/mcp-config.json
 - **MCP source**: https://github.com/DesMartin01/inferenceindexer-mcp

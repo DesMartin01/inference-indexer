@@ -42,7 +42,7 @@ const faqSchema = {
       name: "How is the SIT TPI (Token Price Index) calculated?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "The SIT TPI uses provider equal weighting: each provider contributes their cheapest SIT-qualified model to the basket, and every provider carries equal weight (capped at 30%). Only models scoring at or above the GPT-4-Turbo baseline (AA Intelligence Index >= 35) qualify. The quality adjustment uses the ratio of the GPT-4-Turbo reference score (40) to each model's own AA Intelligence Index score. The index is rebased to 1000 at August 4, 2026 (tpi_equal_weight_provider_capped method, v0.2).",
+        text: "The SIT TPI uses provider equal weighting: each provider contributes their cheapest SIT-qualified model to the basket, and every provider carries equal weight (capped at 30%). Qualification is relative: a model qualifies if its AA Intelligence Index is in the top 40% of scored models (P60 or above), a cutoff that stays stable when the benchmark is rebased. The quality adjustment uses the ratio of the GPT-4-Turbo reference score (40) to each model's own AA Intelligence Index score. The index is rebased to 1000 at September 4, 2026 (tpi_equal_weight_provider_capped method, v0.2).",
       },
     },
     {
@@ -58,7 +58,7 @@ const faqSchema = {
       name: "What are the SIT quality tiers?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Models are grouped into four quality tiers based on the Artificial Analysis Intelligence Index: SIT-Frontier (AA >= 50), SIT-Standard (AA 30-49), SIT-Budget (AA 15-29), and SIT-Micro (AA < 15). Each tier has its own index tracking the median blended price across all models in that tier.",
+        text: "Models are grouped into four quality tiers as percentiles of the scored model population, using the Artificial Analysis Intelligence Index: SIT-Frontier (top 10%), SIT-Standard (P70-P90), SIT-Budget (P40-P70), and SIT-Micro (below P40). Percentile boundaries keep tiers stable when the benchmark is rebased. Each tier has its own index tracking the median blended price across all models in that tier.",
       },
     },
     {
@@ -254,59 +254,48 @@ export default function MethodologyPage() {
           <Section n="3" title="Quality Tiers" id="tiers">
             <p style={p}>
               Models are grouped into quality tiers based on demonstrated capability, using the Artificial Analysis
-              Intelligence Index as an independent third-party benchmark.
+              Intelligence Index as an independent third-party benchmark. Tier boundaries are set as
+              <strong> percentiles of the scored model population</strong> (top 10% = Frontier, next 20% = Standard,
+              next 30% = Budget, remainder = Micro). Because the cutoffs are relative rather than fixed scores, a
+              benchmark rebase by Artificial Analysis (e.g. Index v4.2 in September 2026) relabels no one: every
+              model's percentile rank is unchanged by a rescale.
             </p>
             <table style={tableStyle}>
               <thead>
                 <tr>
                   <th style={thStyle}>Tier</th>
-                  <th style={thStyle}>AA Index</th>
+                  <th style={thStyle}>Population share</th>
                   <th style={thStyle}>Description</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
                   <td style={{ ...tdStyle, color: "#C4A038", fontFamily: "var(--font-jetbrains-mono), 'JetBrains Mono', monospace" }}>SIT-Frontier</td>
-                  <td style={tdStyle}>&gt;= 50</td>
+                  <td style={tdStyle}>Top 10% of scored models</td>
                   <td style={tdStyle}>Top-tier models from frontier labs</td>
                 </tr>
                 <tr>
                   <td style={{ ...tdStyle, color: "#C4A038", fontFamily: "var(--font-jetbrains-mono), 'JetBrains Mono', monospace" }}>SIT-Standard</td>
-                  <td style={tdStyle}>30 — 49</td>
+                  <td style={tdStyle}>P70 — P90</td>
                   <td style={tdStyle}>Mid-tier production models</td>
                 </tr>
                 <tr>
                   <td style={{ ...tdStyle, color: "#C4A038", fontFamily: "var(--font-jetbrains-mono), 'JetBrains Mono', monospace" }}>SIT-Budget</td>
-                  <td style={tdStyle}>15 — 29</td>
+                  <td style={tdStyle}>P40 — P70</td>
                   <td style={tdStyle}>Low-cost models for high-volume tasks</td>
                 </tr>
                 <tr>
                   <td style={{ ...tdStyle, color: "#C4A038", fontFamily: "var(--font-jetbrains-mono), 'JetBrains Mono', monospace" }}>SIT-Micro</td>
-                  <td style={tdStyle}>&lt; 15</td>
+                  <td style={tdStyle}>Below P40 / unscored</td>
                   <td style={tdStyle}>Ultra-cheap models for simple tasks</td>
                 </tr>
               </tbody>
             </table>
-            <p style={{ ...p, marginTop: 20 }}>Current tier examples (August 2026):</p>
-            <p style={exampleLineStyle}>
-              <span style={{ color: "#C4A038" }}>SIT-Frontier</span> <span style={{ color: "#8a8a8a" }}>(8 models):</span>{" "}
-              Claude Opus 5 <span style={mutedMono}>(AA: 61)</span>, GPT-5.6 <span style={mutedMono}>(AA: 57)</span>, Kimi
-              K3 <span style={mutedMono}>(AA: 54)</span>, Grok 4.5 <span style={mutedMono}>(AA: 51)</span>, GLM-5.2{" "}
-              <span style={mutedMono}>(AA: 51)</span>, Muse Spark 1.1 <span style={mutedMono}>(AA: 50)</span>, Gemini 3.6
-              Flash <span style={mutedMono}>(AA: 50)</span>, Llama 4 Behemoth <span style={mutedMono}>(AA: 50)</span>
-            </p>
-            <p style={exampleLineStyle}>
-              <span style={{ color: "#C4A038" }}>SIT-Standard</span> <span style={{ color: "#8a8a8a" }}>(156 models):</span>{" "}
-              DeepSeek V4 Flash <span style={mutedMono}>(AA: 44)</span>, Nemotron 3 Ultra <span style={mutedMono}>(AA: 38)</span>,
-              and 154 more
-            </p>
-            <p style={exampleLineStyle}>
-              <span style={{ color: "#C4A038" }}>SIT-Budget</span> <span style={{ color: "#8a8a8a" }}>(78 models):</span>{" "}
-              Gemma 3 27B, Llama 4 8B, Mistral Small, and 75 more
-            </p>
-            <p style={exampleLineStyle}>
-              <span style={{ color: "#C4A038" }}>SIT-Micro</span> <span style={{ color: "#8a8a8a" }}>(73 models):</span>{" "}
-              1B–8B parameter models without AA Index scores
+            <p style={{ ...p, marginTop: 20 }}>
+              Historical note (September 2026): before this change, tiers used fixed AA score thresholds
+              (Frontier &gt;= 50, Standard &gt;= 30, Budget &gt;= 15). When Artificial Analysis shipped Index v4.2
+              (Sep 4) and v4.3 (Sep 7) within one week, those fixed cutoffs reclassified roughly half the
+              leaderboard twice. Percentile tiers replaced them on Sep 11, 2026.
             </p>
           </Section>
 
@@ -377,7 +366,7 @@ export default function MethodologyPage() {
 SIT Token Price Index (TPI) = Σ(w_p × min_adjusted_price_p)
   for each provider, cheapest SIT-qualified model
   w_p = equal weight per provider, capped at 30%
-  quality gate: AA Intelligence Index >= 35 only`}</pre>
+  eligibility: AA score in top 40% of scored models (P60+)`}</pre>
               <p style={p}>
                 Where:
               </p>
@@ -419,7 +408,7 @@ SIT Token Price Index (TPI) = Σ(w_p × min_adjusted_price_p)
 
 TPI = Σ(w_p × min_adjusted_price_p)
   w_p = equal weight per provider, capped at 30%
-  quality gate: AA Intelligence Index >= 35`}</pre>
+  eligibility: AA score in top 40% of scored models (P60+)`}</pre>
               <p style={p}>
                 Per-tier indices (Frontier, Standard, Budget, Micro) use a simple median across all models
                 in that tier. This answers: "What does a typical model in this tier cost?" The
@@ -460,14 +449,17 @@ TPI = Σ(w_p × min_adjusted_price_p)
             <SubSection n="4.5" title="Base Date and Rebaselining">
               <ul style={bulletList}>
                 <li style={bulletItem}>
-                  Base date: <span style={mutedMono}>August 4, 2026</span> (first day with full data; index = 1000 at this date)
+                  Current base date: <span style={mutedMono}>September 4, 2026</span> (SIT TPI = 1000 at this date).
+                  Charts mark era breaks where the underlying Artificial Analysis Index version changed.
                 </li>
                 <li style={bulletItem}>
-                  Base value: <span style={mutedMono}>SIT TPI = 1000 index points at 2026-08-04</span>
+                  Prior base: <span style={mutedMono}>August 4, 2026</span> (superseded Sep 11, 2026).
                 </li>
                 <li style={bulletItem}>
-                  Rebaselining only on methodology changes. All rebaselining events are published with full explanation
-                  and a 14-day public comment period.
+                  Rebaselining on methodology changes. All rebaselining events are published with full explanation.
+                  The September 2026 rebase was forced by two Artificial Analysis Index updates in one week
+                  (v4.2 on Sep 4, v4.3 on Sep 7), which changed the composition of the index basket without any
+                  real prices moving.
                 </li>
               </ul>
             </SubSection>

@@ -505,10 +505,12 @@ async def get_sit_latest(request: Request, authorization: Optional[str] = Header
     tier_rows = cur.fetchall()
 
     # Fetch the latest STORED sit_index_points per tier (real rebased values,
-    # anchored to the earliest data date). The API must NOT hardcode 1000.0 —
+    # anchored to the Sep 2026 rebase date). The API must NOT hardcode 1000.0 —
     # that froze the index and hid real price movement.
     cur.execute("""
-        SELECT DISTINCT ON (tier) tier, sit_price, sit_index_points
+        SELECT DISTINCT ON (tier) tier, sit_price, sit_index_points,
+               aa_version, basket_providers, eligibility_threshold,
+               model_count, provider_count
         FROM sit_index_values
         WHERE calculation_method = 'tpi_equal_weight_provider_capped'
         ORDER BY tier, date DESC
@@ -518,13 +520,29 @@ async def get_sit_latest(request: Request, authorization: Optional[str] = Header
     # Fallback: if no TPI rows yet (e.g. mid-deploy), use any method
     if not tpi_rows:
         cur.execute("""
-            SELECT DISTINCT ON (tier) tier, sit_price, sit_index_points
+            SELECT DISTINCT ON (tier) tier, sit_price, sit_index_points,
+                   aa_version, basket_providers, eligibility_threshold,
+                   model_count, provider_count
             FROM sit_index_values
             ORDER BY tier, date DESC
         """)
         tpi_rows = cur.fetchall()
 
     stored = {row[0]: (float(row[1]), float(row[2])) for row in tpi_rows}
+    # Composite methodology metadata (Sep 2026): AA version, basket, threshold.
+    # Counts come from the stored row: the basket IS the index. Live-computing
+    # counts from a different (old absolute-gate) query desyncs them, which is
+    # how the site showed 8 providers next to an 18-provider basket.
+    comp_meta = {}
+    comp_meta_counts = (None, None)
+    for row in tpi_rows:
+        if row[0] == "composite" and len(row) >= 8:
+            comp_meta = {
+                "aa_version": row[3],
+                "basket_providers": row[4] if row[4] else [],
+                "eligibility_threshold": float(row[5]) if row[5] is not None else None,
+            }
+            comp_meta_counts = (row[6], row[7])
 
     def idx(tier):
         v = stored.get(tier)
@@ -536,8 +554,10 @@ async def get_sit_latest(request: Request, authorization: Optional[str] = Header
     composite = {
         "price_per_m": round(tpi_price("composite", weighted_mean), 4),
         "index_points": idx("composite"),
-        "models": model_count,
-        "providers": provider_count,
+        # Stored basket counts (Sep 2026): the basket IS the index. Do not
+        # recompute from the usage-weighted top-50 (different methodology).
+        "models": comp_meta_counts[0] or model_count,
+        "providers": comp_meta_counts[1] or provider_count,
     }
 
     tiers = {}
@@ -660,6 +680,7 @@ async def get_sit_latest(request: Request, authorization: Optional[str] = Header
             "composite": composite,
             "tiers": tiers,
             "spread": spread,
+            "methodology": comp_meta,
         },
         headers=headers
     )
@@ -686,14 +707,14 @@ async def get_sit_history(
     
     if tier:
         cur.execute("""
-            SELECT date, tier, sit_price, sit_index_points, model_count
+            SELECT date, tier, sit_price, sit_index_points, model_count, aa_version
             FROM sit_index_values
             WHERE tier = %s AND date >= CURRENT_DATE - make_interval(days => %s)
             ORDER BY date ASC
         """, (tier, days))
     else:
         cur.execute("""
-            SELECT date, tier, sit_price, sit_index_points, model_count
+            SELECT date, tier, sit_price, sit_index_points, model_count, aa_version
             FROM sit_index_values
             WHERE date >= CURRENT_DATE - make_interval(days => %s)
             ORDER BY date ASC, tier
@@ -718,6 +739,7 @@ async def get_sit_history(
             "price_per_m": row[2],
             "index_points": row[3],
             "model_count": row[4],
+            "aa_version": row[5],  # era tag for chart era-breaks (Sep 2026 rebase)
         }
     
     if current_entry:

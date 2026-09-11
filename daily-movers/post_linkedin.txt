@@ -1,18 +1,18 @@
-Inference prices keep moving. The SIT-Composite is $3.10 per million tokens today (↓ 1.1% over 24h), tracking 50 top models across 13 providers.
+Inference prices keep moving. The SIT-Composite is $2.98 per million tokens today (↓ 0.6% over 24h), tracking 50 top models across 12 providers.
 
 Biggest price drops (24h):
-  • MiniMax M2.1: -30%
-  • Gemini 2.5 Pro Preview 06-05: -25%
-  • Nano Banana (Gemini 2.5 Flash Image): -25%
-  • Gemini 2.5 Pro Preview 05-06: -25%
-  • GPT-5.2: -20%
+  • Gemini 3.6 Flash: -50%
+  • Claude Opus 4.8: -9%
+  • GLM 4.7 Flash: -1%
+  • MiniMax M2.5: +0%
+  • GPT-5 Nano: +5%
 
 Biggest price increases (24h):
-  • Qwen3 VL 235B A22B Instruct: +40%
-  • Gemini 2.5 Flash Lite: +40%
-  • Gemini 3 Flash Preview: +26%
-  • Gemini 3.1 Pro Preview: +25%
-  • Nemotron 3.5 Lightning: +15%
+  • DeepSeek V4 Pro 0813: +300%
+  • Gemini 3.7 Flash: +50%
+  • R1: +31%
+  • GPT-5.3-Codex: +25%
+  • GPT-5.2: +25%
 
 The gap between frontier and budget inference is what most teams under-optimise. We publish live, independent per-model pricing so you can see where the market actually is.
 

@@ -24,12 +24,17 @@ export interface SITLatest {
   composite: { price_per_m: number; index_points: number; models: number; providers: number; change_24h?: number; change_7d?: number; change_30d?: number; change_90d?: number };
   tiers: Record<string, { price_per_m: number; index_points: number; models: number; providers: number; change_24h?: number; change_7d?: number; change_30d?: number; change_90d?: number }>;
   spread: { price_per_m: number; index_points: number; models: number; providers: number; change_24h?: number };
+  methodology?: {
+    aa_version?: string | null;
+    basket_providers?: string[];
+    eligibility_threshold?: number | null;
+  };
 }
 
 export interface SITHistory {
   history: Array<{
     date: string;
-    tiers: Record<string, { price_per_m: number; index_points: number; model_count: number }>;
+    tiers: Record<string, { price_per_m: number; index_points: number; model_count: number; aa_version?: string | null }>;
   }>;
   days: number;
 }

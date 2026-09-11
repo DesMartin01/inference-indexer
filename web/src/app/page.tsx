@@ -72,11 +72,17 @@ export default async function Home() {
   const models = modelsData?.models ?? [];
   const totalCount = modelsData?.returned ?? models.length;
 
-  // Build sparkline from history
-  const histVals =
+  // Build sparkline from history (with AA era tags for rebase break-lines)
+  const histPoints =
     history?.history
-      ?.map((h) => h.tiers.composite.price_per_m)
-      .filter((v) => v > 0) ?? [];
+      ?.map((h) => ({
+        price: h.tiers.composite?.price_per_m ?? 0,
+        aaVersion: h.tiers.composite?.aa_version ?? null,
+        date: h.date,
+      }))
+      .filter((p) => p.price > 0) ?? [];
+
+  const histVals = histPoints.map((p) => p.price);
 
   // If no history, use a synthetic series based on current price
   const sparkVals =
@@ -89,6 +95,21 @@ export default async function Home() {
     top: 15,
     bot: 248,
   });
+
+  // AA rebase era-breaks (Sep 2026): dashed vertical lines where the
+  // Intelligence Index version changed. The series is rebased (Sep 4 = 1000),
+  // so segments on either side of a break are not directly comparable.
+  const X0 = 8;
+  const X1 = 580;
+  const eraBreaks: { x: number; label: string }[] = [];
+  for (let i = 1; i < histPoints.length; i++) {
+    const prevV = histPoints[i - 1].aaVersion;
+    const curV = histPoints[i].aaVersion;
+    if (prevV && curV && prevV !== curV) {
+      const x = X0 + (i * (X1 - X0)) / (histPoints.length - 1);
+      eraBreaks.push({ x, label: curV });
+    }
+  }
 
   const heroPrice = composite ? formatPrice(composite.price_per_m) : "—";
   const d1 = composite?.change_24h ?? 0;
@@ -277,6 +298,13 @@ export default async function Home() {
             >
               The Standard Inference Token (SIT)-Composite tracks the cost of producing
               one million GPT-4-Turbo-equivalent inference tokens, the commodity unit for AI compute.
+              {latest?.methodology?.aa_version && (
+                <>
+                  {" "}Basket: cheapest qualifying model per provider, eligibility set relative to
+                  the scored-model population (top 40%), based on Artificial Analysis{" "}
+                  {latest.methodology.aa_version}.
+                </>
+              )}
             </p>
             <Link
               href="/methodology"
@@ -360,6 +388,28 @@ export default async function Home() {
                     strokeLinecap="round"
                   />
                 )}
+                {eraBreaks.map((b, i) => (
+                  <g key={`era-${i}`}>
+                    <line
+                      x1={b.x}
+                      y1={15}
+                      x2={b.x}
+                      y2={248}
+                      stroke="#5f5f5f"
+                      strokeWidth="1"
+                      strokeDasharray="3 3"
+                    />
+                    <text
+                      x={b.x + 4}
+                      y={26}
+                      fill="#8a8a8a"
+                      fontSize="10"
+                      fontFamily="Inter, sans-serif"
+                    >
+                      {b.label} ↻
+                    </text>
+                  </g>
+                ))}
               </svg>
               {sp.gridLines.map((g, i) => (
                 <div

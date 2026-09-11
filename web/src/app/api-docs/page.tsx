@@ -119,6 +119,8 @@ function Sidebar() {
       </SidebarSection>
 
       <SidebarSection title="Endpoints">
+        <SidebarLink href="#ep-recommend">/recommend</SidebarLink>
+        <SidebarLink href="#ep-explain">/explain</SidebarLink>
         <SidebarLink href="#ep-sit-composite-latest">/sit/composite/latest</SidebarLink>
         <SidebarLink href="#ep-sit-composite-history">/sit/composite/history</SidebarLink>
         <SidebarLink href="#ep-models">/models</SidebarLink>
@@ -296,6 +298,92 @@ function EndpointsSection() {
     "budget": { "price_per_m": 0.42, "change_24h": -2.1, "models": 78 }
   },
   "spread": { "price_per_m": 34.78, "change_24h": -1.9 }
+}`}
+      />
+
+      <EndpointCard
+        anchor="ep-recommend"
+        method="POST"
+        path="/v1/recommend"
+        desc="Constraint-filtered model ranking with receipts. Ranks by Cost/IQ (blended price x 40/AA score, lower is better). Returns ranked models with a plain-English 'why', a hot-swap endpoint_config (provider base_url + native model id), per-field as-of timestamps, and runner-ups with reasons. Requires at least one constraint."
+        params={[]}
+        request={`$ curl -X POST -H "Authorization: Bearer ***" -H "Content-Type: application/json" \\\\
+     -d '{"budget_max_usd_per_m": 1, "context_min": 100000, "limit": 3}' \\\\
+     "https://api.inferenceindexer.ai/v1/recommend"`}
+        response={`{
+  "query": { "budget_max_usd_per_m": 1, "context_min": 100000, "modality": "text" },
+  "methodology_version": "0.2",
+  "recommendations": [
+    {
+      "rank": 1,
+      "model_id": "deepseek/deepseek-v4-flash",
+      "tier": "frontier",
+      "blended_price_per_m": 0.224,
+      "cost_per_iq": 0.173,
+      "context_length": 1048576,
+      "is_reasoning": false,
+      "why": "Rank 1 by Cost/IQ ($0.173/GPT-4-equiv M tokens) of models under $1.0/M blended and >= 100,000 token context; cheapest verified endpoint at DeepInfra ($0.224/M blended)",
+      "endpoint_config": {
+        "provider": "DeepInfra",
+        "base_url": "https://api.deepinfra.com/v1/openai",
+        "model_id_on_provider": "deepseek-ai/DeepSeek-V4-Flash",
+        "model_id_source": "verified",
+        "input_price_per_m": 0.07,
+        "output_price_per_m": 0.4,
+        "auth_scheme": "bearer"
+      },
+      "as_of": { "price": "2026-09-02T16:00:25Z", "aa_score": "2026-09-01" },
+      "caveats": []
+    }
+  ],
+  "alternatives_considered": { "count": 45, "runner_ups": [ ... ] },
+  "ranking_basis": {
+    "method": "cost_per_iq_ascending",
+    "description": "Blended price x (40 / AA Intelligence score). Quality gate AA >= 35.",
+    "quality_latency_data": "Not used in v1 ranking: probe coverage too thin."
+  },
+  "disclaimer": "Estimates based on aggregated public pricing. Verify with the provider before committing spend."
+}`}
+      />
+
+      <EndpointCard
+        anchor="ep-explain"
+        method="GET"
+        path="/v1/explain?model_id={id}"
+        desc="One call answers 'what is this model like right now': current pricing with 24h/7d changes, price history summary with trend, all endpoints across providers, the cheapest hand-verified endpoint (with native model id for hot-swapping), privacy flags (ZDR/EU), and the AA intelligence score. Everything as-of stamped."
+        params={[
+          { name: "model_id", type: "string", required: true, desc: "Canonical model id, e.g. anthropic/claude-sonnet-5" },
+          { name: "history_days", type: "integer", required: false, desc: "History window (default 30, max 365)" },
+        ]}
+        request={`$ curl -H "Authorization: Bearer ***" \\\\
+     "https://api.inferenceindexer.ai/v1/explain?model_id=deepseek/deepseek-v4-flash"`}
+        response={`{
+  "model_id": "deepseek/deepseek-v4-flash",
+  "tier": "frontier",
+  "as_of": "2026-09-02T16:00:25Z",
+  "pricing": {
+    "input_per_m": 0.1, "output_per_m": 0.4,
+    "blended_per_m": 0.224, "cost_per_iq": 0.173,
+    "change_24h": 0.0, "change_7d": 0.0
+  },
+  "price_history_summary": {
+    "days_observed": 30, "snapshots": 763,
+    "min_blended": 0.2202, "max_blended": 0.224,
+    "trend": "flat", "trend_note": "estimate: first-3 vs last-3 average in window",
+    "series_url": "/v1/models/deepseek/deepseek-v4-flash/history?days=30"
+  },
+  "endpoints": [ { "provider": "DeepInfra", "blended_per_m": 0.224 }, ... ],
+  "cheapest_verified_endpoint": {
+    "provider": "DeepInfra",
+    "base_url": "https://api.deepinfra.com/v1/openai",
+    "model_id_on_provider": "deepseek-ai/DeepSeek-V4-Flash",
+    "model_id_source": "verified",
+    "blended_per_m": 0.224,
+    "auth_scheme": "bearer"
+  },
+  "privacy": { "zdr_available": true, "eu_sovereign_available": false, "note": "Provider-level claims, aggregated not certified." },
+  "quality": { "aa_score": 51.77, "cost_per_iq": 0.173, "probe_data": "insufficient coverage" },
+  "methodology_version": "0.2"
 }`}
       />
 
