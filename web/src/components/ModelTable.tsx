@@ -68,8 +68,8 @@ const COLS_TIER: { key: ColKey; label: string; align: "left" | "right" | "center
   { key: "medal", label: "Medal", align: "center" },
 ];
 
-const GRID_ALL = "30px minmax(130px, 275px) 110px 76px 82px 82px 108px 64px 100px 100px 76px 56px";
-const GRID_TIER = "30px minmax(130px, 275px) 110px 76px 82px 82px 108px 64px 100px 100px 100px 76px 56px";
+const GRID_ALL = "30px minmax(150px, 330px) 110px 76px 82px 82px 96px 64px 100px 100px 76px 56px";
+const GRID_TIER = "30px minmax(150px, 330px) 110px 76px 82px 82px 96px 64px 100px 100px 100px 76px 56px";
 
 interface Props {
   models: ModelSummary[];
@@ -592,7 +592,8 @@ export default function ModelTable({ models, totalCount }: Props) {
                     <span style={{ display: "flex", flexDirection: "column", gap: "3px", minWidth: 0 }}>
                       <span
                         style={{
-                          fontSize: "13.5px",
+                          fontSize: "15px",
+                          fontWeight: 550,
                           color: "#f2f2f2",
                           whiteSpace: "nowrap",
                           overflow: "hidden",
@@ -710,7 +711,7 @@ export default function ModelTable({ models, totalCount }: Props) {
                       cursor: "help",
                     }}
                   >
-                    {m.sit_adjusted_price != null ? `$${m.sit_adjusted_price.toFixed(4)}` : "N/A"}
+                    {m.sit_adjusted_price != null ? `$${m.sit_adjusted_price.toFixed(2)}` : "N/A"}
                   </div>
                   {/* AA Score */}
                   <div

@@ -780,7 +780,7 @@ async def get_models(
                COALESCE(zdr_sub.is_zdr, FALSE), COALESCE(eu_sub.is_eu, FALSE),
                COALESCE(pc24.change_24h_pct, 0),
                COALESCE(ch7.change_pct, 0),
-               ps.source
+               ps.source, m.description
         FROM models m
         JOIN latest_prices lp ON m.id = lp.model_id
         LEFT JOIN price_changes_24h pc24 ON m.id = pc24.model_id
@@ -869,6 +869,7 @@ async def get_models(
             "fetched_at": row[15].isoformat() if row[15] else None,
             "source_count": row[16] if row[16] else 1,
             "source": row[21] if row[21] else "aggregator",
+            "description": row[22],
             "is_zdr": row[17],
             "is_eu_sovereign": row[18],
             "change_24h": float(row[19]) if row[19] else 0,
@@ -1526,7 +1527,7 @@ async def explain(
                lp.input_price_per_m, lp.output_price_per_m, lp.blended_price_per_m,
                lp.sit_adjusted_price, lp.fetched_at, lp.source_count,
                COALESCE(pc24.change_24h_pct, 0),
-               COALESCE(ch7.change_pct, 0)
+               COALESCE(ch7.change_pct, 0), m.description
         FROM models m
         JOIN latest_prices lp ON m.id = lp.model_id
         LEFT JOIN price_changes_24h pc24 ON m.id = pc24.model_id
@@ -1554,7 +1555,7 @@ async def explain(
         })
 
     (mid, name, creator, tier, ctx, modality, is_reasoning, aa, country,
-     inp, outp, blended, cpiq, fetched_at, source_count, ch24, ch7) = row
+     inp, outp, blended, cpiq, fetched_at, source_count, ch24, ch7, description) = row
 
     cur.execute("""
         SELECT min(blended_price_per_m), max(blended_price_per_m), count(*)
@@ -1637,6 +1638,7 @@ async def explain(
         "modality": modality,
         "is_reasoning": is_reasoning,
         "creator_country": country,
+        "description": description,
         "as_of": fetched_at.isoformat() if fetched_at else None,
         "pricing": {
             "input_per_m": float(inp) if inp is not None else None,
@@ -2553,7 +2555,7 @@ async def get_model(
                m.modality, m.tokenizer, m.is_reasoning, m.created_at,
                lp.input_price_per_m, lp.output_price_per_m, lp.blended_price_per_m,
                lp.sit_score, lp.reasoning_multiplier, lp.sit_adjusted_price,
-               lp.source, lp.fetched_at, lp.source_count
+               lp.source, lp.fetched_at, lp.source_count, m.description
         FROM models m
         JOIN latest_prices lp ON m.id = lp.model_id
         WHERE m.id = %s AND m.is_active = TRUE
@@ -2693,6 +2695,7 @@ async def get_model(
             "modality": row[6],
             "tokenizer": row[7],
             "is_reasoning": row[8],
+            "description": row[19],
             "date_added": row[9].isoformat() if row[9] else None,
             "input_price_per_m": row[10],
             "output_price_per_m": row[11],

@@ -74,7 +74,11 @@ export async function generateMetadata({ params }: { params: Promise<{ modelId: 
   // Title: "GPT-5.6 Luna Price - $0.40/M | InferenceIndexer"
   const title = `${name} Price - ${blended}/M | InferenceIndexer`;
 
-  const description = `${name} by ${provider} inference pricing: input ${money(model.input_price_per_m)}/M, output ${money(model.output_price_per_m)}/M, blended ${blended}/M. Cost / IQ ${model.sit_adjusted_price != null ? `$${model.sit_adjusted_price.toFixed(4)}/M` : "N/A"} (${tier} tier). Compare AI inference costs across providers.`;
+  // Description: prefer the real model description (OpenRouter-sourced);
+  // fall back to the pricing-derived boilerplate for models without one.
+  const description = model.description
+    ? `${model.description.slice(0, 155).trimEnd()}${model.description.length > 155 ? "..." : ""} Pricing from ${money(model.input_price_per_m)}/M input, ${money(model.output_price_per_m)}/M output.`
+    : `${name} by ${provider} inference pricing: input ${money(model.input_price_per_m)}/M, output ${money(model.output_price_per_m)}/M, blended ${blended}/M. Cost / IQ ${model.sit_adjusted_price != null ? `$${model.sit_adjusted_price.toFixed(4)}/M` : "N/A"} (${tier} tier). Compare AI inference costs across providers.`;
 
   const url = `https://www.inferenceindexer.ai/models/${modelId}`;
 
@@ -119,7 +123,7 @@ function modelJsonLd(model: Awaited<ReturnType<typeof getModel>>) {
     "@context": "https://schema.org",
     "@type": "Product",
     name: `${name} - AI Inference API`,
-    description: `${name} by ${model.provider}. Input ${money(model.input_price_per_m)}/M tokens, output ${money(model.output_price_per_m)}/M tokens. ${model.tier} tier model.`,
+    description: model.description || `${name} by ${model.provider}. Input ${money(model.input_price_per_m)}/M tokens, output ${money(model.output_price_per_m)}/M tokens. ${model.tier} tier model.`,
     brand: { "@type": "Brand", name: model.provider },
     category: "AI Inference API",
     offers: {
@@ -232,6 +236,11 @@ export default async function ModelDetailPage({
                 </div>
               </div>
             </div>
+            {model.description && (
+              <p style={{ fontSize: 14, lineHeight: 1.55, color: "#a8a8b0", margin: "0 0 8px", maxWidth: 640 }}>
+                {model.description}
+              </p>
+            )}
           </div>
 
           {/* Stats Grid */}

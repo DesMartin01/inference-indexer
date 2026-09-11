@@ -2144,6 +2144,15 @@ def fetch_aa_scores():
                 "country": None,
             }
 
+    # Country-of-origin (Sep 2026): AA's v4.3 layout dropped
+    # modelCreatorCountry. Derive it from the creator name via the static map.
+    try:
+        from creator_countries import country_for_creator
+        for slug, d in scores.items():
+            d["country"] = country_for_creator(d.get("creator"))
+    except ImportError:
+        print("  WARN: creator_countries.py missing - countries stay NULL")
+
     print(f"  AA leaderboard: {len(scores)} models with scores (layout: {layout})")
     if not scores:
         print("  WARN: AA scrape produced zero scores - DO NOT overwrite DB scores")
@@ -2200,7 +2209,11 @@ def match_aa_score(model_id, model_name, aa_scores):
         # Parent unresolved: fall through to normal matching but with the
         # variant suffix stripped from the name too (below).
 
-    # Remove version suffixes for matching (0813, 0731, etc.)
+    # Country no longer scraped (Sep 2026): AA's v4.3 RSC layout dropped
+    # modelCreatorCountry. Country-of-origin comes from the static map in
+    # creator_countries.py, applied in fetch_aa_scores()/main() by creator
+    # name - not here.
+
     base = re.sub(r'-\d{4}$', '', model_part)  # Remove trailing -0813
     base = base.replace(".", "-").replace("_", "-")
 
@@ -2365,6 +2378,8 @@ def normalize_model(raw):
         "modality": modality,
         "tokenizer": arch.get("tokenizer"),
         "is_reasoning": is_reasoning,
+        "description": raw.get("description"),
+        "description_source": "openrouter" if raw.get("description") else None,
         "reasoning_multiplier": reasoning_multiplier,
         "sit_adjusted_price": sit_adjusted_price,
         "input_price_per_m": input_price_per_m,
@@ -2933,13 +2948,13 @@ def upsert_models(conn, models):
     """Insert or update models in the database."""
     cur = conn.cursor()
     count = 0
-    
+
     for m in models:
         cur.execute("""
-            INSERT INTO models (id, name, provider, tier, context_length, aa_index_score, 
+            INSERT INTO models (id, name, provider, tier, context_length, aa_index_score,
                               modality, tokenizer, is_reasoning, creator_country, updated_at, is_active,
-                              aa_score_version)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), TRUE, %s)
+                              aa_score_version, description, description_source)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), TRUE, %s, %s, %s)
             ON CONFLICT (id) DO UPDATE SET
                 name = EXCLUDED.name,
                 provider = EXCLUDED.provider,
@@ -2951,13 +2966,17 @@ def upsert_models(conn, models):
                 is_reasoning = EXCLUDED.is_reasoning,
                 creator_country = EXCLUDED.creator_country,
                 aa_score_version = COALESCE(EXCLUDED.aa_score_version, models.aa_score_version),
+                description = COALESCE(EXCLUDED.description, models.description),
+                description_source = COALESCE(EXCLUDED.description_source, models.description_source),
                 updated_at = NOW()
         """, (
             m["model_id"], m["name"], m["provider"], m["tier"],
             m["context_length"], m["aa_index_score"],
             m["modality"], m["tokenizer"], m["is_reasoning"],
             m.get("creator_country"),
-            m.get("aa_score_version")
+            m.get("aa_score_version"),
+            m.get("description"),
+            m.get("description_source")
         ))
         count += 1
     

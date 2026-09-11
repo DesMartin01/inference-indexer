@@ -79,6 +79,7 @@ export interface ModelDetail {
   modality: string;
   tokenizer: string | null;
   is_reasoning: boolean;
+  description: string | null;
   date_added: string;
   input_price_per_m: number;
   output_price_per_m: number;
