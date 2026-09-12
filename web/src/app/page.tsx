@@ -157,6 +157,33 @@ export default async function Home() {
       />
       <Header activePage="home" />
 
+      {/* Hero headline: the verification promise */}
+      <section
+        style={{
+          maxWidth: "1320px",
+          margin: "0 auto",
+          padding: "40px 28px 0",
+        }}
+      >
+        <h1
+          style={{
+            fontSize: "30px",
+            fontWeight: 700,
+            color: "#f2f2f2",
+            lineHeight: 1.3,
+            letterSpacing: "-0.01em",
+            margin: 0,
+            maxWidth: "820px",
+          }}
+        >
+          II verifies what AI inference providers only claim:{" "}
+          <span style={{ color: "#C4A038" }}>privacy, quality, security.</span>
+        </h1>
+        <p style={{ margin: "10px 0 0", fontSize: "16.5px", color: "#8a8a8a" }}>
+          Find the right model for your needs at the best price.
+        </p>
+      </section>
+
       {/* Hero section */}
       <section
         style={{
