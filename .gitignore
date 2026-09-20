@@ -36,5 +36,6 @@ web/build/
 
 # Cache
 .cache/
-mcp-server/
+mcp-server/dist/
+mcp-server/.venv/
 .vercel
