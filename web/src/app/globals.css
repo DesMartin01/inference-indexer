@@ -44,6 +44,14 @@
   box-sizing: border-box;
 }
 
+/* Header nav links: hover/focus accent (inline colors need !important).
+   Active page stays accent via inline style; hover brightens grey links only
+   by targeting the muted color specifically. */
+header a[href]:hover,
+header a[href]:focus-visible {
+  color: var(--accent) !important;
+}
+
 html,
 body {
   margin: 0;

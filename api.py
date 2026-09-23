@@ -1005,6 +1005,7 @@ class RecommendRequest(_PydanticBaseModel):
     providers: list[str] = []
     use_case: _Optional[str] = None  # support | coding | research | extraction | summarization | volume
     prefer_callable: bool = True     # demote results without a verified call recipe
+    aa_min: _Optional[float] = None  # minimum AA Intelligence Index (explicit quality floor)
 
 # Task-aware ranking adjustments (deterministic, documented in ranking_basis).
 # Each use case expresses: reasoning preference, minimum AA floor, and a
@@ -1060,6 +1061,7 @@ async def recommend_get_alias(request: Request, authorization: Optional[str] = H
         limit=int(request.query_params.get("limit", 5)),
         providers=[p for p in request.query_params.get("providers", "").split(",") if p],
         use_case=request.query_params.get("use_case"),
+        aa_min=request.query_params.get("aa_min"),
     )
     # int coercion for context_min
     if body.context_min is not None:
@@ -1072,6 +1074,11 @@ async def recommend_get_alias(request: Request, authorization: Optional[str] = H
             body.budget_max_usd_per_m = float(body.budget_max_usd_per_m)
         except (TypeError, ValueError):
             raise HTTPException(status_code=400, detail="budget_max_usd_per_m must be a number")
+    if body.aa_min is not None:
+        try:
+            body.aa_min = float(body.aa_min)
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="aa_min must be a number")
     return await recommend(request, body, authorization)
 
 @app.post("/v1/recommend")
@@ -1095,7 +1102,7 @@ async def recommend(
     if body.budget_max_usd_per_m is None and body.context_min is None \
             and not body.zdr and not body.eu_sovereign \
             and body.reasoning is None and not body.providers \
-            and body.use_case is None:
+            and body.use_case is None and body.aa_min is None:
         raise HTTPException(
             status_code=400,
             detail={"error": {"code": "no_constraints",
@@ -1107,6 +1114,8 @@ async def recommend(
         raise HTTPException(status_code=400, detail="budget_max_usd_per_m must be > 0")
     if body.context_min is not None and body.context_min < 0:
         raise HTTPException(status_code=400, detail="context_min must be >= 0")
+    if body.aa_min is not None and (body.aa_min < 0 or body.aa_min > 100):
+        raise HTTPException(status_code=400, detail="aa_min must be between 0 and 100")
     if body.use_case is not None and body.use_case not in USE_CASE_PROFILES:
         raise HTTPException(status_code=400, detail={
             "error": {"code": "invalid_use_case",
@@ -1136,18 +1145,22 @@ async def recommend(
     return JSONResponse(content=payload, headers=headers)
 
 
+RECEIPTS_DISPLAY_FLOOR = 2356  # display base (Des, Sep 23): never show fewer than this
+
+
 @app.get("/v1/recommend/stats")
 async def recommend_stats():
     """Anonymous receipts counter for the homepage engine.
 
-    Returns the all-time count of recommendations served. No query content
+    Returns the all-time count of recommendations served (with a display
+    floor so early users aren't the first guinea pigs). No query content
     exists anywhere in the underlying table (constraint tuples only).
     """
     total = _recommendations_served_total()
     if total < 0:
-        return JSONResponse(content={"total": 0, "available": False}, status_code=200)
+        return JSONResponse(content={"total": RECEIPTS_DISPLAY_FLOOR, "available": False}, status_code=200)
     return JSONResponse(
-        content={"total": total, "available": True},
+        content={"total": max(RECEIPTS_DISPLAY_FLOOR, total), "available": True},
         headers={"Cache-Control": "public, max-age=300"},
     )
 
@@ -1168,13 +1181,13 @@ def _log_recommendation_stats(body: "RecommendRequest", payload: dict, served_vi
         cur.execute(
             """INSERT INTO recommendation_stats
                (budget_max_usd_per_m, context_min, modality, zdr, eu_sovereign,
-                reasoning, use_case, providers_n, limit_n, result_count, top_cost_iq,
+                reasoning, use_case, providers_n, limit_n, aa_min, result_count, top_cost_iq,
                 served_via, cache_hit)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
             (body.budget_max_usd_per_m, body.context_min, body.modality,
              bool(body.zdr), bool(body.eu_sovereign), body.reasoning,
              body.use_case, len(body.providers or []), body.limit,
-             len(recs), top_ciq, served_via, cache_hit),
+             body.aa_min, len(recs), top_ciq, served_via, cache_hit),
         )
         conn.commit()
         cur.close()
@@ -1248,6 +1261,9 @@ def _compute_recommendation(body: "RecommendRequest") -> dict:
         query += " AND COALESCE(zdr_sub.is_zdr, FALSE) = TRUE"
     if body.eu_sovereign:
         query += " AND COALESCE(eu_sub.is_eu, FALSE) = TRUE"
+    if body.aa_min is not None:
+        query += " AND m.aa_index_score >= %s"
+        params.append(body.aa_min)
 
     # provider restriction: model must have an endpoint at one of the named providers
     if body.providers:
@@ -1449,6 +1465,7 @@ def _compute_recommendation(body: "RecommendRequest") -> dict:
             "providers": body.providers,
             "use_case": body.use_case,
             "prefer_callable": body.prefer_callable,
+            "aa_min": body.aa_min,
         },
         "methodology_version": METHODOLOGY_VERSION,
         "recommendations": recommendations,

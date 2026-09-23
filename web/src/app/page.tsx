@@ -19,6 +19,13 @@ import { CURRENT_MODEL_COUNT, CURRENT_PROVIDER_COUNT } from "@/lib/counts";
 
 export const revalidate = 60;
 
+// Creator country flag emojis (subset, mirrors ModelTable's map)
+const PREVIEW_FLAG_EMOJI: Record<string, string> = {
+  us: "🇺🇸", cn: "🇨🇳", gb: "🇬🇧", fr: "🇫🇷", de: "🇩🇪", ca: "🇨🇦", jp: "🇯🇵",
+  kr: "🇰🇷", in: "🇮🇳", sg: "🇸🇬", ae: "🇦🇪", il: "🇮🇱", ch: "🇨🇭", nl: "🇳🇱",
+  se: "🇸🇪", ie: "🇮🇪", au: "🇦🇺", tw: "🇹🇼", hk: "🇭🇰", ru: "🇷🇺", br: "🇧🇷",
+};
+
 export async function generateMetadata(): Promise<Metadata> {
   const count = (await getModelCount().catch(() => 0)) || CURRENT_MODEL_COUNT;
   return {
@@ -135,10 +142,11 @@ export default async function Home() {
     ? latest.date + " 06:00 UTC"
     : new Date().toISOString().slice(0, 16).replace("T", " ") + " UTC";
 
-  // Catalogue preview: top 3 by Cost/IQ among models that have one (any tier,
-  // mirrors the engine's ranking basis so the preview demonstrates the method)
+  // Catalogue preview: top 3 Frontier models by Cost/IQ (Des, Sep 23: do not
+  // mix tiers in the preview - a global Cost/IQ top-3 is always micro models,
+  // which reads as "cheap junk wins" and undersells quality adjustment).
   const preview = models
-    .filter((m) => m.sit_adjusted_price != null)
+    .filter((m) => m.sit_adjusted_price != null && m.tier.toLowerCase() === "frontier")
     .sort((a, b) => (a.sit_adjusted_price ?? Infinity) - (b.sit_adjusted_price ?? Infinity))
     .slice(0, 3);
 
@@ -194,7 +202,7 @@ export default async function Home() {
               color: "#f2f2f2",
             }}
           >
-            AI inference recommendation engine
+            <span style={{ color: "#C4A038" }}>AI inference</span> recommendation engine
           </h1>
           <div
             style={{
@@ -488,7 +496,7 @@ export default async function Home() {
               >
                 <span
                   style={{
-                    fontFamily: "Inter, sans-serif",
+                    fontFamily: "var(--font-jetbrains-mono), monospace",
                     fontSize: "58px",
                     fontWeight: 500,
                     lineHeight: 0.9,
@@ -516,7 +524,7 @@ export default async function Home() {
                 </span>
                 <span
                   style={{
-                    fontFamily: "Inter, sans-serif",
+                    fontFamily: "var(--font-jetbrains-mono), monospace",
                     fontSize: "16px",
                     fontWeight: 500,
                     color: pctColor(d1),
@@ -547,7 +555,7 @@ export default async function Home() {
                   </span>
                   <span
                     style={{
-                      fontFamily: "Inter, sans-serif",
+                      fontFamily: "var(--font-jetbrains-mono), monospace",
                       fontSize: "15px",
                       fontWeight: 500,
                       color: p.color,
@@ -669,7 +677,7 @@ export default async function Home() {
                     textAlign: "left",
                     top: g.top,
                     transform: "translateY(-50%)",
-                    fontFamily: "Inter, sans-serif",
+                    fontFamily: "var(--font-jetbrains-mono), monospace",
                     fontSize: "10.5px",
                     color: "#6a6a6a",
                     pointerEvents: "none",
@@ -738,7 +746,7 @@ export default async function Home() {
         >
           <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
             <h2 style={{ margin: 0, fontSize: "28px", fontWeight: 600, letterSpacing: "-0.028em", color: "#f2f2f2" }}>
-              Quality-adjusted price across {totalCount.toLocaleString()} models
+              <span style={{ color: "#C4A038" }}>Quality-adjusted price</span> across {totalCount.toLocaleString()} models
             </h2>
             <p style={{ margin: 0, maxWidth: "56em", fontSize: "13.5px", lineHeight: 1.5, color: "#8a8a8a" }}>
               Grouped by quality tier, ranked within tier by Cost/IQ — verified price per million tokens per unit of AA
@@ -811,25 +819,9 @@ export default async function Home() {
                 </span>
                 <span style={{ padding: "0 8px", display: "flex", alignItems: "center", gap: "7px", minWidth: 0 }}>
                   <span style={{ fontSize: "12.5px", color: "#8a8a8a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {m.creator_country && PREVIEW_FLAG_EMOJI[m.creator_country.toLowerCase()] ? PREVIEW_FLAG_EMOJI[m.creator_country.toLowerCase()] + " " : ""}
                     {m.provider}
                   </span>
-                  {m.creator_country && (
-                    <span
-                      title={m.creator_country.toUpperCase()}
-                      style={{
-                        fontFamily: "var(--font-jetbrains-mono), monospace",
-                        fontSize: "9.5px",
-                        fontWeight: 500,
-                        padding: "1px 5px",
-                        background: "#131316",
-                        border: "1px solid #2a2a2a",
-                        color: "#8a8a8a",
-                        flexShrink: 0,
-                      }}
-                    >
-                      {m.creator_country.toUpperCase()}
-                    </span>
-                  )}
                 </span>
                 <span style={{ padding: "0 8px", display: "flex", gap: "5px" }}>
                   <span

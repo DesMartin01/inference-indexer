@@ -16,6 +16,7 @@ import { useSearchParams } from "next/navigation";
 
 interface Constraints {
   budget_max_usd_per_m: number | null;
+  aa_min: number | null;
   context_min: number | null;
   zdr: boolean;
   eu_sovereign: boolean;
@@ -26,6 +27,28 @@ interface Constraints {
 interface EchoChip {
   label: string;
   gold: boolean; // gold = constraint matched; grey = preference/context note
+}
+
+const CREATOR_COUNTRY: Record<string, string> = {
+  "OpenAI": "us", "Anthropic": "us", "Google": "us", "Google DeepMind": "us",
+  "Meta": "us", "Microsoft": "us", "xAI": "us", "Amazon": "us", "NVIDIA": "us",
+  "DeepSeek": "cn", "Z.ai": "cn", "Qwen": "cn", "Alibaba": "cn",
+  "Moonshot AI": "cn", "ByteDance": "cn", "Tencent": "cn", "Baidu": "cn",
+  "Mistral AI": "fr", "Cohere": "ca", "AI21": "il", "Ai2": "us",
+};
+
+const FLAG_EMOJI: Record<string, string> = {
+  us: "🇺🇸", cn: "🇨🇳", fr: "🇫🇷", de: "🇩🇪", ca: "🇨🇦", jp: "🇯🇵", kr: "🇰🇷",
+  in: "🇮🇳", sg: "🇸🇬", ae: "🇦🇪", il: "🇮🇱", ch: "🇨🇭", nl: "🇳🇱", se: "🇸🇪",
+  ie: "🇮🇪", au: "🇦🇺", tw: "🇹🇼", hk: "🇭🇰", ru: "🇷🇺", br: "🇧🇷", za: "🇿🇦",
+  it: "🇮🇹", es: "🇪🇸", fi: "🇫🇮", no: "🇳🇴", dk: "🇩🇰", pl: "🇵🇱", tr: "🇹🇷",
+};
+
+function creatorFlag(name: string | undefined): { flag: string; code: string } | null {
+  if (!name) return null;
+  const code = CREATOR_COUNTRY[name];
+  if (!code) return null;
+  return { flag: FLAG_EMOJI[code] ?? "", code: code.toUpperCase() };
 }
 
 interface Rec {
@@ -64,6 +87,7 @@ export function parseConstraints(text: string): { constraints: Constraints; chip
   const chips: EchoChip[] = [];
   const c: Constraints = {
     budget_max_usd_per_m: null,
+    aa_min: null,
     context_min: null,
     zdr: false,
     eu_sovereign: false,
@@ -80,6 +104,15 @@ export function parseConstraints(text: string): { constraints: Constraints; chip
   if (/\beu\b|european|eu[\s-]?(infra|sovereign|domicile)|gdpr/.test(t)) {
     c.eu_sovereign = true;
     chips.push({ label: "EU infrastructure", gold: true });
+  }
+  // AA quality floor: "above AA index 50", "AA score above 60", "AA 45+"
+  const aaFloor = t.match(/aa(?:\s|intelligence)?(?:\s+(?:index|score))?\s*(?:above|over|>|of at least|at least)\s*([0-9]+(?:\.[0-9]+)?)/) || t.match(/aa\s*(?:index|score)?\s*([0-9]+(?:\.[0-9]+)?)\s*\+/);
+  if (aaFloor) {
+    const v = parseFloat(aaFloor[1]);
+    if (v > 0 && v <= 100) {
+      c.aa_min = v;
+      chips.push({ label: `AA intelligence index ≥ ${v}`, gold: true });
+    }
   }
   // Budget: "$2", "under $1.5/M", "below $0.50 per million"
   const budget = t.match(/(?:under|below|less than|max|up to|<)\s*\$?\s*([0-9]+(?:\.[0-9]+)?)\s*(?:\/\s*m|per\s*m(?:illion)?|\/m\b)?/) || t.match(/\$\s*([0-9]+(?:\.[0-9]+)?)\s*(?:\/\s*m|per\s*m(?:illion)?)/);
@@ -141,8 +174,8 @@ export function parseConstraints(text: string): { constraints: Constraints; chip
 
 const SUGGESTIONS: { text: string; fill: string }[] = [
   {
-    text: "Cheapest model above AA index 70",
-    fill: "Find me the cheapest model with an AA intelligence score above 70",
+    text: "Cheapest model above AA index 50",
+    fill: "Find me the cheapest model with an AA intelligence score above 50",
   },
   {
     text: "Zero data retention providers in the EU",
@@ -175,7 +208,7 @@ export default function EnginePanel({ totalModels }: { totalModels: number }) {
   const [results, setResults] = useState<Rec[] | null>(null);
   const [basis, setBasis] = useState<string>("");
   const [filteredCount, setFilteredCount] = useState<number | null>(null);
-  const [status, setStatus] = useState<"idle" | "loading" | "error" | "route">("idle");
+  const [status, setStatus] = useState<"idle" | "loading" | "error" | "route" | "done">("idle");
   const [errMsg, setErrMsg] = useState("");
   const [receipts, setReceipts] = useState<number | null>(null);
   const [dayCount, setDayCount] = useState(0);
@@ -217,9 +250,9 @@ export default function EnginePanel({ totalModels }: { totalModels: number }) {
     async (input: string) => {
       const trimmed = input.trim();
       if (!trimmed || status === "loading") return;
-      if (dayCount >= 3) {
+      if (dayCount >= 5) {
         setStatus("error");
-        setErrMsg("Anonymous limit reached (3 recommendations/day). Create a free account for unlimited recommendations.");
+        setErrMsg("Anonymous limit reached (5 recommendations/day). Create a free account for unlimited recommendations.");
         return;
       }
 
@@ -234,6 +267,8 @@ export default function EnginePanel({ totalModels }: { totalModels: number }) {
         setTimeout(() => {
           window.location.href = route.href(trimmed);
         }, 900);
+        // safety: if navigation hasn't happened in 3s, restore the button
+        setTimeout(() => setStatus((s) => (s === "route" ? "idle" : s)), 3000);
         return;
       }
 
@@ -245,6 +280,7 @@ export default function EnginePanel({ totalModels }: { totalModels: number }) {
         !constraints.zdr &&
         !constraints.eu_sovereign &&
         constraints.budget_max_usd_per_m == null &&
+        constraints.aa_min == null &&
         constraints.context_min == null &&
         constraints.reasoning == null &&
         constraints.use_case == null
@@ -260,6 +296,7 @@ export default function EnginePanel({ totalModels }: { totalModels: number }) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             budget_max_usd_per_m: constraints.budget_max_usd_per_m,
+            aa_min: constraints.aa_min,
             context_min: constraints.context_min,
             zdr: constraints.zdr,
             eu_sovereign: constraints.eu_sovereign,
@@ -282,6 +319,7 @@ export default function EnginePanel({ totalModels }: { totalModels: number }) {
         setResults(data.recommendations ?? []);
         setBasis(data.ranking_basis?.description ?? "");
         setFilteredCount(data.alternatives_considered?.count ?? null);
+        setStatus("done");
         bumpDayCount();
         setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 150);
       } catch {
@@ -292,7 +330,7 @@ export default function EnginePanel({ totalModels }: { totalModels: number }) {
     [status, dayCount, bumpDayCount]
   );
 
-  const gated = dayCount >= 3;
+  const gated = dayCount >= 5;
 
   return (
     <section id="engine" style={{ maxWidth: "1320px", margin: "0 auto", padding: "26px 28px 0" }}>
@@ -443,6 +481,40 @@ export default function EnginePanel({ totalModels }: { totalModels: number }) {
                   {filteredCount != null ? ` · ${filteredCount} in scope before ranking` : ""}
                 </span>
               </div>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "34px minmax(140px, 1.6fr) minmax(90px, 1fr) minmax(150px, 1.2fr) 70px 84px",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "2px 0 7px",
+                  borderBottom: "1px solid #2a2a2a",
+                }}
+              >
+                {[
+                  ["#", "left"],
+                  ["Model", "left"],
+                  ["Creator", "left"],
+                  ["Basis", "left"],
+                  ["AA score", "right"],
+                  ["Cost / IQ", "right"],
+                ].map(([label, align]) => (
+                  <span
+                    key={label}
+                    style={{
+                      fontFamily: "var(--font-jetbrains-mono), monospace",
+                      fontSize: "10px",
+                      fontWeight: 500,
+                      letterSpacing: "0.11em",
+                      textTransform: "uppercase",
+                      color: "#8a8a8a",
+                      textAlign: align as "left" | "right",
+                    }}
+                  >
+                    {label}
+                  </span>
+                ))}
+              </div>
               {results.map((r) => (
                 <Link
                   key={r.model_id}
@@ -465,6 +537,7 @@ export default function EnginePanel({ totalModels }: { totalModels: number }) {
                     {r.name}
                   </span>
                   <span style={{ fontSize: "12px", color: "#8a8a8a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {creatorFlag(r.creator ?? r.provider)?.flag}{" "}
                     {r.creator ?? r.provider ?? "—"}
                   </span>
                   <span style={{ display: "flex", gap: "5px", flexWrap: "wrap" }}>

@@ -11,20 +11,30 @@ const SSR_SECRET = "inferenceindexer-ssr-2026";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const res = await fetch(`${API_URL}/v1/recommend`, {
-      method: "POST",
-      cache: "no-store",
-      headers: {
-        "Content-Type": "application/json",
-        "X-SSR-Secret": SSR_SECRET,
-      },
-      body: JSON.stringify(body),
-    });
+    // AbortSignal timeout: a hung upstream call must fail visibly, not stall
+    // the browser fetch forever (des reported second-in-a-row stalling).
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    let res: Response;
+    try {
+      res = await fetch(`${API_URL}/v1/recommend`, {
+        method: "POST",
+        cache: "no-store",
+        signal: controller.signal,
+        headers: {
+          "Content-Type": "application/json",
+          "X-SSR-Secret": SSR_SECRET,
+        },
+        body: JSON.stringify(body),
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
     const data = await res.json();
     return NextResponse.json(data, { status: res.status });
   } catch {
     return NextResponse.json(
-      { error: { code: "upstream_error", message: "Recommendation service unavailable" } },
+      { error: { code: "upstream_error", message: "Recommendation service unavailable or timed out. Please try again." } },
       { status: 502 }
     );
   }
