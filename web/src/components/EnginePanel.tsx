@@ -124,7 +124,9 @@ export function parseConstraints(text: string): { constraints: Constraints; chip
     chips.push({ label: "EU infrastructure", gold: true });
   }
   // AA quality floor: "above AA index 50", "AA score above 60", "AA 45+"
-  const aaFloor = t.match(/aa(?:\s|intelligence)?(?:\s+(?:index|score))?\s*(?:above|over|>|of at least|at least)\s*([0-9]+(?:\.[0-9]+)?)/) || t.match(/aa\s*(?:index|score)?\s*([0-9]+(?:\.[0-9]+)?)\s*\+/);
+  const aaFloor = t.match(/aa(?:\s|intelligence)?(?:\s+(?:index|score))?\s*(?:above|over|>|of at least|at least)\s*([0-9]+(?:\.[0-9]+)?)/)
+    || t.match(/(?:above|over|>|of at least|at least)\s*(?:an\s+)?aa(?:\s+(?:index|score))?\s*(?:of\s*)?([0-9]+(?:\.[0-9]+)?)/)
+    || t.match(/aa\s*(?:index|score)?\s*([0-9]+(?:\.[0-9]+)?)\s*\+/);
   if (aaFloor) {
     const v = parseFloat(aaFloor[1]);
     if (v > 0 && v <= 100) {
@@ -192,20 +194,28 @@ export function parseConstraints(text: string): { constraints: Constraints; chip
 
 const SUGGESTIONS: { text: string; fill: string }[] = [
   {
-    text: "Cheapest model above AA index 50",
-    fill: "Find me the cheapest model with an AA intelligence score above 50",
+    text: "Best model for coding agents priced under $2/M",
+    fill: "Best model for coding agents priced under $2 per million tokens",
+  },
+  {
+    text: "Best priced models above AA score 50",
+    fill: "Best priced models above AA score 50",
   },
   {
     text: "Zero data retention providers in the EU",
     fill: "Zero data retention providers in the EU",
   },
   {
-    text: "Best value for coding agents under $2/M",
-    fill: "Best value model for coding agents under $2 per million tokens",
+    text: "Compare providers serving DeepSeek V4",
+    fill: "Compare providers serving DeepSeek V4",
   },
   {
-    text: "Providers serving DeepSeek V4, price compared",
-    fill: "Providers serving DeepSeek V4, price compared",
+    text: "Best options for Hermes Agent running ZDR in EU",
+    fill: "Best options for an agent workload with zero data retention and EU infrastructure",
+  },
+  {
+    text: "Inference options for RAG system in a UK Law Firm",
+    fill: "Best inference options for a research and summarization workload handling sensitive legal documents",
   },
 ];
 
