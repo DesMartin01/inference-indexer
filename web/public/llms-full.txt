@@ -1,54 +1,82 @@
 # InferenceIndexer — Full Agent Guide
 
-InferenceIndexer.ai is an independent price reporting agency for AI inference. It is the CoinMarketCap of AI inference: a neutral, independent reference point for the cost of running large language models and other AI inference workloads.
+InferenceIndexer.ai is an Inference Recommendation Engine: an independent verifier of AI inference provider claims on price, quality, security and privacy. It pulls prices directly from inference providers (not aggregators), computes the Standard Inference Token price index, and answers the question agents actually have: "given my constraints, which model should I call, from which provider, at what price?"
 
 ## Mission
 
-AI inference pricing is fragmented across 70+ providers. Aggregators like OpenRouter give one slice, but they negotiate their own rates and don't expose the full picture or historical trends. InferenceIndexer pulls prices **directly from the inference providers**, computes a standardized index (the Standard Inference Token, SIT), and exposes both live and **historical** prices. This gives developers, investors, and enterprises a complete, trustworthy reference.
+AI inference pricing is fragmented across 70+ providers. Aggregators like OpenRouter give one slice, but they negotiate their own rates and don't expose the full picture or historical trends. InferenceIndexer pulls prices **directly from the inference providers**, computes a standardized index (the Standard Inference Token, SIT), and exposes both live and **historical** prices. On top of the data layer sits a deterministic recommendation engine: constraint-aware ranking with a hot-swap `endpoint_config` so an agent can switch models with zero other lookups.
 
 ## What agents use this for
 
+- **Recommend models under constraints**: budget, context length, zero data retention, EU sovereignty, reasoning, use case → ranked list with per-result verification basis.
 - **Complete inference pricing by model**: the real market price across providers, not just one aggregator.
 - **Historical pricing / trends**: price movements over time, which no single aggregator exposes.
 - **Provider vs aggregator comparison**: where direct provider pricing diverges from OpenRouter's negotiated rates.
-- **Price index values**: SIT-Composite, a usage-weighted mean of the top-50 models by token volume.
+- **Price index values**: the Standard Inference Token price (SIT), an equal-weight, provider-capped index across quality-gated models.
 
-The point: it is far cheaper (faster, more reliable, more complete) for an agent to call the InferenceIndexer API than to assemble inference pricing itself.
+The point: it is far cheaper (faster, more reliable, more complete) for an agent to call the InferenceIndexer API than to assemble inference pricing and recommendations itself.
 
 ## Quickstart (get an API key)
 
 1. Go to https://www.inferenceindexer.ai/for-agents
-2. Request a free API key (self-serve, under a minute).
+2. Request a free API key (self-serve, under a minute), or get one with no email/account:
+   ```
+   curl -X POST https://api.inferenceindexer.ai/v1/auth/anonymous
+   ```
 3. Call the API:
    ```
-   curl -H "Authorization: Bearer <your_key>" https://api.inferenceindexer.ai/v1/models
+   curl -X POST https://api.inferenceindexer.ai/v1/recommend \
+     -H "Authorization: Bearer <api_key>" \
+     -H "Content-Type: application/json" \
+     -d '{"use_case": "coding", "budget_max_usd_per_m": 2.0, "zdr": true, "limit": 5}'
    ```
 
 For read-only public data, a no-auth fallback with a daily rate limit is also available.
 
+## The recommendation engine (the core answer endpoint)
+
+`POST /v1/recommend` accepts typed constraints and returns a ranked shortlist:
+
+- **Constraints**: `budget_max_usd_per_m`, `context_min`, `zdr`, `eu_sovereign`, `reasoning`, `providers`, `use_case` (support, volume, extraction, summarization, coding, research), `aa_min` (hard intelligence-score floor), `limit` (1-20), `prefer_callable`.
+- **Ranking**: Cost/IQ — blended price × (40 / AA Intelligence Index score), ascending. Deterministic: no LLM in the answer path.
+- **Hot-swap `endpoint_config`**: per result, the base URL and model ID an agent can call immediately, with `zdr_at_this_host` and `eu_sovereign_at_this_host` flags.
+- **Verification basis per result**: gold badge = price verified from provider APIs; grey badge = ZDR/EU status is provider-stated, not yet verified by InferenceIndexer.
+- **Honesty surface**: each response includes the query echo, a coverage funnel (filtered / ranked / excluded counts), and a disclaimer. Free-text queries are never stored.
+- **GET alias** for simple queries: `/v1/recommend?use_case=coding&budget_max_usd_per_m=2&limit=5`.
+
 ## Data methodology (summary)
 
 - **Data sources**: direct inference provider APIs (DeepInfra, Novita, Venice, SambaNova, Jina, Mistral, Groq, Together, Fireworks, TensorX, and more) plus OpenRouter for coverage.
-- **Bloodline**: prices are median blended prices across the providers hosting each model.
-- **Refresh**: prices updated hourly; index values recalculated daily; usage weights refreshed weekly.
-- **Standard Inference Token (SIT)**: standardized unit for comparing inference cost. SIT-Composite is a usage-weighted mean of the top 50 models by OpenRouter weekly token volume, quality-gated to models with an intelligence score of 35+ (GPT-4-Turbo baseline).
+- **Prices**: median blended price across the providers hosting each model (blended = 0.4 × input + 0.6 × output per million tokens).
+- **Quality**: Artificial Analysis Intelligence Index scores, where benchmarked. Models without a score are excluded from recommendations (disclosed in every response), never shown as "N/A".
+- **Refresh**: prices updated hourly; index values recalculated daily.
+- **Standard Inference Token (SIT)**: standardized unit for comparing inference cost. The SIT Token Price Index (TPI) is an equal-weighted, provider-capped index of minimum adjusted prices across quality-gated models (September 2026 rebasing: Sep 4 = 1000).
 - **Full methodology**: https://www.inferenceindexer.ai/methodology
 
 ## API reference
 
 Base URL: `https://api.inferenceindexer.ai`. Auth: `Authorization: Bearer <api_key>`.
 
+### POST /v1/recommend
+Constraint-filtered model ranking with receipts, verification badges, and hot-swap endpoint_config. See "The recommendation engine" above. This is the endpoint to call first.
+
+### GET /v1/recommend
+GET alias of the above for simple, query-param-only queries.
+
+### GET /v1/explain?model_id={model_id}
+Everything about one model in a single call: pricing + 24h/7d/30d changes, price history summary, endpoints, ZDR/EU availability, AA intelligence score, cheapest hand-verified endpoint, and fuzzy-resolved model IDs (aliases tolerated).
+
 ### GET /v1/models
 List and search all models with current pricing. Query params: `tier`, `sort`, `limit` (max 500), `search`.
 
 ### GET /v1/models/{model_id}
-Single model detail with pricing, SIT score, and quality-adjusted price.
+Single model detail with pricing, AA score, and Cost/IQ.
 
 ### GET /v1/models/{model_id}/history
 Historical price data for a single model (the differentiator). Query param: `days` (default 7, up to 90 on paid).
 
 ### GET /v1/models/{model_id}/endpoints
-Which providers host the model, with their per-provider pricing.
+Which providers host the model, with their per-provider pricing — the basis for "compare providers serving X".
 
 ### GET /v1/providers
 All providers with model counts, price stats, ZDR/EU-sovereign flags, and classification (self-host / aggregator / hybrid).
@@ -57,13 +85,14 @@ All providers with model counts, price stats, ZDR/EU-sovereign flags, and classi
 Single provider detail with full model list and tier breakdown.
 
 ### GET /v1/sit/composite/latest
-Current SIT-Composite index value including per-tier breakdown.
+Current Standard Inference Token price index value including per-tier breakdown.
 
 ### GET /v1/sit/composite/history
-Historical SIT-Composite index values / trends over time.
+Historical index values / trends over time. `?days=90` for longer trend data where the account plan allows.
 
-### GET /v1/sit/composite/history?days=90
-Longer trend data where the account plan allows.
+## MCP server
+
+Call these tools natively from agent frameworks (Claude, Cursor, OpenAI Agents): `uvx inferenceindexer-mcp --transport stdio` exposes `recommend_models`, `explain_model`, `search_models`, `get_model_history`, `compare_providers`, `get_composite_latest`, `list_providers`, and more. Streamable HTTP: `https://api.inferenceindexer.ai/mcp`. Auto-discovery: https://www.inferenceindexer.ai/.well-known/mcp-config.json. Source: https://github.com/DesMartin01/inferenceindexer-mcp
 
 ## OpenAPI spec
 Machine-readable: `https://api.inferenceindexer.ai/openapi.json`. Interactive: https://www.inferenceindexer.ai/api-docs

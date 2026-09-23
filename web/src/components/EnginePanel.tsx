@@ -100,6 +100,16 @@ interface RecommendResponse {
 
 const USE_CASES = ["support", "volume", "extraction", "summarization", "coding", "research"] as const;
 
+// Short display nouns for the "Understood as" echo (Des: crisp, not verbose)
+const UC_LABEL: Record<(typeof USE_CASES)[number], string> = {
+  support: "Support",
+  volume: "High volume",
+  extraction: "Extraction",
+  summarization: "Summarisation",
+  coding: "Coding",
+  research: "Research",
+};
+
 export function parseConstraints(text: string): { constraints: Constraints; chips: EchoChip[] } {
   const t = text.toLowerCase();
   const chips: EchoChip[] = [];
@@ -116,12 +126,12 @@ export function parseConstraints(text: string): { constraints: Constraints; chip
   // ZDR / data retention
   if (/zero[\s-]?data[\s-]?retention|\bzdr\b|no[\s-]?(data[\s-]?)?(retention|logging|training)/.test(t)) {
     c.zdr = true;
-    chips.push({ label: "Zero data retention", gold: true });
+    chips.push({ label: "ZDR", gold: true });
   }
   // EU
   if (/\beu\b|european|eu[\s-]?(infra|sovereign|domicile)|gdpr/.test(t)) {
     c.eu_sovereign = true;
-    chips.push({ label: "EU infrastructure", gold: true });
+    chips.push({ label: "EU infra", gold: true });
   }
   // AA quality floor: "above AA index 50", "AA score above 60", "AA 45+"
   const aaFloor = t.match(/aa(?:\s|intelligence)?(?:\s+(?:index|score))?\s*(?:above|over|>|of at least|at least)\s*([0-9]+(?:\.[0-9]+)?)/)
@@ -131,7 +141,7 @@ export function parseConstraints(text: string): { constraints: Constraints; chip
     const v = parseFloat(aaFloor[1]);
     if (v > 0 && v <= 100) {
       c.aa_min = v;
-      chips.push({ label: `AA intelligence index ≥ ${v}`, gold: true });
+      chips.push({ label: `AA ≥ ${v}`, gold: true });
     }
   }
   // Budget: "$2", "under $1.5/M", "below $0.50 per million"
@@ -140,7 +150,7 @@ export function parseConstraints(text: string): { constraints: Constraints; chip
     const v = parseFloat(budget[1]);
     if (v > 0 && v < 1000) {
       c.budget_max_usd_per_m = v;
-      chips.push({ label: `Under $${v}/M tokens`, gold: true });
+      chips.push({ label: `Best price under $${v}/M`, gold: true });
     }
   }
   // Context window: "100k context", "large context", "128k+"
@@ -149,39 +159,59 @@ export function parseConstraints(text: string): { constraints: Constraints; chip
     const k = parseInt(ctxK[1], 10);
     if (k >= 4 && k <= 2000) {
       c.context_min = k * 1000;
-      chips.push({ label: `Context ≥ ${k}k tokens`, gold: true });
+      chips.push({ label: `Context ${k}k+`, gold: true });
     }
   } else if (/large context|long context|big context/.test(t)) {
     c.context_min = 128000;
-    chips.push({ label: "Context ≥ 128k tokens (large)", gold: true });
+    chips.push({ label: "Context 128k+", gold: true });
   }
   // Reasoning preference
   if (/non[\s-]?reasoning|no[\s-]reasoning|without reasoning|precise[- ]not[- ]smart|deterministic output/.test(t)) {
     c.reasoning = false;
-    chips.push({ label: "Non-reasoning models", gold: true });
+    chips.push({ label: "Non-reasoning", gold: true });
   } else if (/reasoning|thinking|chain of thought|\bcot\b/.test(t)) {
     c.reasoning = true;
-    chips.push({ label: "Reasoning models", gold: true });
+    chips.push({ label: "Reasoning", gold: true });
   }
-  // Use case
-  for (const uc of USE_CASES) {
-    if (t.includes(uc)) {
-      c.use_case = uc;
-      chips.push({ label: `Use case: ${uc}`, gold: true });
-      break;
+  // Use case: synonyms first, then earliest occurrence in the text wins (not list order).
+  const ucSynonyms: [RegExp, (typeof USE_CASES)[number]][] = [
+    [/\brag\b|retrieval[\s-]augmented/, "summarization"],
+    [/\bcod(?:e|ing)\b|programming|\bdeveloper\b/i, "coding"],
+    [/customer (?:service|support)|helpdesk|\bticket/, "support"],
+    [/high[\s-]volume|\bbulk\b|batch processing/, "volume"],
+    [/extract|parse documents|\binvoices?\b|\breceipts?\b/, "extraction"],
+    [/summariz|\bdigest\b|briefing|report writing/, "summarization"],
+  ];
+  let bestUC: (typeof USE_CASES)[number] | null = null;
+  let bestPos = Infinity;
+  for (const [re, uc] of ucSynonyms) {
+    const m = re.exec(t);
+    if (m && m.index < bestPos) {
+      bestPos = m.index;
+      bestUC = uc;
     }
   }
-  if (/coding|code generation|programming|developer/.test(t) && !c.use_case) {
-    c.use_case = "coding";
-    chips.push({ label: "Use case: coding", gold: true });
-  } else if (/support|customer service|helpdesk|ticket/.test(t) && !c.use_case) {
-    c.use_case = "support";
-    chips.push({ label: "Use case: support", gold: true });
+  for (const uc of USE_CASES) {
+    const i = t.indexOf(uc);
+    if (i !== -1 && i < bestPos) {
+      bestPos = i;
+      bestUC = uc;
+    }
+  }
+  if (bestUC) {
+    c.use_case = bestUC;
+    chips.push({ label: UC_LABEL[bestUC], gold: true });
   }
 
   // Grey chips: things we recognised but did NOT turn into constraints
   if (/security|prompt injection|router interference/.test(t)) {
-    chips.push({ label: "Security: noted (not yet scored)", gold: false });
+    chips.push({ label: "Security: not scored yet", gold: false });
+  }
+  if (/\bagents?\b|\bhermes\b|autonomous|workflow automation/.test(t)) {
+    chips.push({ label: "Agent workload", gold: false });
+  }
+  if (/legal|law firm|compliance|gdpr|hipaa|regulat|solicitor/.test(t)) {
+    chips.push({ label: "Legal/compliance: noted", gold: false });
   }
   if (/sme|london|finance|accounts receivable|agency|startup/.test(t)) {
     chips.push({ label: "Workload context: noted", gold: false });
@@ -841,7 +871,7 @@ export default function EnginePanel({ totalModels }: { totalModels: number }) {
               ))}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "14px", paddingTop: "10px", flexWrap: "wrap" }}>
                 <span style={{ fontSize: "12px", lineHeight: 1.55, color: "#8a8a8a" }}>
-                  Privacy constraints are matched on provider statements today; II has not verified them. Prices are verified hourly.
+                  Privacy constraints are matched on provider statements today; II has not verified them. Prices are verified hourly. Ranking is based on data from Artificial Analysis; not endorsed by them.
                 </span>
                 <Link href="/models" style={{ fontSize: "12.5px", fontWeight: 500, color: "#C4A038", whiteSpace: "nowrap" }}>
                   Full rankings →

@@ -863,12 +863,48 @@ export default async function Home() {
           textAlign: "center",
         }}
       >
-        <span style={{ fontSize: "14px", color: "#8a8a8a" }}>
-          Get the data via API →{" "}
-          <Link href="/api-docs" style={{ color: "#C4A038" }}>
+        <h2 style={{ margin: "0 0 12px", fontSize: "28px", fontWeight: 600, letterSpacing: "-0.01em", color: "#f2f2f2" }}>
+          Subscribed to by the teams that buy inference
+        </h2>
+        <p style={{ margin: "0 auto 28px", maxWidth: "640px", fontSize: "15px", lineHeight: 1.6, color: "#8a8a8a" }}>
+          Create a free account for unlimited recommendations and API access. The engine on this page is the same
+          API your agents can call.
+        </p>
+        <div style={{ display: "flex", gap: "14px", justifyContent: "center", flexWrap: "wrap" }}>
+          <Link
+            href="/signup"
+            style={{
+              display: "inline-block",
+              padding: "12px 26px",
+              background: "#C4A038",
+              color: "#0a0a0a",
+              fontSize: "14px",
+              fontWeight: 600,
+              textDecoration: "none",
+              borderRadius: "6px",
+            }}
+          >
+            Create a free account
+          </Link>
+          <Link
+            href="/api-docs"
+            style={{
+              display: "inline-block",
+              padding: "12px 26px",
+              border: "1px solid #333",
+              color: "#f2f2f2",
+              fontSize: "14px",
+              fontWeight: 500,
+              textDecoration: "none",
+              borderRadius: "6px",
+            }}
+          >
             View API documentation
           </Link>
-        </span>
+        </div>
+        <p style={{ margin: "18px 0 0", fontSize: "12px", color: "#6a6a6a" }}>
+          Free forever for 1,000 requests/day. No credit card required.
+        </p>
       </section>
 
       <Footer models={totalCount} providers={providerCount} updatedAt={lastUpdated} />

@@ -53,6 +53,10 @@ export default async function ModelsPage() {
           <ModelTable models={models} totalCount={totalCount} />
         </Suspense>
       )}
+      <p style={{ maxWidth: "1320px", margin: "0 auto", padding: "0 28px 8px", fontSize: "12px", color: "#6a6a6a" }}>
+        Quality scores: source Artificial Analysis (artificialanalysis.ai). Tier groupings and rankings are
+        InferenceIndexer&apos;s own; not endorsed by Artificial Analysis.
+      </p>
       <section
         style={{
           maxWidth: "1320px",

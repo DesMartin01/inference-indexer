@@ -2,12 +2,12 @@ import { Header, Footer } from "@/components/Header";
 import DataSourcesTable from "./DataSourcesTable";
 
 export const metadata = {
-  title: "Methodology - SIT Standard Inference Token | InferenceIndexer.ai",
+  title: "Methodology - How InferenceIndexer Verifies and Ranks | InferenceIndexer.ai",
   description:
-    "How the Standard Inference Token (SIT) is calculated. Blended pricing formula, quality tier definitions, index weighting, data sources, and governance. Open methodology for AI inference price tracking.",
+    "How InferenceIndexer verifies AI inference prices and ranks models. Blended pricing formula, quality tiers, the Standard Inference Token index, recommendation ranking (Cost/IQ), data sources, and governance.",
   alternates: { canonical: "https://www.inferenceindexer.ai/methodology" },
   openGraph: {
-    title: "SIT Methodology - How AI Inference Prices Are Calculated",
+    title: "Methodology - How AI Inference Prices Are Verified and Ranked",
     description: "Open methodology: blended pricing, quality tiers, index calculation, data sources, and governance.",
     url: "https://www.inferenceindexer.ai/methodology",
     siteName: "InferenceIndexer.ai",
