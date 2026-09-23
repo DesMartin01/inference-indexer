@@ -264,6 +264,9 @@ export default async function ForAgentsPage() {
                 </thead>
                 <tbody style={{ color: "#c9c9c9" }}>
                   {[
+                    ["POST /v1/recommend", "Constraint-filtered model ranking with receipts + hot-swap endpoint_config (the core answer endpoint)"],
+                    ["GET /v1/recommend", "GET alias with query-param constraints (proxy-friendly)"],
+                    ["GET /v1/explain?model_id=", "Everything about one model in one call: pricing, history, endpoints, privacy, quality"],
                     ["GET /v1/models", "All models with current pricing (search, tier filter, sort)"],
                     ["GET /v1/models/{id}/history", "Historical price trend for one model"],
                     ["GET /v1/providers", "All providers with model counts and price stats"],

@@ -147,6 +147,16 @@ export function Header({ activePage = "" }: { activePage?: string }) {
             API
           </Link>
           <Link
+            href="/for-agents"
+            style={{
+              fontSize: "12.5px",
+              color: activePage === "for-agents" ? "#C4A038" : "#8a8a8a",
+              textDecoration: "none",
+            }}
+          >
+            For agents
+          </Link>
+          <Link
             href="/methodology"
             style={{
               fontSize: "12.5px",

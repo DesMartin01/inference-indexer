@@ -1088,7 +1088,8 @@ async def recommend(
     """
     import time as _time
     api_user = get_api_user(authorization)
-    limits = check_rate_limit(api_user, is_ssr=request.headers.get("X-SSR-Secret") == SSR_SECRET)
+    is_ssr = request.headers.get("X-SSR-Secret") == SSR_SECRET
+    limits = check_rate_limit(api_user, is_ssr=is_ssr)
 
     # Validation: at least one real constraint (modality defaults to text, not a constraint)
     if body.budget_max_usd_per_m is None and body.context_min is None \
@@ -1126,10 +1127,74 @@ async def recommend(
             for k in [k for k, v in _recommend_cache.items() if v[0] < now_mono][:250]:
                 _recommend_cache.pop(k, None)
 
+    served_via = "ssr" if is_ssr else (api_user.get("plan", "public") if api_user else "public")
+    _log_recommendation_stats(body, payload, served_via, cache_hit)
+
     headers = get_rate_limit_headers(api_user, limits)
     headers["Cache-Control"] = "public, max-age=300"
     headers["X-Cache"] = "HIT" if cache_hit else "MISS"
     return JSONResponse(content=payload, headers=headers)
+
+
+@app.get("/v1/recommend/stats")
+async def recommend_stats():
+    """Anonymous receipts counter for the homepage engine.
+
+    Returns the all-time count of recommendations served. No query content
+    exists anywhere in the underlying table (constraint tuples only).
+    """
+    total = _recommendations_served_total()
+    if total < 0:
+        return JSONResponse(content={"total": 0, "available": False}, status_code=200)
+    return JSONResponse(
+        content={"total": total, "available": True},
+        headers={"Cache-Control": "public, max-age=300"},
+    )
+
+
+def _log_recommendation_stats(body: "RecommendRequest", payload: dict, served_via: str, cache_hit: bool):
+    """Anonymous demand instrumentation for the homepage engine (V6 PRD item 1).
+
+    PRIVACY RULE: constraint tuples only. No free text, no query content, no
+    user identifiers. A failure here must never break the recommend response.
+    """
+    try:
+        recs = payload.get("recommendations") or []
+        top_ciq = None
+        if recs and isinstance(recs[0], dict):
+            top_ciq = recs[0].get("cost_per_iq")
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
+            """INSERT INTO recommendation_stats
+               (budget_max_usd_per_m, context_min, modality, zdr, eu_sovereign,
+                reasoning, use_case, providers_n, limit_n, result_count, top_cost_iq,
+                served_via, cache_hit)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+            (body.budget_max_usd_per_m, body.context_min, body.modality,
+             bool(body.zdr), bool(body.eu_sovereign), body.reasoning,
+             body.use_case, len(body.providers or []), body.limit,
+             len(recs), top_ciq, served_via, cache_hit),
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"[recommend] stats write skipped: {e}", flush=True)
+
+
+def _recommendations_served_total() -> int:
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM recommendation_stats")
+        n = int(cur.fetchone()[0])
+        cur.close()
+        conn.close()
+        return n
+    except Exception as e:
+        print(f"[recommend] stats read failed: {e}", flush=True)
+        return -1
 
 
 def _compute_recommendation(body: "RecommendRequest") -> dict:

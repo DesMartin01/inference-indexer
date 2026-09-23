@@ -6,6 +6,7 @@ import {
   getCompositeHistory,
   getModels,
   getModelCount,
+  getProviderCount,
   formatPrice,
   formatPct,
   pctColor,
@@ -13,6 +14,7 @@ import {
 import { buildSparkPath } from "@/lib/charts";
 import { Header, Footer } from "@/components/Header";
 import ModelTable from "@/components/ModelTable";
+import EnginePanel from "@/components/EnginePanel";
 import { CURRENT_MODEL_COUNT, CURRENT_PROVIDER_COUNT } from "@/lib/counts";
 
 export const revalidate = 60;
@@ -20,37 +22,36 @@ export const revalidate = 60;
 export async function generateMetadata(): Promise<Metadata> {
   const count = (await getModelCount().catch(() => 0)) || CURRENT_MODEL_COUNT;
   return {
-  title: `AI Inference Pricing Index - ${count} Models | InferenceIndexer.ai`,
+  title: `AI Inference Recommendation Engine - ${count} Models | InferenceIndexer.ai`,
   description:
-    `The Standard Inference Token (SIT) tracks AI inference prices across ${count} models. Live pricing, SIT scores, price history charts, and a free API. The CoinMarketCap of AI inference.`,
+    `Describe your workload and constraints; get ranked AI inference recommendations on verified prices across ${count} models. Standard Inference Token price index, quality-adjusted rankings, and a free API.`,
   alternates: { canonical: "https://www.inferenceindexer.ai" },
   openGraph: {
-    title: `InferenceIndexer.ai - AI Inference Price Index (${count} models)`,
+    title: `InferenceIndexer.ai - AI Inference Recommendation Engine (${count} models)`,
     description:
-      `Live AI inference pricing for ${count} models. SIT Token Price Index (TPI), tier rankings, price history, and free API access.`,
+      `Constraint-aware inference recommendations on verified prices for ${count} models. Standard Inference Token index, quality-adjusted rankings, free API access.`,
     url: "https://www.inferenceindexer.ai",
     siteName: "InferenceIndexer.ai",
     type: "website",
-    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "InferenceIndexer.ai - AI Inference Price Index" }],
+    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "InferenceIndexer.ai - AI Inference Recommendation Engine" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: `AI Inference Pricing Index - ${count} Models`,
-    description: "Live AI inference prices. SIT Token Price Index (TPI), model pricing charts, free API.",
+    title: `AI Inference Recommendation Engine - ${count} Models`,
+    description: "Describe your constraints, get ranked inference recommendations on verified prices. Free API.",
     images: ["/og-image.png"],
   },
   keywords: [
     "AI inference pricing",
+    "AI model recommendation",
     "inference cost",
     "API pricing comparison",
     "LLM pricing",
-    "GPT-5.6 price",
-    "Claude Opus 5 price",
+    "cheapest LLM API",
+    "zero data retention inference",
+    "EU AI inference providers",
     "DeepSeek V4 price",
     "GLM-5.2 price",
-    "Grok 4.5 price",
-    "Gemini 3.6 price",
-    "Llama 4 price",
     "per million tokens cost",
     "SIT Standard Inference Token",
     "model API cost comparison",
@@ -61,11 +62,12 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function Home() {
   // Fetch all data in parallel - API is now 82ms (was 8.1s) so fetching all models is fine
-  const [latest, history, modelsData, apiModelCount] = await Promise.all([
+  const [latest, history, modelsData, apiModelCount, apiProviderCount] = await Promise.all([
     getCompositeLatest(60).catch(() => null),
     getCompositeHistory(30, 60).catch(() => null),
     getModels(undefined, undefined, 500).catch(() => null),
     getModelCount().catch(() => null),
+    getProviderCount().catch(() => null),
   ]);
 
   // Fallback data if API is down
@@ -74,6 +76,9 @@ export default async function Home() {
   // Headline count uses the API's authoritative model count (all active models),
   // not the 500-row page fetch. Falls back to the page fetch, then the static constant.
   const totalCount = apiModelCount ?? modelsData?.count ?? modelsData?.returned ?? models.length ?? CURRENT_MODEL_COUNT;
+  const providerCount = apiProviderCount ?? CURRENT_PROVIDER_COUNT;
+  // Honest count for "models quality-adjusted": only rows with a Cost/IQ value
+  const qualityAdjusted = models.filter((m) => m.sit_adjusted_price != null).length;
 
   // Build sparkline from history (with AA era tags for rebase break-lines)
   const histPoints =
@@ -130,6 +135,13 @@ export default async function Home() {
     ? latest.date + " 06:00 UTC"
     : new Date().toISOString().slice(0, 16).replace("T", " ") + " UTC";
 
+  // Catalogue preview: top 3 by Cost/IQ among models that have one (any tier,
+  // mirrors the engine's ranking basis so the preview demonstrates the method)
+  const preview = models
+    .filter((m) => m.sit_adjusted_price != null)
+    .sort((a, b) => (a.sit_adjusted_price ?? Infinity) - (b.sit_adjusted_price ?? Infinity))
+    .slice(0, 3);
+
   return (
     <>
       {/* JSON-LD: Dataset schema for the SIT index */}
@@ -139,8 +151,8 @@ export default async function Home() {
           __html: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "Dataset",
-            name: "InferenceIndexer SIT Token Price Index (TPI) - AI Inference Prices",
-            description: `Independent price index for AI inference. ${composite ? `SIT Token Price Index: $${composite.price_per_m.toFixed(4)}/M GPT-4-equivalent tokens, equal-weighted across ${composite.providers} providers.` : `${totalCount} models, updated hourly.`}`,
+            name: "InferenceIndexer Standard Inference Token price index - AI Inference Prices",
+            description: `Independent price index and recommendation engine for AI inference. ${composite ? `Standard Inference Token price: $${composite.price_per_m.toFixed(4)}/M GPT-4-equivalent tokens, equal-weighted across ${composite.providers} providers.` : `${totalCount} models, updated hourly.`}`,
             url: "https://www.inferenceindexer.ai",
             creator: {
               "@type": "Organization",
@@ -160,184 +172,384 @@ export default async function Home() {
       />
       <Header activePage="home" />
 
-      {/* Hero headline: the verification promise */}
-      <section
-        style={{
-          maxWidth: "1320px",
-          margin: "0 auto",
-          padding: "36px 28px 0",
-        }}
-      >
+      {/* ============ BLOCK 1 — THE ENGINE ============ */}
+      <section style={{ maxWidth: "1320px", margin: "0 auto", padding: "40px 28px 0" }}>
         <div
           style={{
-            background: "#16161a",
-            border: "1px solid #2a2a2a",
-            borderRadius: 8,
-            padding: "30px 32px",
-            position: "relative",
-            overflow: "hidden",
-            textAlign: "center",
+            display: "grid",
+            gridTemplateColumns: "minmax(0, 1fr) minmax(220px, 280px)",
+            gap: "48px",
+            alignItems: "end",
+            paddingBottom: "16px",
           }}
         >
-          <div
-            style={{
-              position: "absolute",
-              left: 0,
-              top: 0,
-              width: "420px",
-              height: "100%",
-              background:
-                "radial-gradient(65% 90% at 15% 40%, rgba(196,160,56,0.08), rgba(196,160,56,0) 70%)",
-              pointerEvents: "none",
-            }}
-          />
-          <div
-            style={{
-              position: "absolute",
-              right: 0,
-              bottom: 0,
-              width: "420px",
-              height: "100%",
-              background:
-                "radial-gradient(65% 90% at 85% 60%, rgba(196,160,56,0.06), rgba(196,160,56,0) 70%)",
-              pointerEvents: "none",
-            }}
-          />
           <h1
             style={{
-              fontSize: "27px",
-              fontWeight: 700,
-              color: "#f2f2f2",
-              lineHeight: 1.35,
-              letterSpacing: "-0.01em",
               margin: 0,
-              position: "relative",
+              maxWidth: "17em",
+              fontSize: "46px",
+              lineHeight: 1.05,
+              fontWeight: 600,
+              letterSpacing: "-0.04em",
+              color: "#f2f2f2",
             }}
           >
-            Inference Indexer verifies AI inference providers&rsquo; claims on{" "}
-            <span style={{ color: "#C4A038" }}>privacy, quality, security, price.</span>
+            AI inference recommendation engine
           </h1>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "7px",
+              fontFamily: "var(--font-jetbrains-mono), monospace",
+              fontSize: "12px",
+              color: "#8a8a8a",
+              fontVariantNumeric: "tabular-nums",
+              paddingBottom: "6px",
+            }}
+          >
+            <span style={{ display: "flex", justifyContent: "space-between", gap: "12px" }}>
+              <span>Models indexed</span>
+              <span style={{ color: "#c9c9c9" }}>{totalCount.toLocaleString()}</span>
+            </span>
+            <span style={{ display: "flex", justifyContent: "space-between", gap: "12px" }}>
+              <span>Providers indexed</span>
+              <span style={{ color: "#c9c9c9" }}>{providerCount}</span>
+            </span>
+            <span style={{ display: "flex", justifyContent: "space-between", gap: "12px" }}>
+              <span>Prices sourced</span>
+              <span style={{ color: "#c9c9c9" }}>hourly</span>
+            </span>
+          </div>
         </div>
       </section>
 
-      {/* Hero section */}
-      <section
-        style={{
-          maxWidth: "1320px",
-          margin: "0 auto",
-          padding: "44px 28px 34px",
-          borderBottom: "1px solid #1a1a1a",
-          position: "relative",
-        }}
-      >
+      <Suspense fallback={null}>
+        <EnginePanel totalModels={totalCount} />
+      </Suspense>
+
+      {/* ============ BLOCK 2 — COVERAGE ============ */}
+      <section style={{ maxWidth: "1320px", margin: "0 auto", padding: "72px 28px 0" }}>
         <div
           style={{
-            position: "absolute",
-            left: 0,
-            top: 0,
-            width: "620px",
-            height: "300px",
-            background:
-              "radial-gradient(60% 55% at 18% 32%, rgba(196,160,56,0.09), rgba(196,160,56,0) 70%)",
-            pointerEvents: "none",
+            display: "flex",
+            alignItems: "baseline",
+            gap: "12px",
+            paddingBottom: "10px",
+            borderBottom: "1px solid #2a2a2a",
+            marginBottom: "24px",
           }}
-        />
+        >
+          <span
+            style={{
+              fontFamily: "var(--font-jetbrains-mono), monospace",
+              fontSize: "10.5px",
+              fontWeight: 600,
+              letterSpacing: "0.14em",
+              textTransform: "uppercase",
+              color: "#C4A038",
+            }}
+          >
+            Coverage
+          </span>
+          <span style={{ color: "#3a3a3a", fontSize: "10.5px" }}>·</span>
+          <span
+            style={{
+              fontFamily: "var(--font-jetbrains-mono), monospace",
+              fontSize: "10.5px",
+              letterSpacing: "0.13em",
+              textTransform: "uppercase",
+              color: "#8a8a8a",
+            }}
+          >
+            What is verified today, and what comes next
+          </span>
+          <span style={{ flex: 1, height: 1, background: "#1c1c1c", marginBottom: 3 }} />
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: "48px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: "12px" }}>
+              <span style={{ fontSize: "24px", fontWeight: 600, letterSpacing: "-0.025em", color: "#f2f2f2" }}>Price</span>
+              <span style={{ fontSize: "12px", fontWeight: 500, color: "#C4A038" }}>Verified</span>
+            </div>
+            <p style={{ margin: 0, fontSize: "14px", lineHeight: 1.55, color: "#c9c9c9" }}>
+              Composite and per-model prices pulled directly from provider APIs and rebuilt every hour.
+            </p>
+            <div style={{ display: "flex", alignItems: "baseline", gap: "10px", paddingTop: "2px" }}>
+              <span
+                style={{
+                  fontFamily: "var(--font-jetbrains-mono), monospace",
+                  fontSize: "26px",
+                  fontWeight: 500,
+                  letterSpacing: "-0.02em",
+                  color: "#f2f2f2",
+                  fontVariantNumeric: "tabular-nums",
+                }}
+              >
+                {providerCount}
+              </span>
+              <span style={{ fontSize: "12.5px", color: "#8a8a8a" }}>providers polled hourly</span>
+            </div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: "12px" }}>
+              <span style={{ fontSize: "24px", fontWeight: 600, letterSpacing: "-0.025em", color: "#f2f2f2" }}>Quality</span>
+              <span style={{ fontSize: "12px", fontWeight: 500, color: "#C4A038" }}>Verified: intelligence</span>
+            </div>
+            <p style={{ margin: 0, fontSize: "14px", lineHeight: 1.55, color: "#c9c9c9" }}>
+              Intelligence verified against the AA index, then divided into price so rankings reward value, not cheapness.
+            </p>
+            <div style={{ display: "flex", alignItems: "baseline", gap: "10px", paddingTop: "2px" }}>
+              <span
+                style={{
+                  fontFamily: "var(--font-jetbrains-mono), monospace",
+                  fontSize: "26px",
+                  fontWeight: 500,
+                  letterSpacing: "-0.02em",
+                  color: "#f2f2f2",
+                  fontVariantNumeric: "tabular-nums",
+                }}
+              >
+                {qualityAdjusted.toLocaleString()}
+              </span>
+              <span style={{ fontSize: "12.5px", color: "#8a8a8a" }}>models quality-adjusted</span>
+            </div>
+          </div>
+        </div>
+
         <div
           style={{
-            position: "relative",
+            marginTop: "36px",
+            borderTop: "1px solid #1d1d21",
+            paddingTop: "18px",
             display: "grid",
-            gridTemplateColumns: "minmax(320px, 1fr) minmax(360px, 640px)",
-            gap: "48px",
+            gridTemplateColumns: "minmax(0, 200px) minmax(0, 1fr) minmax(0, 1fr)",
+            gap: "36px",
             alignItems: "start",
           }}
         >
-          <div>
-            <div style={{ display: "flex", alignItems: "baseline", gap: "10px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            <span style={{ fontSize: "14px", fontWeight: 600, color: "#c9c9c9" }}>In development</span>
+            <span style={{ fontSize: "12px", lineHeight: 1.5, color: "#8a8a8a" }}>
+              Criteria published before any provider is rated against them.
+            </span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "7px" }}>
+            <span style={{ fontSize: "16px", fontWeight: 600, letterSpacing: "-0.015em", color: "#c9c9c9" }}>Privacy</span>
+            <p style={{ margin: 0, fontSize: "13px", lineHeight: 1.5, color: "#8a8a8a" }}>
+              Whether a provider keeps your tokens, for how long, and under whose jurisdiction. Matched on provider
+              statements today.
+            </p>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "7px" }}>
+            <span style={{ fontSize: "16px", fontWeight: 600, letterSpacing: "-0.015em", color: "#c9c9c9" }}>Security</span>
+            <p style={{ margin: 0, fontSize: "13px", lineHeight: 1.5, color: "#8a8a8a" }}>
+              What could go wrong using this inference, stated in terms that can be checked. Not yet scored.
+            </p>
+          </div>
+        </div>
+
+        <div style={{ marginTop: "40px" }}>
+          <h2 style={{ margin: "0 0 12px", fontSize: "16px", fontWeight: 600, letterSpacing: "-0.01em", color: "#f2f2f2" }}>
+            Who attests each claim today, and who verifies it
+          </h2>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "minmax(180px, 1fr) minmax(0, 220px) minmax(0, 220px)",
+              gap: "14px",
+              padding: "0 0 8px",
+              alignItems: "center",
+              borderBottom: "1px solid #2a2a2a",
+            }}
+          >
+            {["The claim", "Provider attested", "Verified by"].map((h, i) => (
               <span
+                key={h}
                 style={{
-                  fontSize: "12px",
+                  fontFamily: "var(--font-jetbrains-mono), monospace",
+                  fontSize: "10px",
                   fontWeight: 500,
+                  letterSpacing: "0.12em",
                   textTransform: "uppercase",
-                  letterSpacing: "0.14em",
                   color: "#8a8a8a",
+                  textAlign: i === 2 ? "right" : "left",
                 }}
               >
-                Standard Inference Token (SIT)
+                {h}
               </span>
-            </div>
-            <a
-              href="#"
-              title="Open full index history"
+            ))}
+          </div>
+          {[
+            ["Price per million tokens", "Inference Indexer"],
+            ["Model quality and intelligence", "Inference Indexer"],
+            ["Model identity and quantization", "In development"],
+            ["Data retention and privacy", "In development"],
+            ["Security posture", "In development"],
+          ].map(([claim, verifier]) => (
+            <div
+              key={claim}
               style={{
-                display: "flex",
-                alignItems: "flex-end",
+                display: "grid",
+                gridTemplateColumns: "minmax(180px, 1fr) minmax(0, 220px) minmax(0, 220px)",
                 gap: "14px",
-                marginTop: "12px",
-                flexWrap: "wrap",
-                textDecoration: "none",
-                width: "fit-content",
+                alignItems: "center",
+                padding: "11px 0",
+                minHeight: "42px",
+                borderBottom: "1px solid #1d1d21",
               }}
             >
+              <span style={{ fontSize: "13.5px", lineHeight: 1.35, color: "#f2f2f2" }}>{claim}</span>
+              <span style={{ fontSize: "13px", color: "#8a8a8a" }}>The provider</span>
               <span
                 style={{
-                  fontFamily: "Inter, sans-serif",
-                  fontSize: "48px",
+                  fontSize: "13px",
                   fontWeight: 500,
-                  lineHeight: 1,
-                  letterSpacing: "-0.02em",
-                  color: "#C4A038",
-                  fontVariantNumeric: "tabular-nums",
+                  color: verifier === "In development" ? "#c9c9c9" : "#C4A038",
+                  textAlign: "right",
                 }}
               >
-                {heroPrice}
+                {verifier}
               </span>
-              <span
-                style={{
-                  fontFamily: "Inter, sans-serif",
-                  fontSize: "14px",
-                  color: "#8a8a8a",
-                  paddingBottom: "4px",
-                }}
-              >
-                / M tokens
-              </span>
-              <span style={{ fontSize: "15px", color: "#6a6a6a", paddingBottom: "5px" }}>→</span>
-            </a>
-            <div style={{ marginTop: "14px", display: "flex", alignItems: "center", gap: "10px" }}>
-              <span
-                style={{
-                  fontFamily: "Inter, sans-serif",
-                  fontSize: "18px",
-                  fontWeight: 500,
-                  color: pctColor(d1),
-                  fontVariantNumeric: "tabular-nums",
-                }}
-              >
-                {formatPct(d1)}
-              </span>
-              <span style={{ fontSize: "12.5px", color: "#7a7a7a" }}>today</span>
             </div>
-            <div style={{ marginTop: "18px", display: "flex", gap: "26px", flexWrap: "wrap" }}>
+          ))}
+        </div>
+      </section>
+
+      {/* ============ BLOCK 3 — STANDARD INFERENCE TOKEN PRICE ============ */}
+      <section style={{ maxWidth: "1320px", margin: "0 auto", padding: "72px 28px 0" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "baseline",
+            gap: "12px",
+            paddingBottom: "10px",
+            borderBottom: "1px solid #2a2a2a",
+            marginBottom: "20px",
+          }}
+        >
+          <span
+            style={{
+              fontFamily: "var(--font-jetbrains-mono), monospace",
+              fontSize: "10.5px",
+              fontWeight: 600,
+              letterSpacing: "0.14em",
+              textTransform: "uppercase",
+              color: "#C4A038",
+            }}
+          >
+            Standard Inference Token price
+          </span>
+          <span style={{ color: "#3a3a3a", fontSize: "10.5px" }}>·</span>
+          <span
+            style={{
+              fontFamily: "var(--font-jetbrains-mono), monospace",
+              fontSize: "10.5px",
+              letterSpacing: "0.13em",
+              textTransform: "uppercase",
+              color: "#8a8a8a",
+            }}
+          >
+            Verified hourly, pulled directly from provider APIs
+          </span>
+          <span style={{ flex: 1, height: 1, background: "#1c1c1c", marginBottom: 3 }} />
+        </div>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(0, 0.72fr) minmax(0, 1fr)",
+            background: "#16161a",
+            border: "1px solid #2a2a2a",
+            borderRadius: 8,
+          }}
+        >
+          <div
+            style={{
+              padding: "26px 30px 24px",
+              borderRight: "1px solid #2a2a2a",
+              display: "flex",
+              flexDirection: "column",
+              gap: "20px",
+            }}
+          >
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              <a
+                href="#"
+                title="Open full index history"
+                style={{
+                  display: "flex",
+                  alignItems: "flex-end",
+                  gap: "12px",
+                  flexWrap: "wrap",
+                  textDecoration: "none",
+                  width: "fit-content",
+                }}
+              >
+                <span
+                  style={{
+                    fontFamily: "Inter, sans-serif",
+                    fontSize: "58px",
+                    fontWeight: 500,
+                    lineHeight: 0.9,
+                    letterSpacing: "-0.045em",
+                    color: "#C4A038",
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  {heroPrice}
+                </span>
+                <span style={{ fontFamily: "Inter, sans-serif", fontSize: "13px", color: "#8a8a8a", paddingBottom: "5px" }}>
+                  / M tokens
+                </span>
+              </a>
+              <div style={{ display: "flex", alignItems: "baseline", gap: "10px", flexWrap: "wrap" }}>
+                <span
+                  style={{
+                    fontFamily: "var(--font-jetbrains-mono), monospace",
+                    fontSize: "11.5px",
+                    letterSpacing: "0.05em",
+                    color: "#c9c9c9",
+                  }}
+                >
+                  SIT index
+                </span>
+                <span
+                  style={{
+                    fontFamily: "Inter, sans-serif",
+                    fontSize: "16px",
+                    fontWeight: 500,
+                    color: pctColor(d1),
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  {formatPct(d1)}
+                </span>
+                <span style={{ fontSize: "12px", color: "#7a7a7a" }}>today</span>
+              </div>
+            </div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                borderTop: "1px solid #222",
+                borderBottom: "1px solid #222",
+              }}
+            >
               {[
                 period("7 day", d7),
                 period("30 day", d30),
                 period("90 day", d90),
               ].map((p) => (
-                <div key={p.label} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <span
-                    style={{
-                      fontSize: "11px",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.1em",
-                      color: "#6a6a6a",
-                    }}
-                  >
+                <div key={p.label} style={{ padding: "11px 0", display: "flex", flexDirection: "column", gap: "3px" }}>
+                  <span style={{ fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.1em", color: "#6a6a6a" }}>
                     {p.label}
                   </span>
                   <span
                     style={{
                       fontFamily: "Inter, sans-serif",
-                      fontSize: "14px",
+                      fontSize: "15px",
+                      fontWeight: 500,
                       color: p.color,
                       fontVariantNumeric: "tabular-nums",
                     }}
@@ -347,42 +559,31 @@ export default async function Home() {
                 </div>
               ))}
             </div>
-            <p
-              style={{
-                margin: "26px 0 0",
-                maxWidth: "420px",
-                fontSize: "13.5px",
-                lineHeight: 1.6,
-                color: "#8a8a8a",
-              }}
-            >
-              The Standard Inference Token (SIT)-Composite tracks the cost of producing
-              one million GPT-4-Turbo-equivalent inference tokens, the commodity unit for AI compute.
-              {latest?.methodology?.aa_version && (
-                <>
-                  {" "}Basket: cheapest qualifying model per provider, eligibility set relative to
-                  the scored-model population (top 40%), based on Artificial Analysis{" "}
-                  {latest.methodology.aa_version}.
-                </>
-              )}
-            </p>
-            <Link
-              href="/methodology"
-              style={{ display: "inline-block", marginTop: "12px", fontSize: "13px", color: "#C4A038" }}
-            >
-              → Read methodology
-            </Link>
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              <p style={{ margin: 0, fontSize: "13px", lineHeight: 1.55, color: "#8a8a8a" }}>
+                The Standard Inference Token (SIT) tracks the cost of producing one million GPT-4-Turbo-equivalent
+                inference tokens, the commodity unit for AI compute.
+                {latest?.methodology?.aa_version && (
+                  <>
+                    {" "}Basket: cheapest qualifying model per provider, eligibility set relative to the scored-model
+                    population (top 40%), based on Artificial Analysis {latest.methodology.aa_version}.
+                  </>
+                )}
+              </p>
+              <Link href="/methodology" style={{ fontSize: "13px", fontWeight: 500, color: "#C4A038" }}>
+                → Read methodology
+              </Link>
+            </div>
           </div>
 
           {/* Sparkline chart */}
-          <div>
+          <div style={{ padding: "26px 30px 24px", display: "flex", flexDirection: "column", gap: "12px" }}>
             <div
               style={{
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
                 gap: "12px",
-                marginBottom: "8px",
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
@@ -401,25 +602,12 @@ export default async function Home() {
                 >
                   30d
                 </button>
-                <span
-                  style={{
-                    fontFamily: "Inter, sans-serif",
-                    fontSize: "11px",
-                    color: "#5f5f5f",
-                    marginLeft: "4px",
-                  }}
-                >
+                <span style={{ fontFamily: "Inter, sans-serif", fontSize: "11px", color: "#5f5f5f", marginLeft: "4px" }}>
                   {sparkVals.length}-day spot
                 </span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                <span
-                  style={{
-                    fontFamily: "Inter, sans-serif",
-                    fontSize: "11px",
-                    color: "#5f5f5f",
-                  }}
-                >
+                <span style={{ fontFamily: "Inter, sans-serif", fontSize: "11px", color: "#5f5f5f" }}>
                   {sp.min > 0 ? `low $${sp.min.toFixed(2)} · high $${sp.max.toFixed(2)}` : ""}
                 </span>
                 <Link href="/api-docs" style={{ fontSize: "11.5px", color: "#C4A038" }}>
@@ -431,7 +619,7 @@ export default async function Home() {
               <svg
                 viewBox="0 0 640 272"
                 role="img"
-                aria-label="30-day SIT price history"
+                aria-label="30-day Standard Inference Token price history"
                 style={{ display: "block", width: "100%", height: "auto" }}
               >
                 {sp.gridLines.map((g, i) => (
@@ -511,37 +699,167 @@ export default async function Home() {
               </span>
               <span>today</span>
             </div>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "14px",
+                paddingTop: "10px",
+                borderTop: "1px solid #222",
+                flexWrap: "wrap",
+              }}
+            >
+              <span style={{ fontSize: "11.5px", color: "#8a8a8a", display: "flex", alignItems: "center", gap: "7px", whiteSpace: "nowrap" }}>
+                <span style={{ display: "inline-block", width: "10px", height: 1, background: "#5c5c5c" }} />
+                era break — basket reconstitution
+              </span>
+              <span style={{ fontSize: "11.5px", color: "#8a8a8a", display: "flex", gap: "7px", whiteSpace: "nowrap" }}>
+                <span style={{ color: "#22c55e" }}>green = price down</span>
+                <span style={{ color: "#3a3a3a" }}>/</span>
+                <span style={{ color: "#ef4444" }}>red = price up</span>
+              </span>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Model count heading */}
-      <section style={{ maxWidth: "1320px", margin: "0 auto", padding: "26px 28px 0" }}>
-        <h2 style={{ fontSize: "22px", fontWeight: 700, color: "#ffffff", margin: 0 }}>
-          {totalCount} Models Tracked
-        </h2>
-        <p style={{ fontSize: "13px", color: "#6a6a6a", margin: "4px 0 0" }}>
-          Live pricing across {totalCount} AI inference models. Prices pulled directly from inference providers.{" "}
-          <a href="/api-docs" style={{ color: "#C4A038", textDecoration: "underline" }}>Our API</a>{" "}
-          also exposes historic price data and shows where providers have diverged from aggregators.
-        </p>
-        <p style={{ fontSize: "13px", color: "#6a6a6a", margin: "4px 0 0" }}>
-          Grouped by quality tier (Frontier first), ranked by Cost / IQ within each tier. Switch to the{" "}
-          <a href="/api-docs" style={{ color: "#C4A038", textDecoration: "underline" }}>API</a> for the raw value
-          ranking across all tiers.
-        </p>
-        <p style={{ fontSize: "13px", color: "#6a6a6a", margin: "4px 0 0" }}>
-          Cost / IQ is our quality-adjusted price per million tokens. Within a tier, lower is better value. Switch to
-          AA Score to rank purely on capability.
-        </p>
+      {/* ============ BLOCK 4 — CATALOGUE PREVIEW ============ */}
+      <section style={{ maxWidth: "1320px", margin: "0 auto", padding: "72px 28px 0" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "flex-end",
+            justifyContent: "space-between",
+            gap: "28px",
+            flexWrap: "wrap",
+            marginBottom: "16px",
+          }}
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            <h2 style={{ margin: 0, fontSize: "28px", fontWeight: 600, letterSpacing: "-0.028em", color: "#f2f2f2" }}>
+              Quality-adjusted price across {totalCount.toLocaleString()} models
+            </h2>
+            <p style={{ margin: 0, maxWidth: "56em", fontSize: "13.5px", lineHeight: 1.5, color: "#8a8a8a" }}>
+              Grouped by quality tier, ranked within tier by Cost/IQ — verified price per million tokens per unit of AA
+              Intelligence Index. Input, output, and blended prices per model.
+            </p>
+          </div>
+          <Link
+            href="/models"
+            style={{ fontSize: "13px", fontWeight: 500, color: "#C4A038", whiteSpace: "nowrap", paddingBottom: "4px" }}
+          >
+            Full rankings →
+          </Link>
+        </div>
+        {preview.length > 0 && (
+          <div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "40px minmax(160px, 1.5fr) minmax(110px, 1fr) minmax(0, 200px) 88px 88px 92px 84px",
+                alignItems: "center",
+                padding: "0 0 8px",
+                borderBottom: "1px solid #2a2a2a",
+              }}
+            >
+              {[
+                ["#", "left"],
+                ["Model", "left"],
+                ["Creator", "left"],
+                ["Basis", "left"],
+                ["Input $/M", "right"],
+                ["Output $/M", "right"],
+                ["Blended $/M", "right"],
+                ["Cost / IQ", "right"],
+              ].map(([label, align]) => (
+                <span
+                  key={label}
+                  style={{
+                    fontFamily: "var(--font-jetbrains-mono), monospace",
+                    fontSize: "10px",
+                    fontWeight: 500,
+                    letterSpacing: "0.11em",
+                    textTransform: "uppercase",
+                    color: "#8a8a8a",
+                    padding: "0 8px",
+                    textAlign: align as "left" | "right",
+                  }}
+                >
+                  {label}
+                </span>
+              ))}
+            </div>
+            {preview.map((m, i) => (
+              <Link
+                key={m.model_id}
+                href={`/models/${m.model_id}`}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "40px minmax(160px, 1.5fr) minmax(110px, 1fr) minmax(0, 200px) 88px 88px 92px 84px",
+                  alignItems: "center",
+                  height: "42px",
+                  borderBottom: "1px solid #18181c",
+                  textDecoration: "none",
+                }}
+              >
+                <span style={{ padding: "0 8px", fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: "12.5px", color: i === 0 ? "#f2f2f2" : "#8a8a8a" }}>
+                  {["🥇", "🥈", "🥉"][i]}
+                </span>
+                <span style={{ padding: "0 8px", fontSize: "13.5px", fontWeight: 500, color: "#f2f2f2", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {m.name}
+                </span>
+                <span style={{ padding: "0 8px", display: "flex", alignItems: "center", gap: "7px", minWidth: 0 }}>
+                  <span style={{ fontSize: "12.5px", color: "#8a8a8a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {m.provider}
+                  </span>
+                  {m.creator_country && (
+                    <span
+                      title={m.creator_country.toUpperCase()}
+                      style={{
+                        fontFamily: "var(--font-jetbrains-mono), monospace",
+                        fontSize: "9.5px",
+                        fontWeight: 500,
+                        padding: "1px 5px",
+                        background: "#131316",
+                        border: "1px solid #2a2a2a",
+                        color: "#8a8a8a",
+                        flexShrink: 0,
+                      }}
+                    >
+                      {m.creator_country.toUpperCase()}
+                    </span>
+                  )}
+                </span>
+                <span style={{ padding: "0 8px", display: "flex", gap: "5px" }}>
+                  <span
+                    title="Price verified hourly from provider APIs"
+                    style={{ fontSize: "10.5px", padding: "2px 7px", background: "rgba(196,160,56,0.08)", border: "1px solid rgba(196,160,56,0.35)", color: "#C4A038" }}
+                  >
+                    Price: verified
+                  </span>
+                </span>
+                <span style={{ padding: "0 8px", textAlign: "right", fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: "12.5px", color: "#c9c9c9", fontVariantNumeric: "tabular-nums" }}>
+                  ${m.input_price_per_m.toFixed(2)}
+                </span>
+                <span style={{ padding: "0 8px", textAlign: "right", fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: "12.5px", color: "#c9c9c9", fontVariantNumeric: "tabular-nums" }}>
+                  ${m.output_price_per_m.toFixed(2)}
+                </span>
+                <span style={{ padding: "0 8px", textAlign: "right", fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: "12.5px", color: "#f2f2f2", fontVariantNumeric: "tabular-nums" }}>
+                  ${m.blended_price_per_m.toFixed(2)}
+                </span>
+                <span style={{ padding: "0 8px", textAlign: "right", fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: "12.5px", color: "#C4A038", fontVariantNumeric: "tabular-nums" }}>
+                  {m.sit_adjusted_price?.toFixed(2)}
+                </span>
+              </Link>
+            ))}
+            <p style={{ margin: "14px 0 0", fontSize: "12px", lineHeight: 1.6, color: "#6a6a6a" }}>
+              Quality here means intelligence only. Latency and uptime verification is in development; neither is scored
+              on this page.
+            </p>
+          </div>
+        )}
       </section>
-
-      {/* Model table (client component, wrapped in Suspense for ISR) */}
-      {models.length > 0 && (
-        <Suspense fallback={null}>
-          <ModelTable models={models} totalCount={totalCount} />
-        </Suspense>
-      )}
 
       {/* API signup */}
       <section
@@ -549,7 +867,7 @@ export default async function Home() {
         style={{
           maxWidth: "1320px",
           margin: "0 auto",
-          padding: "40px 28px 44px",
+          padding: "56px 28px 44px",
           textAlign: "center",
         }}
       >
@@ -561,7 +879,7 @@ export default async function Home() {
         </span>
       </section>
 
-      <Footer models={totalCount} providers={CURRENT_PROVIDER_COUNT} updatedAt={lastUpdated} />
+      <Footer models={totalCount} providers={providerCount} updatedAt={lastUpdated} />
     </>
   );
 }
