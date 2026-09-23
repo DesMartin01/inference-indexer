@@ -275,9 +275,10 @@ export function Footer({ models, providers, updatedAt = "" }: { models?: number;
         </div>
         <div
           style={{
-            fontFamily: "var(--font-jetbrains-mono), monospace",
+            fontFamily: "Inter, sans-serif",
             fontSize: "11.5px",
             color: "#5f5f5f",
+            fontVariantNumeric: "tabular-nums",
           }}
         >
           {liveModels} models · {liveProviders} providers · Last updated: {updated}

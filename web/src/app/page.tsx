@@ -209,7 +209,7 @@ export default async function Home() {
               display: "flex",
               flexDirection: "column",
               gap: "7px",
-              fontFamily: "var(--font-jetbrains-mono), monospace",
+              fontFamily: "Inter, sans-serif",
               fontSize: "12px",
               color: "#8a8a8a",
               fontVariantNumeric: "tabular-nums",

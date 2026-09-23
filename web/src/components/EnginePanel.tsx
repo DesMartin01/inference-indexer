@@ -70,6 +70,24 @@ interface Rec {
   caveats?: string[];
 }
 
+interface ProviderRow {
+  name: string;
+  is_zdr: boolean;
+  is_eu_sovereign: boolean;
+  model_count: number;
+  min_price: number | null;
+  avg_price: number | null;
+  provider_type: string;
+}
+
+interface EndpointRow {
+  provider: string;
+  input_price_per_m: number;
+  output_price_per_m: number;
+  blended_price_per_m: number;
+  context_length: number | null;
+}
+
 interface RecommendResponse {
   recommendations?: Rec[];
   alternatives_considered?: { count?: number; runner_ups?: Rec[] };
@@ -179,7 +197,7 @@ const SUGGESTIONS: { text: string; fill: string }[] = [
   },
   {
     text: "Zero data retention providers in the EU",
-    fill: "Find me a provider with zero data retention and EU infrastructure",
+    fill: "Zero data retention providers in the EU",
   },
   {
     text: "Best value for coding agents under $2/M",
@@ -187,18 +205,49 @@ const SUGGESTIONS: { text: string; fill: string }[] = [
   },
   {
     text: "Providers serving DeepSeek V4, price compared",
-    fill: "Compare provider prices for DeepSeek V4",
+    fill: "Providers serving DeepSeek V4, price compared",
   },
 ];
 
-// DeepSeek-style comparison chips route to the model's /models page where the
-// endpoint price table lives; the engine cannot rank a single model.
-const COMPARISON_ROUTE: { match: RegExp; href: (t: string) => string }[] = [
-  {
-    match: /compare|price compared|providers serving/,
-    href: () => "/models",
-  },
+// ---------- answer-type router ----------
+
+type AnswerType =
+  | { kind: "models" }
+  | { kind: "providers"; zdr: boolean; eu: boolean }
+  | { kind: "model-compare"; modelText: string };
+
+const MODEL_PATTERNS = [
+  /deepseek\s*v?4/i,
+  /gpt[- ]?[0-9]/i,
+  /claude\s+(opus|sonnet|haiku)/i,
+  /gemini/i,
+  /llama\s*[0-9]/i,
+  /glm[- ]?[0-9]/i,
+  /grok/i,
+  /mistral/i,
+  /qwen/i,
+  /kimi/i,
 ];
+
+function classifyAnswer(text: string, c: Constraints): AnswerType {
+  const t = text.toLowerCase();
+  // "Providers serving <model>" / "price compared" -> per-provider price table
+  if (/(providers?\s+(serving|hosting|offering))|price compared|price comparison/i.test(t)) {
+    const m = MODEL_PATTERNS.find((re) => re.test(text));
+    if (m) {
+      const matched = text.match(m)?.[0] ?? "";
+      return { kind: "model-compare", modelText: matched };
+    }
+  }
+  // Pure provider-attribute queries (ZDR / EU) with no model/price/workload signals
+  const mentionsModel = MODEL_PATTERNS.some((re) => re.test(text));
+  const mentionsPriceBudget = /\$|budget|under|cheap|price|cost|\/\s*m/i.test(t);
+  const mentionsWorkload = /for|workload|agent|use case|support|coding|research|extraction|summariz/i.test(t);
+  if ((c.zdr || c.eu_sovereign) && !mentionsModel && !mentionsPriceBudget && !mentionsWorkload) {
+    return { kind: "providers", zdr: c.zdr, eu: c.eu_sovereign };
+  }
+  return { kind: "models" };
+}
 
 // ---------- component ----------
 
@@ -206,6 +255,9 @@ export default function EnginePanel({ totalModels }: { totalModels: number }) {
   const [text, setText] = useState("");
   const [chips, setChips] = useState<EchoChip[]>([]);
   const [results, setResults] = useState<Rec[] | null>(null);
+  const [providerRows, setProviderRows] = useState<ProviderRow[] | null>(null);
+  const [providerFilter, setProviderFilter] = useState<{ zdr: boolean; eu: boolean } | null>(null);
+  const [compare, setCompare] = useState<{ modelId: string; name: string; endpoints: EndpointRow[] } | null>(null);
   const [basis, setBasis] = useState<string>("");
   const [filteredCount, setFilteredCount] = useState<number | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "error" | "route" | "done">("idle");
@@ -260,20 +312,51 @@ export default function EnginePanel({ totalModels }: { totalModels: number }) {
       setResults(null);
       setErrMsg("");
 
-      // DeepSeek-style comparison queries route to the rankings page instead
-      const route = COMPARISON_ROUTE.find((r) => r.match.test(trimmed.toLowerCase()));
-      if (route && !/\$|budget|under|cheap|zdr|zero|eu\b/i.test(trimmed)) {
-        setStatus("route");
-        setTimeout(() => {
-          window.location.href = route.href(trimmed);
-        }, 900);
-        // safety: if navigation hasn't happened in 3s, restore the button
-        setTimeout(() => setStatus((s) => (s === "route" ? "idle" : s)), 3000);
-        return;
-      }
-
       const { constraints, chips: parsed } = parseConstraints(trimmed);
       setChips(parsed);
+      setProviderRows(null);
+      setProviderFilter(null);
+      setCompare(null);
+
+      // Answer-type router: providers list vs per-provider price compare vs model ranking
+      const answer = classifyAnswer(trimmed, constraints);
+      if (answer.kind === "providers") {
+        setStatus("loading");
+        try {
+          const res = await fetch("/api/providers");
+          const data = await res.json();
+          let rows: ProviderRow[] = data.providers ?? [];
+          if (answer.zdr) rows = rows.filter((r) => r.is_zdr);
+          if (answer.eu) rows = rows.filter((r) => r.is_eu_sovereign);
+          setProviderRows(rows);
+          setProviderFilter({ zdr: answer.zdr, eu: answer.eu });
+          setStatus("done");
+          bumpDayCount();
+        } catch {
+          setStatus("error");
+          setErrMsg("Could not reach the provider service. Please try again.");
+        }
+        return;
+      }
+      if (answer.kind === "model-compare") {
+        setStatus("loading");
+        try {
+          const res = await fetch(`/api/model-endpoints?model_id=${encodeURIComponent(answer.modelText)}`);
+          const data = await res.json();
+          if (!res.ok) {
+            setStatus("error");
+            setErrMsg(data.error || `Could not find a model matching "${answer.modelText}".`);
+            return;
+          }
+          setCompare({ modelId: data.model_id, name: data.name, endpoints: data.endpoints ?? [] });
+          setStatus("done");
+          bumpDayCount();
+        } catch {
+          setStatus("error");
+          setErrMsg("Could not reach the endpoint service. Please try again.");
+        }
+        return;
+      }
 
       // Nothing usable parsed -> fail loud, never guess
       if (
@@ -464,10 +547,188 @@ export default function EnginePanel({ totalModels }: { totalModels: number }) {
         {status === "error" && errMsg && (
           <p style={{ marginTop: "14px", fontSize: "13px", color: "#ef4444", maxWidth: "60em" }}>{errMsg}</p>
         )}
-        {status === "route" && (
-          <p style={{ marginTop: "14px", fontSize: "13px", color: "#c9c9c9" }}>
-            Single-model price comparison lives on the <Link href="/models" style={{ color: "#C4A038" }}>rankings page</Link> — taking you there…
-          </p>
+        {/* Provider list results */}
+        {providerRows && (
+          <div ref={resultsRef} style={{ borderTop: "1px solid #1d1d21", marginTop: "26px", paddingTop: "18px" }}>
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "14px", flexWrap: "wrap", marginBottom: "10px" }}>
+              <span style={{ fontSize: "16px", fontWeight: 600, color: "#f2f2f2" }}>
+                {providerFilter?.zdr && providerFilter?.eu
+                  ? "Providers with zero data retention on EU infrastructure"
+                  : providerFilter?.zdr
+                  ? "Providers with zero data retention"
+                  : "EU-sovereign providers"}
+              </span>
+              <span style={{ fontSize: "12px", color: "#8a8a8a" }}>
+                {providerRows.length} provider{providerRows.length === 1 ? "" : "s"} match · attributes are provider-stated
+              </span>
+            </div>
+            {providerRows.length === 0 ? (
+              <p style={{ fontSize: "13px", color: "#8a8a8a" }}>
+                No providers match those attributes today. We add providers as we verify them.
+              </p>
+            ) : (
+              <>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "minmax(120px, 1.4fr) minmax(0, 150px) minmax(0, 150px) 80px 90px",
+                    alignItems: "center",
+                    gap: "8px",
+                    padding: "2px 0 7px",
+                    borderBottom: "1px solid #2a2a2a",
+                  }}
+                >
+                  {[
+                    ["Provider", "left"],
+                    ["Data retention", "left"],
+                    ["EU infra", "left"],
+                    ["Models", "right"],
+                    ["From $/M", "right"],
+                  ].map(([label, align]) => (
+                    <span
+                      key={label}
+                      style={{
+                        fontFamily: "Inter, sans-serif",
+                        fontSize: "10px",
+                        fontWeight: 500,
+                        letterSpacing: "0.11em",
+                        textTransform: "uppercase",
+                        color: "#8a8a8a",
+                        textAlign: align as "left" | "right",
+                      }}
+                    >
+                      {label}
+                    </span>
+                  ))}
+                </div>
+                {providerRows.map((pv) => (
+                  <Link
+                    key={pv.name}
+                    href={`/providers/${encodeURIComponent(pv.name)}`}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "minmax(120px, 1.4fr) minmax(0, 150px) minmax(0, 150px) 80px 90px",
+                      alignItems: "center",
+                      gap: "8px",
+                      minHeight: "42px",
+                      padding: "6px 0",
+                      borderBottom: "1px solid #18181c",
+                      textDecoration: "none",
+                    }}
+                  >
+                    <span style={{ fontSize: "13.5px", fontWeight: 500, color: "#f2f2f2" }}>{pv.name}</span>
+                    <span style={{ fontSize: "11.5px", color: pv.is_zdr ? "#22c55e" : "#8a8a8a" }}>
+                      {pv.is_zdr ? "ZDR: stated" : "—"}
+                    </span>
+                    <span style={{ fontSize: "11.5px", color: pv.is_eu_sovereign ? "#22c55e" : "#8a8a8a" }}>
+                      {pv.is_eu_sovereign ? "EU: stated" : "—"}
+                    </span>
+                    <span style={{ textAlign: "right", fontFamily: "Inter, sans-serif", fontSize: "12.5px", color: "#c9c9c9", fontVariantNumeric: "tabular-nums" }}>
+                      {pv.model_count}
+                    </span>
+                    <span style={{ textAlign: "right", fontFamily: "Inter, sans-serif", fontSize: "12.5px", color: "#f2f2f2", fontVariantNumeric: "tabular-nums" }}>
+                      {pv.min_price != null ? `$${pv.min_price.toFixed(2)}` : "—"}
+                    </span>
+                  </Link>
+                ))}
+              </>
+            )}
+            <p style={{ marginTop: "10px", fontSize: "12px", lineHeight: 1.55, color: "#8a8a8a" }}>
+              ZDR and EU attributes come from provider statements; II has not verified them. Prices verified hourly.
+            </p>
+          </div>
+        )}
+
+        {/* Per-provider price comparison for one model */}
+        {compare && (
+          <div style={{ borderTop: "1px solid #1d1d21", marginTop: "26px", paddingTop: "18px" }}>
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "14px", flexWrap: "wrap", marginBottom: "10px" }}>
+              <span style={{ fontSize: "16px", fontWeight: 600, color: "#f2f2f2" }}>
+                {compare.name}: providers compared
+              </span>
+              <span style={{ fontSize: "12px", color: "#8a8a8a", fontVariantNumeric: "tabular-nums" }}>
+                {compare.endpoints.length} endpoint{compare.endpoints.length === 1 ? "" : "s"} · sorted by price
+              </span>
+            </div>
+            {compare.endpoints.length === 0 ? (
+              <p style={{ fontSize: "13px", color: "#8a8a8a" }}>No verified endpoints for this model.</p>
+            ) : (
+              <>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "minmax(120px, 1.4fr) 90px 90px 100px",
+                    alignItems: "center",
+                    gap: "8px",
+                    padding: "2px 0 7px",
+                    borderBottom: "1px solid #2a2a2a",
+                  }}
+                >
+                  {[
+                    ["Provider", "left"],
+                    ["Input $/M", "right"],
+                    ["Output $/M", "right"],
+                    ["Blended $/M", "right"],
+                  ].map(([label, align]) => (
+                    <span
+                      key={label}
+                      style={{
+                        fontFamily: "Inter, sans-serif",
+                        fontSize: "10px",
+                        fontWeight: 500,
+                        letterSpacing: "0.11em",
+                        textTransform: "uppercase",
+                        color: "#8a8a8a",
+                        textAlign: align as "left" | "right",
+                      }}
+                    >
+                      {label}
+                    </span>
+                  ))}
+                </div>
+                {compare.endpoints
+                  .slice()
+                  .sort((a, b) => a.blended_price_per_m - b.blended_price_per_m)
+                  .slice(0, 8)
+                  .map((ep, i) => (
+                    <div
+                      key={ep.provider}
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "minmax(120px, 1.4fr) 90px 90px 100px",
+                        alignItems: "center",
+                        gap: "8px",
+                        minHeight: "40px",
+                        padding: "5px 0",
+                        borderBottom: "1px solid #18181c",
+                      }}
+                    >
+                      <span style={{ fontSize: "13.5px", fontWeight: 500, color: "#f2f2f2", display: "flex", alignItems: "center", gap: "7px" }}>
+                        <span style={{ fontFamily: "Inter, sans-serif", fontSize: "11.5px", color: i === 0 ? "#C4A038" : "#8a8a8a" }}>{i + 1}</span>
+                        {ep.provider}
+                        {i === 0 && (
+                          <span style={{ fontSize: "10.5px", padding: "2px 7px", background: "rgba(196,160,56,0.08)", border: "1px solid rgba(196,160,56,0.35)", color: "#C4A038" }}>
+                            cheapest
+                          </span>
+                        )}
+                      </span>
+                      <span style={{ textAlign: "right", fontFamily: "Inter, sans-serif", fontSize: "12.5px", color: "#c9c9c9", fontVariantNumeric: "tabular-nums" }}>
+                        ${ep.input_price_per_m.toFixed(2)}
+                      </span>
+                      <span style={{ textAlign: "right", fontFamily: "Inter, sans-serif", fontSize: "12.5px", color: "#c9c9c9", fontVariantNumeric: "tabular-nums" }}>
+                        ${ep.output_price_per_m.toFixed(2)}
+                      </span>
+                      <span style={{ textAlign: "right", fontFamily: "Inter, sans-serif", fontSize: "12.5px", color: "#f2f2f2", fontVariantNumeric: "tabular-nums" }}>
+                        ${ep.blended_price_per_m.toFixed(2)}
+                      </span>
+                    </div>
+                  ))}
+              </>
+            )}
+            <p style={{ marginTop: "10px", fontSize: "12px", lineHeight: 1.55, color: "#8a8a8a" }}>
+              Verified prices per provider endpoint, rebuilt hourly. Blended = 0.4 × input + 0.6 × output.
+            </p>
+          </div>
         )}
 
         {/* Results */}
