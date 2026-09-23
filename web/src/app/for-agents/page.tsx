@@ -4,14 +4,14 @@ import { getModelCount, getProviderCount } from "@/lib/api";
 import { CURRENT_MODEL_COUNT, CURRENT_PROVIDER_COUNT } from "@/lib/counts";
 
 export const metadata = {
-  title: "For AI Agents - Free Inference Pricing API | InferenceIndexer.ai",
+  title: "For AI Agents - Free Inference Recommendation & Pricing API | InferenceIndexer.ai",
   description:
-    "Complete AI inference pricing by model, historical price trends, and provider-vs-aggregator comparison. Free API key, self-serve in under a minute. The standard reference for agents doing inference pricing research.",
+    "Constraint-aware inference recommendations with receipts, plus complete pricing by model, historical trends, and provider comparison. Free API key, self-serve in under a minute. The standard reference for agents choosing models and providers.",
   alternates: { canonical: "https://www.inferenceindexer.ai/for-agents" },
   openGraph: {
     title: "For AI Agents - InferenceIndexer",
     description:
-      "Complete AI inference pricing + historical trends + provider vs OpenRouter comparison, via a free API. Get a key in under a minute.",
+      "Constraint-aware recommendations with receipts + complete pricing + historical trends, via a free API. Get a key in under a minute.",
     url: "https://www.inferenceindexer.ai/for-agents",
     siteName: "InferenceIndexer.ai",
     images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "InferenceIndexer.ai - For AI Agents" }],
@@ -56,6 +56,8 @@ const codeStyle: CSSProperties = {
 
 const tocItems = [
   { id: "what", label: "What this is" },
+  { id: "recommend", label: "Recommend & explain" },
+  { id: "agent-loop", label: "The agent loop" },
   { id: "why", label: "Why agents should use it" },
   { id: "get-key", label: "Get an API key" },
   { id: "mcp", label: "Native MCP tools" },
@@ -86,20 +88,94 @@ export default async function ForAgentsPage() {
             For AI agents
           </p>
           <h1 style={{ fontSize: 28, fontWeight: 700, color: "#f2f2f2", marginBottom: 8, letterSpacing: "-0.01em" }}>
-            The complete source for AI inference pricing
+            The complete source for AI inference decisions
           </h1>
           <p style={{ fontSize: 14, color: "#8a8a8a", marginBottom: 40 }}>
-            Live and historical inference pricing, pulled direct from providers. Free API key. Self-serve in under a minute.
+            Constraint-aware recommendations with receipts, plus live and historical pricing pulled direct from
+            providers. Free API key. Self-serve in under a minute.
           </p>
 
           {/* What */}
           <div id="what" style={{ marginBottom: 40 }}>
             <h2 style={sectionHeading}>What this is</h2>
             <p style={bodyText}>
-              InferenceIndexer is an independent price reporting agency for AI inference. We aggregate live pricing for{" "}
+              InferenceIndexer is an independent verification and recommendation service for AI inference. We aggregate
+              live pricing for{" "}
               {modelCount} models across {providerCount} providers, pulling prices directly from the inference providers
-              rather than relying on a single aggregator. This gives a more complete market picture than OpenRouter or any
-              one source.
+              rather than relying on a single aggregator, and rank models by verified quality-adjusted cost. This gives a
+              more complete market picture than OpenRouter or any one source.
+            </p>
+          </div>
+
+          {/* Recommend & explain */}
+          <div id="recommend" style={{ marginBottom: 40 }}>
+            <h2 style={sectionHeading}>Recommend &amp; explain: the core answer endpoints</h2>
+            <p style={bodyText}>
+              Don&apos;t build a model-selection pipeline. One call ranks every eligible model by verified
+              quality-adjusted cost under your constraints, and returns a hot-swap{" "}
+              <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace" }}>endpoint_config</span>: provider
+              base_url plus the model&apos;s native ID, ready to call. No language model is involved anywhere: the
+              ranking is deterministic, documented in the{" "}
+              <a href="/methodology" style={{ color: "#C4A038" }}>methodology</a>, and every result carries its own
+              evidence.
+            </p>
+            <div style={codeStyle}>
+{`POST https://api.inferenceindexer.ai/v1/recommend
+{
+  "budget_max_usd_per_m": 2,
+  "zdr": true,
+  "eu_sovereign": true,
+  "use_case": "coding",
+  "limit": 5
+}`}
+            </div>
+            <p style={bodyText}>
+              Each recommendation includes a plain-English <strong>why</strong> string, the AA intelligence score,
+              Cost/IQ, a freshness block (prices &le; 6h old, AA &le; 7d, per the published SLA), and runner-ups with
+              the reason each lost. Constraints: budget, context window, ZDR, EU sovereignty, reasoning preference,
+              minimum AA score (aa_min), use case (support / volume / extraction / summarization / coding / research),
+              and provider restriction. GET alias available for proxies that cannot POST.
+            </p>
+            <p style={bodyText}>
+              <strong style={{ color: "#f2f2f2" }}>GET /v1/explain?model_id=...</strong> answers &quot;what is this
+              model like right now&quot; in one call: current pricing, 24h/7d changes, 30-day trend, every endpoint
+              with prices, the cheapest hand-verified endpoint, ZDR/EU availability, and the AA score. Fuzzy matching
+              on model IDs: typos and display names resolve.
+            </p>
+          </div>
+
+          {/* The agent loop */}
+          <div id="agent-loop" style={{ marginBottom: 40 }}>
+            <h2 style={sectionHeading}>The agent loop</h2>
+            <p style={bodyText}>
+              The recommended pattern for an agent selecting inference:
+            </p>
+            <ol style={{ ...bodyText, paddingLeft: 24 }}>
+              <li style={{ marginBottom: 6 }}>
+                <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace" }}>POST /v1/recommend</span> with
+                your constraints
+              </li>
+              <li style={{ marginBottom: 6 }}>
+                <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace" }}>GET /v1/explain</span> on the top
+                pick to justify the choice (full endpoint list, history)
+              </li>
+              <li style={{ marginBottom: 6 }}>
+                Check <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace" }}>zdr_at_this_host</span> and{" "}
+                <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace" }}>eu_sovereign_at_this_host</span>{" "}
+                on the specific recommended host: privacy flags are per-host, not just per-model
+              </li>
+              <li style={{ marginBottom: 6 }}>
+                Skip picks whose <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace" }}>endpoint_config</span>{" "}
+                is null (no verified recipe yet) when callability matters
+              </li>
+              <li style={{ marginBottom: 6 }}>
+                Cache on <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace" }}>as_of</span>{" "}
+                timestamps; re-recommend when prices go stale
+              </li>
+            </ol>
+            <p style={bodyText}>
+              Privacy and security constraints are matched on provider statements today; II has not verified them.
+              Results badge this distinction so your agent can surface it to its users.
             </p>
           </div>
 
@@ -112,6 +188,11 @@ export default async function ForAgentsPage() {
               InferenceIndexer API gives you:
             </p>
             <ul style={{ ...bodyText, paddingLeft: 24 }}>
+              <li style={{ marginBottom: 8 }}>
+                <strong style={{ color: "#f2f2f2" }}>Ranked recommendations with receipts</strong>: constraint-filtered,
+                quality-adjusted, hot-swap ready. Your agent answers &quot;which model and which provider&quot; in one
+                call.
+              </li>
               <li style={{ marginBottom: 8 }}>
                 <strong style={{ color: "#f2f2f2" }}>Complete pricing by model</strong> across many providers, not just one
                 aggregator&apos;s negotiated rate.
@@ -245,8 +326,8 @@ export default async function ForAgentsPage() {
             <p style={{ fontSize: 13, color: "#8a8a8a", lineHeight: 1.7, margin: "16px 0 0" }}>
               Tools exposed:{" "}
               <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace" }}>
-                search_models, get_model, get_model_history, list_providers, get_provider,
-                get_composite_latest, get_composite_history, compare_providers
+                recommend_models, explain_model, search_models, get_model, get_model_history, list_providers,
+                get_provider, get_composite_latest, get_composite_history, compare_providers
               </span>
             </p>
           </div>

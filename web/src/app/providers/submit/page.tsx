@@ -5,7 +5,7 @@ import { SubmitClient } from "./client";
 export const metadata: Metadata = {
   title: "Submit a Provider | InferenceIndexer.ai",
   description:
-    "Are you an inference provider? Submit your pricing endpoint and get listed on InferenceIndexer, the independent AI inference price index.",
+    "Are you an inference provider? Submit your pricing endpoint and get listed on InferenceIndexer, the independent AI inference recommendation engine.",
   alternates: { canonical: "https://www.inferenceindexer.ai/providers/submit" },
 };
 
@@ -37,7 +37,7 @@ export default function ProviderSubmitPage() {
       </h1>
       <p style={{ color: "var(--text-secondary)", fontSize: 14, lineHeight: 1.6 }}>
         Are you an inference provider? Get listed on the independent AI inference
-        price index. We verify your pricing endpoint live, then put it up for review.
+        recommendation engine. We verify your pricing endpoint live, then put it up for review.
         Approved providers flow straight into the index.
       </p>
 

@@ -58,7 +58,7 @@ export default function TermsPage() {
 
         <h2 style={h2}>1. The Service</h2>
         <p style={p}>
-          InferenceIndexer.ai is an independent price reporting agency for AI inference. The Service provides:
+          InferenceIndexer.ai is an independent verification and recommendation service for AI inference. The Service provides:
         </p>
         <ul style={{ listStyle: "disc", padding: 0, marginBottom: 16 }}>
           <li style={li}>A standardized price index (the Standard Inference Token, or SIT) for AI inference pricing</li>

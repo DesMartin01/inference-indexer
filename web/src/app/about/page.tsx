@@ -4,13 +4,13 @@ import { getModelCount, getProviderCount } from "@/lib/api";
 import { CURRENT_MODEL_COUNT, CURRENT_PROVIDER_COUNT } from "@/lib/counts";
 
 export const metadata = {
-  title: "About - Independent AI Inference Price Index | InferenceIndexer.ai",
+  title: "About - Independent Inference Recommendation Engine | InferenceIndexer.ai",
   description:
-    "InferenceIndexer is an independent price reporting agency for AI inference, built by Des Martin and Frank Drebin. Not owned by any provider. Open methodology. Free API access.",
+    "InferenceIndexer is an independent inference recommendation engine for price, quality, security and privacy, built by Des Martin and Frank Drebin. Not owned by any provider. Open methodology. Free API access.",
   alternates: { canonical: "https://www.inferenceindexer.ai/about" },
   openGraph: {
-    title: "About InferenceIndexer.ai - Independent AI Pricing Index",
-    description: "Independent AI inference price index. Built by Des Martin and Frank Drebin. Open methodology, free API.",
+    title: "About InferenceIndexer.ai - Independent Inference Recommendation Engine",
+    description: "Independent AI inference recommendation engine. Built by Des Martin and Frank Drebin. Open methodology, free API.",
     url: "https://www.inferenceindexer.ai/about",
     siteName: "InferenceIndexer.ai",
     images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "InferenceIndexer.ai - About" }],
@@ -55,7 +55,7 @@ const tocItems = [
 const commitments = [
   {
     title: "Independence",
-    body: "InferenceIndexer does not provide inference services, route API calls, or take positions in any inference derivatives market. We are a price reporting agency, not a market participant.",
+    body: "InferenceIndexer does not provide inference services, route API calls, or take positions in any inference derivatives market. We are an independent verifier and recommender, not a market participant.",
   },
   {
     title: "Transparency",
@@ -106,28 +106,46 @@ export default async function AboutPage() {
             </p>
             <p style={bodyText}>
               We are building the reference layer for AI inference. Not an exchange. Not an aggregator. Not a routing
-              service. Three things the industry needs and cannot get elsewhere:
+              service. Verification first, then recommendation on verified data. Four things the industry needs and
+              cannot get elsewhere:
             </p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 16, marginTop: 24 }}>
               <div style={cardBase}>
-                <h3 style={{ fontSize: 15, fontWeight: 600, color: "#C4A038", margin: "0 0 8px" }}>Price</h3>
+                <h3 style={{ fontSize: 15, fontWeight: 600, color: "#C4A038", margin: "0 0 8px" }}>Price — verified</h3>
                 <p style={{ fontSize: 13, color: "#8a8a8a", lineHeight: 1.6, margin: 0 }}>
                   The best inference pricing data on the web. Pulled directly from provider APIs, not estimates or
-                  listings. Median pricing across providers, historical tracking, and the SIT Token Price Index (TPI).
+                  listings. Median pricing across providers, historical tracking, and the Standard Inference Token
+                  price index.
                 </p>
               </div>
               <div style={cardBase}>
-                <h3 style={{ fontSize: 15, fontWeight: 600, color: "#C4A038", margin: "0 0 8px" }}>Quality</h3>
+                <h3 style={{ fontSize: 15, fontWeight: 600, color: "#C4A038", margin: "0 0 8px" }}>Quality — verified: intelligence</h3>
                 <p style={{ fontSize: 13, color: "#8a8a8a", lineHeight: 1.6, margin: 0 }}>
-                  Provider quality metrics no-one else can match. Latency, uptime, time to first token, and
-                  operational reliability across every endpoint we track.
+                  Intelligence verified against the Artificial Analysis index, then divided into price so rankings
+                  reward value, not cheapness. [COPY: latency/uptime verification in development — final wording Des.]
                 </p>
               </div>
               <div style={cardBase}>
-                <h3 style={{ fontSize: 15, fontWeight: 600, color: "#C4A038", margin: "0 0 8px" }}>Privacy</h3>
+                <h3 style={{ fontSize: 15, fontWeight: 600, color: "#C4A038", margin: "0 0 8px" }}>Privacy — provider-stated today</h3>
                 <p style={{ fontSize: 13, color: "#8a8a8a", lineHeight: 1.6, margin: 0 }}>
-                  The most complete repository of inference privacy data anywhere. Zero data retention status,
-                  infrastructure jurisdiction, data residency, and whether your inputs could be used for training.
+                  Zero data retention status, infrastructure jurisdiction, and training-use terms, collected and shown
+                  with their source. Verification of these claims is in development; today they are provider-stated,
+                  and we label them as such. [COPY: final wording Des.]
+                </p>
+              </div>
+              <div style={cardBase}>
+                <h3 style={{ fontSize: 15, fontWeight: 600, color: "#C4A038", margin: "0 0 8px" }}>Security — in development</h3>
+                <p style={{ fontSize: 13, color: "#8a8a8a", lineHeight: 1.6, margin: 0 }}>
+                  Prompt-injection exposure, router interference, tenant isolation, and incident disclosure records.
+                  Criteria will be published before any provider is rated against them. [COPY: final wording Des.]
+                </p>
+              </div>
+              <div style={cardBase}>
+                <h3 style={{ fontSize: 15, fontWeight: 600, color: "#C4A038", margin: "0 0 8px" }}>Recommendation</h3>
+                <p style={{ fontSize: 13, color: "#8a8a8a", lineHeight: 1.6, margin: 0 }}>
+                  The engine that turns the above into an answer: constraint-aware model recommendations ranked by
+                  verified quality-adjusted cost, each with its evidence attached. Deterministic, documented, and free
+                  to query.
                 </p>
               </div>
             </div>
@@ -190,9 +208,9 @@ export default async function AboutPage() {
                       built brands, and led growth for companies across crypto, AI, and developer tools.
                     </p>
                     <p style={{ fontSize: 13, color: "#8a8a8a", lineHeight: 1.6, marginBottom: 10 }}>
-                      InferenceIndexer grew out of a simple observation: the AI inference market has no price index. Every
-                      comparable commodity market - oil, crypto, cloud compute - has one. Inference doesn&apos;t. That gap
-                      is the opportunity.
+                      InferenceIndexer grew out of a simple observation: the AI inference market has no independent
+                      referee. Every claim a provider makes is self-attested, and buyers have had no way to check it.
+                      That gap is the opportunity.
                     </p>
                     <a href="https://desmartin.io" style={{ display: "inline-block", fontSize: 13, ...goldLink }}>
                       Website: desmartin.io
@@ -248,8 +266,8 @@ export default async function AboutPage() {
           <div id="commitment" style={{ marginBottom: 40 }}>
             <h2 style={sectionHeading}>Commitment</h2>
             <p style={bodyText}>
-              We are committed to building the most comprehensive, transparent, and independent price index for AI
-              inference. Specifically:
+              We are committed to building the most comprehensive, transparent, and independent recommendation engine
+              for AI inference. Specifically:
             </p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
               {commitments.map((c) => (

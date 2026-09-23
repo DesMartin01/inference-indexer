@@ -6,9 +6,9 @@ import { CURRENT_MODEL_COUNT } from "@/lib/counts";
 export async function generateMetadata() {
   const count = (await getModelCount().catch(() => 0)) || CURRENT_MODEL_COUNT;
   return {
-  title: "API Documentation - Free Inference Pricing API | InferenceIndexer.ai",
+  title: "API Documentation - Free Inference Recommendation & Pricing API | InferenceIndexer.ai",
   description:
-    `Free API for AI inference pricing data. Access the SIT Token Price Index (TPI), model pricing, price history, and quality-adjusted prices for ${count}+ models. 100 requests/day free, no credit card required.`,
+    `Free API for AI inference recommendations and pricing data. Constraint-aware model ranking with receipts, the Standard Inference Token price index, model pricing, price history, and quality-adjusted prices for ${count}+ models. 100 requests/day free, no credit card required.`,
   alternates: { canonical: "https://www.inferenceindexer.ai/api-docs" },
   openGraph: {
     title: "InferenceIndexer API - Free AI Pricing Data",
@@ -37,7 +37,7 @@ export default function ApiDocsPage() {
     "@type": "WebAPI",
     name: "InferenceIndexer API",
     description:
-      "Free API for AI inference pricing data. Live and historical prices by model, provider comparison, and the SIT Token Price Index (TPI).",
+      "Free API for AI inference recommendations and pricing. Ranked recommendations with receipts, live and historical prices by model, provider comparison, and the Standard Inference Token price index.",
     url: "https://www.inferenceindexer.ai/api-docs",
     termsOfService: "https://www.inferenceindexer.ai/terms",
     provider: {
@@ -63,7 +63,7 @@ export default function ApiDocsPage() {
             API Documentation
           </h1>
           <p style={{ fontSize: 14, color: "#8a8a8a", margin: "0 0 20px" }}>
-            Free inference pricing data. 1,000 requests/day with a free API key.
+            Recommendations, pricing, and verification data. 1,000 requests/day with a free API key.
           </p>
           <Link
             href="/#signup"

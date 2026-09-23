@@ -231,7 +231,7 @@ export function Footer({ models, providers, updatedAt = "" }: { models?: number;
         <div style={{ display: "flex", alignItems: "center", gap: "7px", fontSize: "12px", color: "#8a8a8a" }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/profile-icon.png" alt="InferenceIndexer" width={16} height={16} style={{ borderRadius: "2px" }} />
-          InferenceIndexer.ai · Independent price index for AI inference
+          InferenceIndexer.ai · Inference Recommendation Engine
         </div>
         <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
           <Link href="/providers" style={{ fontSize: "12px", color: "#7a7a7a", textDecoration: "none" }}>

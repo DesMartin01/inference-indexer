@@ -22,7 +22,7 @@ const jetbrainsMono = JetBrains_Mono({
 export async function generateMetadata(): Promise<Metadata> {
   const count = (await getModelCount().catch(() => 0)) || CURRENT_MODEL_COUNT;
   return {
-  title: "InferenceIndexer.ai — Independent Price Index for AI Inference",
+  title: "InferenceIndexer.ai — Inference Recommendation Engine",
   description:
     `The Standard Inference Token (SIT) is a standardized unit for tracking AI inference prices across providers. ${count} models, updated hourly.`,
   };
@@ -47,7 +47,7 @@ const siteSchema = {
       url: "https://www.inferenceindexer.ai/",
       name: "InferenceIndexer",
       description:
-        "Independent price reporting agency for AI inference. Live and historical inference pricing across providers.",
+        "Inference Recommendation Engine for price, quality, security and privacy. Live and historical inference pricing across providers.",
       publisher: { "@id": "https://www.inferenceindexer.ai/#organization" },
     },
     {
@@ -58,7 +58,7 @@ const siteSchema = {
       logo: "https://www.inferenceindexer.ai/profile-icon.png",
       sameAs: ["https://x.com/inferenceindex"],
       description:
-        "Independent AI inference price index. Live and historical pricing, direct from providers.",
+        "AI inference recommendation engine for price, quality, security and privacy. Live and historical pricing, direct from providers.",
     },
   ],
 };

@@ -92,13 +92,14 @@ const TOC_ITEMS: { n: string; title: string; href: string }[] = [
   { n: "1", title: "Overview", href: "#overview" },
   { n: "2", title: "Definition", href: "#definition" },
   { n: "3", title: "Quality Tiers", href: "#tiers" },
-  { n: "4", title: "Index Calculation", href: "#calculation" },
-  { n: "5", title: "SIT Variants", href: "#variants" },
-  { n: "6", title: "Data Sources", href: "#sources" },
-  { n: "7", title: "Governance", href: "#governance" },
-  { n: "8", title: "Limitations", href: "#limitations" },
-  { n: "9", title: "Citing the SIT", href: "#citing" },
-  { n: "10", title: "References", href: "#references" },
+  { n: "4", title: "Recommendation Ranking", href: "#recommendations" },
+  { n: "5", title: "Index Calculation", href: "#calculation" },
+  { n: "6", title: "SIT Variants", href: "#variants" },
+  { n: "7", title: "Data Sources", href: "#sources" },
+  { n: "8", title: "Governance", href: "#governance" },
+  { n: "9", title: "Limitations", href: "#limitations" },
+  { n: "10", title: "Citing the SIT", href: "#citing" },
+  { n: "11", title: "References", href: "#references" },
 ];
 
 export default function MethodologyPage() {
@@ -128,7 +129,7 @@ export default function MethodologyPage() {
             SIT Methodology
           </h1>
           <p style={{ fontSize: 14, color: "#8a8a8a", marginBottom: 8, lineHeight: 1.5 }}>
-            How the Standard Inference Token is defined, calculated, and governed.
+            How the recommendation engine ranks models, how the Standard Inference Token price is defined, calculated, and governed.
           </p>
           <p style={{ fontFamily: "var(--font-jetbrains-mono), 'JetBrains Mono', monospace", fontSize: 12, color: "#8a8a8a", marginBottom: 40 }}>
             Version 0.4 — Last updated: August 6, 2026
@@ -149,9 +150,9 @@ export default function MethodologyPage() {
               <li style={bulletItem}>Benchmarking: &quot;am I paying above or below market rate?&quot;</li>
             </ul>
             <p style={p}>
-              InferenceIndexer is an independent price reporting agency. We do not provide inference services, do not
-              route API calls, and do not take positions in any inference derivatives market. All data sources are
-              public and verifiable.
+              InferenceIndexer is an independent verification and recommendation service for AI inference. We do not provide
+              inference services, do not route API calls, and do not take positions in any inference derivatives market.
+              All data sources are public and verifiable.
             </p>
           </Section>
 
@@ -299,9 +300,135 @@ export default function MethodologyPage() {
             </p>
           </Section>
 
-          {/* 4. Index Calculation */}
-          <Section n="4" title="Index Calculation" id="calculation">
-            <SubSection n="4.1" title="Tier Indices">
+          {/* 3a. Recommendation Ranking */}
+          <Section n="4" title="Recommendation Ranking" id="recommendations">
+            <p style={p}>
+              The recommendation engine turns verified prices and quality scores into ranked, constraint-aware
+              recommendations. It is fully deterministic: the same constraints always produce the same ranking, and no
+              language model is involved anywhere in the ranking path. This section documents exactly how a
+              recommendation is produced; every claim on the homepage reduces to the rules below.
+            </p>
+
+            <SubSection n="4.1" title="Eligibility">
+              <p style={p}>
+                A model can appear in a recommendation only if all of the following hold. Models that fail any test
+                are excluded before ranking, never shown with an &quot;N/A&quot; placeholder:
+              </p>
+              <ul style={bulletList}>
+                <li style={bulletItem}>The model is active and has a verified blended price above zero</li>
+                <li style={bulletItem}>The model has a Cost/IQ value, which requires an Artificial Analysis Intelligence Index score (the AA &ge; 35 pipeline gate applies to having a Cost/IQ at all)</li>
+                <li style={bulletItem}>The model is not a batch variant</li>
+                <li style={bulletItem}>The model matches the requested modality. &quot;text&quot; includes vision-capable models (text+image&rarr;text), since a vision-capable model can perform text-only work</li>
+              </ul>
+            </SubSection>
+
+            <SubSection n="4.2" title="Hard constraints">
+              <p style={p}>
+                Callers filter the eligible pool with hard constraints. A model that fails a hard constraint is
+                excluded, regardless of how well it would rank:
+              </p>
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={thStyle}>Constraint</th>
+                    <th style={thStyle}>Meaning</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td style={tdStyle}>budget_max_usd_per_m</td><td style={tdStyle}>Blended price per million tokens must not exceed this value</td></tr>
+                  <tr><td style={tdStyle}>context_min</td><td style={tdStyle}>Context window must be at least this many tokens</td></tr>
+                  <tr><td style={tdStyle}>zdr</td><td style={tdStyle}>Provider must claim zero data retention (provider-stated, not II-verified)</td></tr>
+                  <tr><td style={tdStyle}>eu_sovereign</td><td style={tdStyle}>Provider must claim EU sovereignty (provider-stated, not II-verified)</td></tr>
+                  <tr><td style={tdStyle}>reasoning</td><td style={tdStyle}>Include or exclude reasoning models</td></tr>
+                  <tr><td style={tdStyle}>aa_min</td><td style={tdStyle}>Artificial Analysis Intelligence Index must be at least this value</td></tr>
+                  <tr><td style={tdStyle}>providers</td><td style={tdStyle}>Restrict to named endpoint providers</td></tr>
+                </tbody>
+              </table>
+              <p style={p}>
+                At least one constraint is required; unconstrained browsing is served by the model table instead.
+                Privacy and security constraints are matched on <strong>provider statements today</strong>, not on II
+                verification. Results say so; see the attestation table on the homepage.
+              </p>
+            </SubSection>
+
+            <SubSection n="4.3" title="Ranking metric: Cost/IQ">
+              <p style={p}>
+                Eligible models are ranked by <strong>Cost/IQ ascending</strong>. The formula (unchanged from v0.2,
+                August 2026):
+              </p>
+              <p style={{ ...p, fontFamily: "var(--font-jetbrains-mono), 'JetBrains Mono', monospace", color: "#C4A038" }}>
+                Cost/IQ = blended price &times; (40 / AA Intelligence Index score)
+              </p>
+              <p style={p}>
+                where the blended price is 0.4 &times; input price + 0.6 &times; output price. Lower Cost/IQ is better
+                value: it is the verified price of a million tokens normalised per unit of demonstrated intelligence.
+                Cost/IQ is a <strong>price-efficiency sort, not a task-fitness score</strong>. Because the formula
+                divides by the AA score, a model with a low score and a very low price can rank first; the response
+                carries each model&apos;s AA score so this is always visible.
+              </p>
+            </SubSection>
+
+            <SubSection n="4.4" title="Task adjustments (use_case)">
+              <p style={p}>
+                An optional <strong>use_case</strong> hint applies a deterministic multiplicative adjustment to
+                Cost/IQ after the base ranking. Each profile encodes an AA floor and a reasoning preference:
+              </p>
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={thStyle}>Profile</th>
+                    <th style={thStyle}>AA floor</th>
+                    <th style={thStyle}>Reasoning preference</th>
+                    <th style={thStyle}>Rationale</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td style={tdStyle}>support</td><td style={tdStyle}>15</td><td style={tdStyle}>Avoid</td><td style={tdStyle}>High-volume drafting: precision and cost matter more than peak intelligence</td></tr>
+                  <tr><td style={tdStyle}>volume</td><td style={tdStyle}>10</td><td style={tdStyle}>Avoid</td><td style={tdStyle}>High-volume generation: cost dominates</td></tr>
+                  <tr><td style={tdStyle}>extraction</td><td style={tdStyle}>20</td><td style={tdStyle}>Avoid</td><td style={tdStyle}>Structured output: reasoning adds latency without schema accuracy gains</td></tr>
+                  <tr><td style={tdStyle}>summarization</td><td style={tdStyle}>20</td><td style={tdStyle}>Avoid</td><td style={tdStyle}>Long context and cost efficiency matter most</td></tr>
+                  <tr><td style={tdStyle}>coding</td><td style={tdStyle}>30</td><td style={tdStyle}>Preferred</td><td style={tdStyle}>Reasoning and higher intelligence correlate with patch quality</td></tr>
+                  <tr><td style={tdStyle}>research</td><td style={tdStyle}>35</td><td style={tdStyle}>Preferred</td><td style={tdStyle}>Reasoning depth and large context matter most</td></tr>
+                </tbody>
+              </table>
+              <p style={p}>
+                Penalties scale with the shortfall below the profile&apos;s AA floor; a reasoning-model penalty of 1.25
+                reflects that thinking tokens are not reflected in listed prices. Adjustments reorder near-ties; they
+                never override genuine price/quality dominance. Every result shows both the raw and the adjusted
+                basis in its &quot;why&quot; string.
+              </p>
+            </SubSection>
+
+            <SubSection n="4.5" title="Callable-first demotion">
+              <p style={p}>
+                Models with a hand-verified endpoint recipe (a tested provider base_url plus the model&apos;s native ID
+                on that provider) rank above models without one. Demoted results carry an explicit caveat and are
+                never silently hidden. The <strong>prefer_callable</strong> flag (default on) controls this.
+              </p>
+            </SubSection>
+
+            <SubSection n="4.6" title="Freshness and honesty surface">
+              <p style={p}>
+                Every recommendation carries: per-field <strong>as-of</strong> timestamps, a freshness block with the
+                published SLA (prices 6 hours, AA scores 7 days), the runner-up models with the reason each lost, and
+                the ranking basis in machine-readable form. Queries are never stored: the anonymous demand counter
+                records constraint tuples only (budget, context, flags), never query content.
+              </p>
+            </SubSection>
+
+            <SubSection n="4.7" title="What is NOT ranked">
+              <p style={p}>
+                Latency and uptime are not scored: live probe coverage is too thin to rank on honestly (see the
+                quality-monitoring roadmap). Security posture is not scored: no verification capability exists yet.
+                Privacy is matched on provider statements only. When any of these changes, this section changes with
+                them, before the homepage claims them.
+              </p>
+            </SubSection>
+          </Section>
+
+          {/* 6. Index Calculation */}
+          <Section n="5" title="Index Calculation" id="calculation">
+            <SubSection n="5.1" title="Tier Indices">
               <p style={p}>Each quality tier has its own index, tracking the median blended price per million tokens across all models in that tier. The SIT TPI uses equal weight per provider, capped at 30% (see Section 4.3):</p>
               <table style={tableStyle}>
                 <thead>
@@ -335,7 +462,7 @@ export default function MethodologyPage() {
               </table>
             </SubSection>
 
-            <SubSection n="4.2" title="Quality-Adjusted Price (Cost / IQ)">
+            <SubSection n="5.2" title="Quality-Adjusted Price (Cost / IQ)">
               <p style={p}>
                 <strong style={{ color: "#C4A038" }}>The Quality-Adjusted Price is not a transactional price.</strong> It is a
                 normalized index value for cross-model comparison. The actual price you pay a provider is the Blended
@@ -392,7 +519,7 @@ SIT Token Price Index (TPI) = Σ(w_p × min_adjusted_price_p)
               </p>
             </SubSection>
 
-            <SubSection n="4.3" title="Provider Equal Weighting (TPI)">
+            <SubSection n="5.3" title="Provider Equal Weighting (TPI)">
               <p style={p}>
                 The SIT TPI uses a <strong style={{ color: "#e5e5e5" }}>provider equal weighting</strong>:
                 each provider contributes their cheapest SIT-qualified model to the basket, and every provider
@@ -417,7 +544,7 @@ TPI = Σ(w_p × min_adjusted_price_p)
               </p>
             </SubSection>
 
-            <SubSection n="4.4" title="Calculation Frequency">
+            <SubSection n="5.4" title="Calculation Frequency">
               <table style={tableStyle}>
                 <thead>
                   <tr>
@@ -446,7 +573,7 @@ TPI = Σ(w_p × min_adjusted_price_p)
               </table>
             </SubSection>
 
-            <SubSection n="4.5" title="Base Date and Rebaselining">
+            <SubSection n="5.5" title="Base Date and Rebaselining">
               <ul style={bulletList}>
                 <li style={bulletItem}>
                   Current base date: <span style={mutedMono}>September 4, 2026</span> (SIT TPI = 1000 at this date).
@@ -465,8 +592,8 @@ TPI = Σ(w_p × min_adjusted_price_p)
             </SubSection>
           </Section>
 
-          {/* 5. SIT Variants */}
-          <Section n="5" title="SIT Variants" id="variants">
+          {/* 6. SIT Variants */}
+          <Section n="6" title="SIT Variants" id="variants">
             <p style={p}>
               Inference is not a single homogeneous commodity. The SIT supports attribute-based filtering, similar to
               how CoinMarketCap filters by category (DeFi, Layer 1, etc.).
@@ -531,9 +658,9 @@ TPI = Σ(w_p × min_adjusted_price_p)
             </p>
           </Section>
 
-          {/* 6. Data Sources */}
-          <Section n="6" title="Data Sources" id="sources">
-            <SubSection n="6.1" title="Primary Sources">
+          {/* 7. Data Sources */}
+          <Section n="7" title="Data Sources" id="sources">
+            <SubSection n="7.1" title="Primary Sources">
               <p style={p}>
                 All providers in the index below, with their refresh cadence.
                 The list updates automatically as new direct data providers are
@@ -548,7 +675,7 @@ TPI = Σ(w_p × min_adjusted_price_p)
               </p>
             </SubSection>
 
-            <SubSection n="6.2" title="Source Hierarchy">
+            <SubSection n="7.2" title="Source Hierarchy">
               <p style={p}>When a model is available from multiple sources, priority:</p>
               <ol style={numberedList}>
                 <li style={numberedItem}>
@@ -563,7 +690,7 @@ TPI = Σ(w_p × min_adjusted_price_p)
               </ol>
             </SubSection>
 
-            <SubSection n="6.3" title="Data Quality">
+            <SubSection n="7.3" title="Data Quality">
               <ul style={bulletList}>
                 <li style={bulletItem}>
                   Every price point stores: timestamp, source URL, raw price, normalized price
@@ -579,9 +706,9 @@ TPI = Σ(w_p × min_adjusted_price_p)
             </SubSection>
           </Section>
 
-          {/* 7. Governance */}
-          <Section n="7" title="Governance" id="governance">
-            <SubSection n="7.1" title="Methodology Changes">
+          {/* 8. Governance */}
+          <Section n="8" title="Governance" id="governance">
+            <SubSection n="8.1" title="Methodology Changes">
               <p style={p}>Any change to this methodology triggers:</p>
               <ol style={numberedList}>
                 <li style={numberedItem}>14-day public comment period</li>
@@ -591,9 +718,9 @@ TPI = Σ(w_p × min_adjusted_price_p)
               </ol>
             </SubSection>
 
-            <SubSection n="7.2" title="Conflict of Interest">
+            <SubSection n="8.2" title="Conflict of Interest">
               <ul style={bulletList}>
-                <li style={bulletItem}>InferenceIndexer is an independent price reporting agency</li>
+                <li style={bulletItem}>InferenceIndexer is an independent verification and recommendation service</li>
                 <li style={bulletItem}>InferenceIndexer does not provide inference services</li>
                 <li style={bulletItem}>InferenceIndexer does not take positions in inference futures or derivatives</li>
                 <li style={bulletItem}>All data sources are public and verifiable</li>
@@ -602,9 +729,9 @@ TPI = Σ(w_p × min_adjusted_price_p)
             </SubSection>
           </Section>
 
-          {/* 8. Limitations */}
-          <Section n="8" title="Limitations" id="limitations">
-            <SubSection n="8.1" title="Known Limitations">
+          {/* 9. Limitations */}
+          <Section n="9" title="Limitations" id="limitations">
+            <SubSection n="9.1" title="Known Limitations">
               <ol style={numberedList}>
                 <li style={numberedItem}>
                   <strong style={{ color: "#e5e5e5" }}>Tokenizer differences:</strong> Different models use different
@@ -632,7 +759,7 @@ TPI = Σ(w_p × min_adjusted_price_p)
               </ol>
             </SubSection>
 
-            <SubSection n="8.2" title="Future Enhancements">
+            <SubSection n="9.2" title="Future Enhancements">
               <ul style={bulletList}>
                 <li style={bulletItem}>Latency-adjusted pricing (tokens/second as a factor)</li>
                 <li style={bulletItem}>Cache pricing tracked separately</li>
@@ -643,8 +770,8 @@ TPI = Σ(w_p × min_adjusted_price_p)
             </SubSection>
           </Section>
 
-          {/* 9. Citing the SIT */}
-          <Section n="9" title="Citing the SIT" id="citing">
+          {/* 10. Citing the SIT */}
+          <Section n="10" title="Citing the SIT" id="citing">
             <p style={p}>When citing InferenceIndexer data in research, articles, or reports:</p>
 
             <p style={{ ...p, marginTop: 16, marginBottom: 4 }}>
@@ -671,8 +798,8 @@ Retrieved from https://www.inferenceindexer.ai/methodology`}</pre>
   note   = {Version 0.4}
 }`}</pre>
           </Section>
-          {/* 10. References */}
-          <Section n="10" title="References" id="references">
+          {/* 11. References */}
+          <Section n="11" title="References" id="references">
             <ul style={bulletList}>
               <li style={bulletItem}>
                 <a href="https://www.emergentmind.com/topics/standard-inference-token-sit" style={{ color: "#C4A038", textDecoration: "none" }}>

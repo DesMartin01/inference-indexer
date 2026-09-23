@@ -160,7 +160,7 @@ export default async function Home() {
             "@context": "https://schema.org",
             "@type": "Dataset",
             name: "InferenceIndexer Standard Inference Token price index - AI Inference Prices",
-            description: `Independent price index and recommendation engine for AI inference. ${composite ? `Standard Inference Token price: $${composite.price_per_m.toFixed(4)}/M GPT-4-equivalent tokens, equal-weighted across ${composite.providers} providers.` : `${totalCount} models, updated hourly.`}`,
+            description: `Independent inference recommendation engine for price, quality, security and privacy. ${composite ? `Standard Inference Token price: $${composite.price_per_m.toFixed(4)}/M GPT-4-equivalent tokens, equal-weighted across ${composite.providers} providers.` : `${totalCount} models, updated hourly.`}`,
             url: "https://www.inferenceindexer.ai",
             creator: {
               "@type": "Organization",
