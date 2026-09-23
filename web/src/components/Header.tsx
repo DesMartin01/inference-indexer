@@ -81,7 +81,7 @@ export function Header({ activePage = "" }: { activePage?: string }) {
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/profile-icon.png" alt="InferenceIndexer" width={20} height={20} style={{ borderRadius: "3px" }} />
-          InferenceIndexer<span style={{ color: "#C4A038" }}>.ai</span>
+          {"InferenceIndexer"}<span style={{ color: "#C4A038" }}>{".ai"}</span>
         </Link>
         <div
           style={{

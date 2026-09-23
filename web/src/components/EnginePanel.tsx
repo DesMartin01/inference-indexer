@@ -502,7 +502,7 @@ export default function EnginePanel({ totalModels }: { totalModels: number }) {
                   <span
                     key={label}
                     style={{
-                      fontFamily: "var(--font-jetbrains-mono), monospace",
+                      fontFamily: "Inter, sans-serif",
                       fontSize: "10px",
                       fontWeight: 500,
                       letterSpacing: "0.11em",
@@ -530,7 +530,7 @@ export default function EnginePanel({ totalModels }: { totalModels: number }) {
                     textDecoration: "none",
                   }}
                 >
-                  <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: "12.5px", color: r.rank <= 3 ? "#C4A038" : "#8a8a8a" }}>
+                  <span style={{ fontFamily: "Inter, sans-serif", fontSize: "12.5px", color: r.rank <= 3 ? "#C4A038" : "#8a8a8a" }}>
                     {r.rank <= 3 ? ["🥇", "🥈", "🥉"][r.rank - 1] : r.rank}
                   </span>
                   <span style={{ fontSize: "13.5px", fontWeight: 500, color: "#f2f2f2", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -556,13 +556,13 @@ export default function EnginePanel({ totalModels }: { totalModels: number }) {
                   </span>
                   <span
                     title="Artificial Analysis Intelligence Index"
-                    style={{ textAlign: "right", fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: "12.5px", color: "#c9c9c9", fontVariantNumeric: "tabular-nums" }}
+                    style={{ textAlign: "right", fontFamily: "Inter, sans-serif", fontSize: "12.5px", color: "#c9c9c9", fontVariantNumeric: "tabular-nums" }}
                   >
                     {r.aa_index_score != null ? r.aa_index_score.toFixed(0) : "—"}
                   </span>
                   <span
                     title="Cost/IQ: blended price × (40 / AA score). Lower is better."
-                    style={{ textAlign: "right", fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: "12.5px", color: "#C4A038", fontVariantNumeric: "tabular-nums" }}
+                    style={{ textAlign: "right", fontFamily: "Inter, sans-serif", fontSize: "12.5px", color: "#C4A038", fontVariantNumeric: "tabular-nums" }}
                   >
                     {r.cost_per_iq != null ? r.cost_per_iq.toFixed(2) : "—"}
                   </span>

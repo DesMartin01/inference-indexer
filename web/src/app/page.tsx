@@ -496,7 +496,7 @@ export default async function Home() {
               >
                 <span
                   style={{
-                    fontFamily: "var(--font-jetbrains-mono), monospace",
+                    fontFamily: "Inter, sans-serif",
                     fontSize: "58px",
                     fontWeight: 500,
                     lineHeight: 0.9,
@@ -524,7 +524,7 @@ export default async function Home() {
                 </span>
                 <span
                   style={{
-                    fontFamily: "var(--font-jetbrains-mono), monospace",
+                    fontFamily: "Inter, sans-serif",
                     fontSize: "16px",
                     fontWeight: 500,
                     color: pctColor(d1),
@@ -555,7 +555,7 @@ export default async function Home() {
                   </span>
                   <span
                     style={{
-                      fontFamily: "var(--font-jetbrains-mono), monospace",
+                      fontFamily: "Inter, sans-serif",
                       fontSize: "15px",
                       fontWeight: 500,
                       color: p.color,
@@ -677,7 +677,7 @@ export default async function Home() {
                     textAlign: "left",
                     top: g.top,
                     transform: "translateY(-50%)",
-                    fontFamily: "var(--font-jetbrains-mono), monospace",
+                    fontFamily: "Inter, sans-serif",
                     fontSize: "10.5px",
                     color: "#6a6a6a",
                     pointerEvents: "none",
@@ -831,16 +831,16 @@ export default async function Home() {
                     Price: verified
                   </span>
                 </span>
-                <span style={{ padding: "0 8px", textAlign: "right", fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: "12.5px", color: "#c9c9c9", fontVariantNumeric: "tabular-nums" }}>
+                <span style={{ padding: "0 8px", textAlign: "right", fontFamily: "Inter, sans-serif", fontSize: "12.5px", color: "#c9c9c9", fontVariantNumeric: "tabular-nums" }}>
                   ${m.input_price_per_m.toFixed(2)}
                 </span>
-                <span style={{ padding: "0 8px", textAlign: "right", fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: "12.5px", color: "#c9c9c9", fontVariantNumeric: "tabular-nums" }}>
+                <span style={{ padding: "0 8px", textAlign: "right", fontFamily: "Inter, sans-serif", fontSize: "12.5px", color: "#c9c9c9", fontVariantNumeric: "tabular-nums" }}>
                   ${m.output_price_per_m.toFixed(2)}
                 </span>
-                <span style={{ padding: "0 8px", textAlign: "right", fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: "12.5px", color: "#f2f2f2", fontVariantNumeric: "tabular-nums" }}>
+                <span style={{ padding: "0 8px", textAlign: "right", fontFamily: "Inter, sans-serif", fontSize: "12.5px", color: "#f2f2f2", fontVariantNumeric: "tabular-nums" }}>
                   ${m.blended_price_per_m.toFixed(2)}
                 </span>
-                <span style={{ padding: "0 8px", textAlign: "right", fontFamily: "var(--font-jetbrains-mono), monospace", fontSize: "12.5px", color: "#C4A038", fontVariantNumeric: "tabular-nums" }}>
+                <span style={{ padding: "0 8px", textAlign: "right", fontFamily: "Inter, sans-serif", fontSize: "12.5px", color: "#C4A038", fontVariantNumeric: "tabular-nums" }}>
                   {m.sit_adjusted_price?.toFixed(2)}
                 </span>
               </Link>
