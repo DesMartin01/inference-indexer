@@ -1889,11 +1889,25 @@ async def api_usage(request: Request):
         return JSONResponse(status_code=401, content={"error": "Unauthorized"})
 
     include_ssr = request.query_params.get("include_ssr") == "1"
-    # Exclude our own frontend SSR traffic AND our own admin/monitoring
-    # self-calls (/v1/admin/*) by default, so the headline numbers reflect
-    # real external endpoint usage, not the dashboard counting itself.
-    # include_ssr=1 also surfaces the ssr/admin rows for a full audit.
-    scope_filter = "" if include_ssr else "AND plan <> 'ssr' AND endpoint NOT LIKE '/v1/admin/%%'"
+    # Exclude our own traffic by default: SSR plan, admin/monitoring self-calls
+    # (/v1/admin/*), and known first-party source IPs so the headline numbers
+    # reflect EXTERNAL third-party traffic only. Known own sources:
+    #   127.0.0.1        - local probes/tests on the VPS
+    #   84.203.*         - Digiweb broadband (Des's own browsing)
+    #   34.246.208.210   - our own AWS healthcheck/verification host
+    # Rows with a NULL ip are unattributable (pre-capture-fix or stripped
+    # proxy headers), so they are excluded too rather than counted as
+    # external. include_ssr=1 surfaces the ssr/admin rows for a full audit.
+    scope_filter = ""
+    if not include_ssr:
+        scope_filter = (
+            "AND plan <> 'ssr'"
+            " AND endpoint NOT LIKE '/v1/admin/%%'"
+            " AND ip IS NOT NULL"
+            " AND ip::text NOT LIKE '127.0.0.1%%'"
+            " AND ip::text NOT LIKE '84.203.%%'"
+            " AND ip::text NOT LIKE '34.246.208.210%%'"
+        )
 
     conn = get_db()
     cur = conn.cursor()

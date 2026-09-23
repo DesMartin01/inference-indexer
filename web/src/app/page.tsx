@@ -61,16 +61,19 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function Home() {
   // Fetch all data in parallel - API is now 82ms (was 8.1s) so fetching all models is fine
-  const [latest, history, modelsData] = await Promise.all([
+  const [latest, history, modelsData, apiModelCount] = await Promise.all([
     getCompositeLatest(60).catch(() => null),
     getCompositeHistory(30, 60).catch(() => null),
     getModels(undefined, undefined, 500).catch(() => null),
+    getModelCount().catch(() => null),
   ]);
 
   // Fallback data if API is down
   const composite = latest?.composite;
   const models = modelsData?.models ?? [];
-  const totalCount = modelsData?.returned ?? models.length;
+  // Headline count uses the API's authoritative model count (all active models),
+  // not the 500-row page fetch. Falls back to the page fetch, then the static constant.
+  const totalCount = apiModelCount ?? modelsData?.count ?? modelsData?.returned ?? models.length ?? CURRENT_MODEL_COUNT;
 
   // Build sparkline from history (with AA era tags for rebase break-lines)
   const histPoints =
@@ -162,26 +165,59 @@ export default async function Home() {
         style={{
           maxWidth: "1320px",
           margin: "0 auto",
-          padding: "40px 28px 0",
+          padding: "36px 28px 0",
         }}
       >
-        <h1
+        <div
           style={{
-            fontSize: "30px",
-            fontWeight: 700,
-            color: "#f2f2f2",
-            lineHeight: 1.3,
-            letterSpacing: "-0.01em",
-            margin: 0,
-            maxWidth: "820px",
+            background: "#16161a",
+            border: "1px solid #2a2a2a",
+            borderRadius: 8,
+            padding: "30px 32px",
+            position: "relative",
+            overflow: "hidden",
+            textAlign: "center",
           }}
         >
-          II verifies what AI inference providers only claim:{" "}
-          <span style={{ color: "#C4A038" }}>privacy, quality, security.</span>
-        </h1>
-        <p style={{ margin: "10px 0 0", fontSize: "16.5px", color: "#8a8a8a" }}>
-          Find the right model for your needs at the best price.
-        </p>
+          <div
+            style={{
+              position: "absolute",
+              left: 0,
+              top: 0,
+              width: "420px",
+              height: "100%",
+              background:
+                "radial-gradient(65% 90% at 15% 40%, rgba(196,160,56,0.08), rgba(196,160,56,0) 70%)",
+              pointerEvents: "none",
+            }}
+          />
+          <div
+            style={{
+              position: "absolute",
+              right: 0,
+              bottom: 0,
+              width: "420px",
+              height: "100%",
+              background:
+                "radial-gradient(65% 90% at 85% 60%, rgba(196,160,56,0.06), rgba(196,160,56,0) 70%)",
+              pointerEvents: "none",
+            }}
+          />
+          <h1
+            style={{
+              fontSize: "27px",
+              fontWeight: 700,
+              color: "#f2f2f2",
+              lineHeight: 1.35,
+              letterSpacing: "-0.01em",
+              margin: 0,
+              position: "relative",
+            }}
+          >
+            Inference Indexer verifies AI inference providers&rsquo; claims on{" "}
+            <span style={{ color: "#C4A038" }}>privacy, quality, security, price.</span>
+          </h1>
+        </div>
       </section>
 
       {/* Hero section */}
@@ -216,9 +252,6 @@ export default async function Home() {
           }}
         >
           <div>
-            <p style={{ margin: "0 0 10px", fontSize: "13px", color: "#C4A038", fontWeight: 500, letterSpacing: "0.01em" }}>
-              Independent price index for AI inference
-            </p>
             <div style={{ display: "flex", alignItems: "baseline", gap: "10px" }}>
               <span
                 style={{

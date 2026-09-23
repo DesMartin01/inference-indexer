@@ -89,13 +89,10 @@ export default async function AboutPage() {
           <h1 style={{ fontSize: 28, fontWeight: 700, color: "#f2f2f2", marginBottom: 12, letterSpacing: "-0.01em" }}>
             About InferenceIndexer
           </h1>
-          <p style={{ fontSize: 16.5, color: "#e8e8e8", lineHeight: 1.7, marginBottom: 14, maxWidth: 720 }}>
+          <p style={{ fontSize: 16.5, color: "#e8e8e8", lineHeight: 1.7, marginBottom: 40, maxWidth: 720 }}>
             Every claim in the inference market is self-attested, and the market has proven those claims
             unreliable. II is the independent party that verifies them: subscribed to by the teams that cannot
             afford to be blindsided, and trusted because it takes no money from the parties it scores.
-          </p>
-          <p style={{ fontSize: 14, color: "#8a8a8a", marginBottom: 40 }}>
-            An independent price reporting agency for AI inference.
           </p>
 
           {/* Mission */}
