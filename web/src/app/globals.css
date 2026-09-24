@@ -99,3 +99,26 @@ section[id] {
 .tabular {
   font-variant-numeric: tabular-nums;
 }
+
+
+/* Engine panel theme tokens (used by EnginePanel + /embed widget) */
+:root {
+  --ep-page: #0a0a0a;
+  --ep-card: #131316;
+  --ep-input: #101013;
+  --ep-text: #f2f2f2;
+  --ep-text-2: #c9c9c9;
+  --ep-muted: #8a8a8a;
+  --ep-faint: #6a6a6a;
+  --ep-border: #2a2a2a;
+}
+.ep-light {
+  --ep-page: #ffffff;
+  --ep-card: #f7f6f2;
+  --ep-input: #ffffff;
+  --ep-text: #1a1a1a;
+  --ep-text-2: #3a3a3a;
+  --ep-muted: #5a5a5a;
+  --ep-faint: #767676;
+  --ep-border: #e2e0da;
+}

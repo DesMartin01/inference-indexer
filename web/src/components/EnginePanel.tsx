@@ -291,8 +291,14 @@ function classifyAnswer(text: string, c: Constraints): AnswerType {
 
 // ---------- component ----------
 
-export default function EnginePanel({ totalModels }: { totalModels: number }) {
-  const [text, setText] = useState("");
+export default function EnginePanel({
+  totalModels,
+  initialQuery,
+}: {
+  totalModels: number;
+  initialQuery?: string;
+}) {
+  const [text, setText] = useState(initialQuery ?? "");
   const [chips, setChips] = useState<EchoChip[]>([]);
   const [results, setResults] = useState<Rec[] | null>(null);
   const [providerRows, setProviderRows] = useState<ProviderRow[] | null>(null);
@@ -457,17 +463,17 @@ export default function EnginePanel({ totalModels }: { totalModels: number }) {
 
   return (
     <section id="engine" style={{ maxWidth: "1320px", margin: "0 auto", padding: "26px 28px 0" }}>
-      <div style={{ borderTop: "1px solid #2a2a2a", paddingTop: "22px" }}>
+      <div style={{ borderTop: "1px solid var(--ep-border)", paddingTop: "22px" }}>
         <label
           htmlFor="ii-engine-q"
-          style={{ fontSize: "19px", fontWeight: 600, letterSpacing: "-0.015em", color: "#f2f2f2", display: "block" }}
+          style={{ fontSize: "19px", fontWeight: 600, letterSpacing: "-0.015em", color: "var(--ep-text)", display: "block" }}
         >
           What type of inference are you looking for?
         </label>
         <div
           style={{
             marginTop: "12px",
-            background: "#101013",
+            background: "var(--ep-input)",
             border: "1px solid #33333a",
             padding: "14px 16px 12px",
             display: "flex",
@@ -490,14 +496,14 @@ export default function EnginePanel({ totalModels }: { totalModels: number }) {
               border: 0,
               outline: 0,
               resize: "vertical",
-              color: "#f2f2f2",
+              color: "var(--ep-text)",
               fontFamily: "Inter, sans-serif",
               fontSize: "15px",
               lineHeight: 1.5,
             }}
           />
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "14px", flexWrap: "wrap" }}>
-            <span style={{ fontSize: "12px", color: "#8a8a8a" }}>
+            <span style={{ fontSize: "12px", color: "var(--ep-muted)" }}>
               Plain language or structured constraints — both work. Queries are never stored.
             </span>
             <button
@@ -507,8 +513,8 @@ export default function EnginePanel({ totalModels }: { totalModels: number }) {
               style={{
                 fontSize: "13px",
                 fontWeight: 500,
-                color: gated ? "#8a8a8a" : "#0a0a0a",
-                background: gated ? "#2a2a2a" : "#C4A038",
+                color: gated ? "var(--ep-muted)" : "var(--ep-page)",
+                background: gated ? "var(--ep-border)" : "#C4A038",
                 border: 0,
                 padding: "9px 18px",
                 cursor: status === "loading" ? "wait" : "pointer",
@@ -523,7 +529,7 @@ export default function EnginePanel({ totalModels }: { totalModels: number }) {
 
         {/* Or start from */}
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px", alignItems: "center" }}>
-          <span style={{ fontSize: "12px", color: "#8a8a8a" }}>Or start from:</span>
+          <span style={{ fontSize: "12px", color: "var(--ep-muted)" }}>Or start from:</span>
           {SUGGESTIONS.map((s) => (
             <button
               key={s.text}
@@ -536,7 +542,7 @@ export default function EnginePanel({ totalModels }: { totalModels: number }) {
                 fontSize: "12px",
                 padding: "5px 11px",
                 background: "transparent",
-                color: "#c9c9c9",
+                color: "var(--ep-text-2)",
                 border: "1px solid #2f2f2f",
                 cursor: "pointer",
                 fontFamily: "Inter, sans-serif",
@@ -549,7 +555,7 @@ export default function EnginePanel({ totalModels }: { totalModels: number }) {
 
         {/* Echo chips */}
         {chips.length > 0 && status !== "idle" && (
-          <div style={{ marginTop: "18px", paddingLeft: "18px", borderLeft: "2px solid #2a2a2a" }}>
+          <div style={{ marginTop: "18px", paddingLeft: "18px", borderLeft: "2px solid var(--ep-border)" }}>
             <span
               style={{
                 fontFamily: "var(--font-jetbrains-mono), monospace",
@@ -557,7 +563,7 @@ export default function EnginePanel({ totalModels }: { totalModels: number }) {
                 fontWeight: 500,
                 letterSpacing: "0.12em",
                 textTransform: "uppercase",
-                color: "#8a8a8a",
+                color: "var(--ep-muted)",
               }}
             >
               Understood as
@@ -571,9 +577,9 @@ export default function EnginePanel({ totalModels }: { totalModels: number }) {
                     fontSize: "12px",
                     fontWeight: 500,
                     padding: "4px 10px",
-                    background: chip.gold ? "rgba(196,160,56,0.08)" : "#131316",
-                    border: `1px solid ${chip.gold ? "rgba(196,160,56,0.35)" : "#2a2a2a"}`,
-                    color: chip.gold ? "#C4A038" : "#8a8a8a",
+                    background: chip.gold ? "rgba(196,160,56,0.08)" : "var(--ep-card)",
+                    border: `1px solid ${chip.gold ? "rgba(196,160,56,0.35)" : "var(--ep-border)"}`,
+                    color: chip.gold ? "#C4A038" : "var(--ep-muted)",
                   }}
                 >
                   {chip.label}
@@ -591,19 +597,19 @@ export default function EnginePanel({ totalModels }: { totalModels: number }) {
         {providerRows && (
           <div ref={resultsRef} style={{ borderTop: "1px solid #1d1d21", marginTop: "26px", paddingTop: "18px" }}>
             <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "14px", flexWrap: "wrap", marginBottom: "10px" }}>
-              <span style={{ fontSize: "16px", fontWeight: 600, color: "#f2f2f2" }}>
+              <span style={{ fontSize: "16px", fontWeight: 600, color: "var(--ep-text)" }}>
                 {providerFilter?.zdr && providerFilter?.eu
                   ? "Providers with zero data retention on EU infrastructure"
                   : providerFilter?.zdr
                   ? "Providers with zero data retention"
                   : "EU-sovereign providers"}
               </span>
-              <span style={{ fontSize: "12px", color: "#8a8a8a" }}>
+              <span style={{ fontSize: "12px", color: "var(--ep-muted)" }}>
                 {providerRows.length} provider{providerRows.length === 1 ? "" : "s"} match · attributes are provider-stated
               </span>
             </div>
             {providerRows.length === 0 ? (
-              <p style={{ fontSize: "13px", color: "#8a8a8a" }}>
+              <p style={{ fontSize: "13px", color: "var(--ep-muted)" }}>
                 No providers match those attributes today. We add providers as we verify them.
               </p>
             ) : (
@@ -615,7 +621,7 @@ export default function EnginePanel({ totalModels }: { totalModels: number }) {
                     alignItems: "center",
                     gap: "8px",
                     padding: "2px 0 7px",
-                    borderBottom: "1px solid #2a2a2a",
+                    borderBottom: "1px solid var(--ep-border)",
                   }}
                 >
                   {[
@@ -633,7 +639,7 @@ export default function EnginePanel({ totalModels }: { totalModels: number }) {
                         fontWeight: 500,
                         letterSpacing: "0.11em",
                         textTransform: "uppercase",
-                        color: "#8a8a8a",
+                        color: "var(--ep-muted)",
                         textAlign: align as "left" | "right",
                       }}
                     >
@@ -656,24 +662,24 @@ export default function EnginePanel({ totalModels }: { totalModels: number }) {
                       textDecoration: "none",
                     }}
                   >
-                    <span style={{ fontSize: "13.5px", fontWeight: 500, color: "#f2f2f2" }}>{pv.name}</span>
-                    <span style={{ fontSize: "11.5px", color: pv.is_zdr ? "#22c55e" : "#8a8a8a" }}>
+                    <span style={{ fontSize: "13.5px", fontWeight: 500, color: "var(--ep-text)" }}>{pv.name}</span>
+                    <span style={{ fontSize: "11.5px", color: pv.is_zdr ? "#22c55e" : "var(--ep-muted)" }}>
                       {pv.is_zdr ? "ZDR: stated" : "—"}
                     </span>
-                    <span style={{ fontSize: "11.5px", color: pv.is_eu_sovereign ? "#22c55e" : "#8a8a8a" }}>
+                    <span style={{ fontSize: "11.5px", color: pv.is_eu_sovereign ? "#22c55e" : "var(--ep-muted)" }}>
                       {pv.is_eu_sovereign ? "EU: stated" : "—"}
                     </span>
-                    <span style={{ textAlign: "right", fontFamily: "Inter, sans-serif", fontSize: "12.5px", color: "#c9c9c9", fontVariantNumeric: "tabular-nums" }}>
+                    <span style={{ textAlign: "right", fontFamily: "Inter, sans-serif", fontSize: "12.5px", color: "var(--ep-text-2)", fontVariantNumeric: "tabular-nums" }}>
                       {pv.model_count}
                     </span>
-                    <span style={{ textAlign: "right", fontFamily: "Inter, sans-serif", fontSize: "12.5px", color: "#f2f2f2", fontVariantNumeric: "tabular-nums" }}>
+                    <span style={{ textAlign: "right", fontFamily: "Inter, sans-serif", fontSize: "12.5px", color: "var(--ep-text)", fontVariantNumeric: "tabular-nums" }}>
                       {pv.min_price != null ? `$${pv.min_price.toFixed(2)}` : "—"}
                     </span>
                   </Link>
                 ))}
               </>
             )}
-            <p style={{ marginTop: "10px", fontSize: "12px", lineHeight: 1.55, color: "#8a8a8a" }}>
+            <p style={{ marginTop: "10px", fontSize: "12px", lineHeight: 1.55, color: "var(--ep-muted)" }}>
               ZDR and EU attributes come from provider statements; II has not verified them. Prices verified hourly.
             </p>
           </div>
@@ -683,15 +689,15 @@ export default function EnginePanel({ totalModels }: { totalModels: number }) {
         {compare && (
           <div style={{ borderTop: "1px solid #1d1d21", marginTop: "26px", paddingTop: "18px" }}>
             <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "14px", flexWrap: "wrap", marginBottom: "10px" }}>
-              <span style={{ fontSize: "16px", fontWeight: 600, color: "#f2f2f2" }}>
+              <span style={{ fontSize: "16px", fontWeight: 600, color: "var(--ep-text)" }}>
                 {compare.name}: providers compared
               </span>
-              <span style={{ fontSize: "12px", color: "#8a8a8a", fontVariantNumeric: "tabular-nums" }}>
+              <span style={{ fontSize: "12px", color: "var(--ep-muted)", fontVariantNumeric: "tabular-nums" }}>
                 {compare.endpoints.length} endpoint{compare.endpoints.length === 1 ? "" : "s"} · sorted by price
               </span>
             </div>
             {compare.endpoints.length === 0 ? (
-              <p style={{ fontSize: "13px", color: "#8a8a8a" }}>No verified endpoints for this model.</p>
+              <p style={{ fontSize: "13px", color: "var(--ep-muted)" }}>No verified endpoints for this model.</p>
             ) : (
               <>
                 <div
@@ -701,7 +707,7 @@ export default function EnginePanel({ totalModels }: { totalModels: number }) {
                     alignItems: "center",
                     gap: "8px",
                     padding: "2px 0 7px",
-                    borderBottom: "1px solid #2a2a2a",
+                    borderBottom: "1px solid var(--ep-border)",
                   }}
                 >
                   {[
@@ -718,7 +724,7 @@ export default function EnginePanel({ totalModels }: { totalModels: number }) {
                         fontWeight: 500,
                         letterSpacing: "0.11em",
                         textTransform: "uppercase",
-                        color: "#8a8a8a",
+                        color: "var(--ep-muted)",
                         textAlign: align as "left" | "right",
                       }}
                     >
@@ -743,8 +749,8 @@ export default function EnginePanel({ totalModels }: { totalModels: number }) {
                         borderBottom: "1px solid #18181c",
                       }}
                     >
-                      <span style={{ fontSize: "13.5px", fontWeight: 500, color: "#f2f2f2", display: "flex", alignItems: "center", gap: "7px" }}>
-                        <span style={{ fontFamily: "Inter, sans-serif", fontSize: "11.5px", color: i === 0 ? "#C4A038" : "#8a8a8a" }}>{i + 1}</span>
+                      <span style={{ fontSize: "13.5px", fontWeight: 500, color: "var(--ep-text)", display: "flex", alignItems: "center", gap: "7px" }}>
+                        <span style={{ fontFamily: "Inter, sans-serif", fontSize: "11.5px", color: i === 0 ? "#C4A038" : "var(--ep-muted)" }}>{i + 1}</span>
                         {ep.provider}
                         {i === 0 && (
                           <span style={{ fontSize: "10.5px", padding: "2px 7px", background: "rgba(196,160,56,0.08)", border: "1px solid rgba(196,160,56,0.35)", color: "#C4A038" }}>
@@ -752,20 +758,20 @@ export default function EnginePanel({ totalModels }: { totalModels: number }) {
                           </span>
                         )}
                       </span>
-                      <span style={{ textAlign: "right", fontFamily: "Inter, sans-serif", fontSize: "12.5px", color: "#c9c9c9", fontVariantNumeric: "tabular-nums" }}>
+                      <span style={{ textAlign: "right", fontFamily: "Inter, sans-serif", fontSize: "12.5px", color: "var(--ep-text-2)", fontVariantNumeric: "tabular-nums" }}>
                         ${ep.input_price_per_m.toFixed(2)}
                       </span>
-                      <span style={{ textAlign: "right", fontFamily: "Inter, sans-serif", fontSize: "12.5px", color: "#c9c9c9", fontVariantNumeric: "tabular-nums" }}>
+                      <span style={{ textAlign: "right", fontFamily: "Inter, sans-serif", fontSize: "12.5px", color: "var(--ep-text-2)", fontVariantNumeric: "tabular-nums" }}>
                         ${ep.output_price_per_m.toFixed(2)}
                       </span>
-                      <span style={{ textAlign: "right", fontFamily: "Inter, sans-serif", fontSize: "12.5px", color: "#f2f2f2", fontVariantNumeric: "tabular-nums" }}>
+                      <span style={{ textAlign: "right", fontFamily: "Inter, sans-serif", fontSize: "12.5px", color: "var(--ep-text)", fontVariantNumeric: "tabular-nums" }}>
                         ${ep.blended_price_per_m.toFixed(2)}
                       </span>
                     </div>
                   ))}
               </>
             )}
-            <p style={{ marginTop: "10px", fontSize: "12px", lineHeight: 1.55, color: "#8a8a8a" }}>
+            <p style={{ marginTop: "10px", fontSize: "12px", lineHeight: 1.55, color: "var(--ep-muted)" }}>
               Verified prices per provider endpoint, rebuilt hourly. Blended = 0.4 × input + 0.6 × output.
             </p>
           </div>
@@ -776,8 +782,8 @@ export default function EnginePanel({ totalModels }: { totalModels: number }) {
           {results && results.length > 0 && (
             <div style={{ borderTop: "1px solid #1d1d21", marginTop: "26px", paddingTop: "18px" }}>
               <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "14px", flexWrap: "wrap", marginBottom: "10px" }}>
-                <span style={{ fontSize: "16px", fontWeight: 600, color: "#f2f2f2" }}>Recommendations</span>
-                <span style={{ fontSize: "12px", color: "#8a8a8a", fontVariantNumeric: "tabular-nums" }}>
+                <span style={{ fontSize: "16px", fontWeight: 600, color: "var(--ep-text)" }}>Recommendations</span>
+                <span style={{ fontSize: "12px", color: "var(--ep-muted)", fontVariantNumeric: "tabular-nums" }}>
                   {results.length} of {totalModels} models match · ranked by Cost/IQ
                   {filteredCount != null ? ` · ${filteredCount} in scope before ranking` : ""}
                 </span>
@@ -789,7 +795,7 @@ export default function EnginePanel({ totalModels }: { totalModels: number }) {
                   alignItems: "center",
                   gap: "8px",
                   padding: "2px 0 7px",
-                  borderBottom: "1px solid #2a2a2a",
+                  borderBottom: "1px solid var(--ep-border)",
                 }}
               >
                 {[
@@ -808,7 +814,7 @@ export default function EnginePanel({ totalModels }: { totalModels: number }) {
                       fontWeight: 500,
                       letterSpacing: "0.11em",
                       textTransform: "uppercase",
-                      color: "#8a8a8a",
+                      color: "var(--ep-muted)",
                       textAlign: align as "left" | "right",
                     }}
                   >
@@ -831,13 +837,13 @@ export default function EnginePanel({ totalModels }: { totalModels: number }) {
                     textDecoration: "none",
                   }}
                 >
-                  <span style={{ fontFamily: "Inter, sans-serif", fontSize: "12.5px", color: r.rank <= 3 ? "#C4A038" : "#8a8a8a" }}>
+                  <span style={{ fontFamily: "Inter, sans-serif", fontSize: "12.5px", color: r.rank <= 3 ? "#C4A038" : "var(--ep-muted)" }}>
                     {r.rank <= 3 ? ["🥇", "🥈", "🥉"][r.rank - 1] : r.rank}
                   </span>
-                  <span style={{ fontSize: "13.5px", fontWeight: 500, color: "#f2f2f2", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  <span style={{ fontSize: "13.5px", fontWeight: 500, color: "var(--ep-text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                     {r.name}
                   </span>
-                  <span style={{ fontSize: "12px", color: "#8a8a8a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  <span style={{ fontSize: "12px", color: "var(--ep-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                     {creatorFlag(r.creator ?? r.provider)?.flag}{" "}
                     {r.creator ?? r.provider ?? "—"}
                   </span>
@@ -850,14 +856,14 @@ export default function EnginePanel({ totalModels }: { totalModels: number }) {
                     </span>
                     <span
                       title="Privacy basis comes from the provider's own statements; not yet verified by II"
-                      style={{ fontSize: "10.5px", padding: "2px 7px", background: "#131316", border: "1px solid #2a2a2a", color: "#8a8a8a" }}
+                      style={{ fontSize: "10.5px", padding: "2px 7px", background: "var(--ep-card)", border: "1px solid var(--ep-border)", color: "var(--ep-muted)" }}
                     >
                       Privacy: provider-stated
                     </span>
                   </span>
                   <span
                     title="Artificial Analysis Intelligence Index"
-                    style={{ textAlign: "right", fontFamily: "Inter, sans-serif", fontSize: "12.5px", color: "#c9c9c9", fontVariantNumeric: "tabular-nums" }}
+                    style={{ textAlign: "right", fontFamily: "Inter, sans-serif", fontSize: "12.5px", color: "var(--ep-text-2)", fontVariantNumeric: "tabular-nums" }}
                   >
                     {r.aa_index_score != null ? r.aa_index_score.toFixed(0) : "—"}
                   </span>
@@ -870,7 +876,7 @@ export default function EnginePanel({ totalModels }: { totalModels: number }) {
                 </Link>
               ))}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "14px", paddingTop: "10px", flexWrap: "wrap" }}>
-                <span style={{ fontSize: "12px", lineHeight: 1.55, color: "#8a8a8a" }}>
+                <span style={{ fontSize: "12px", lineHeight: 1.55, color: "var(--ep-muted)" }}>
                   Privacy constraints are matched on provider statements today; II has not verified them. Prices are verified hourly. Ranking is based on data from Artificial Analysis; not endorsed by them.
                 </span>
                 <Link href="/models" style={{ fontSize: "12.5px", fontWeight: 500, color: "#C4A038", whiteSpace: "nowrap" }}>
@@ -882,7 +888,7 @@ export default function EnginePanel({ totalModels }: { totalModels: number }) {
         </div>
 
         {/* Receipts line */}
-        <p style={{ margin: "16px 0 0", fontSize: "12px", color: "#6a6a6a", fontVariantNumeric: "tabular-nums" }}>
+        <p style={{ margin: "16px 0 0", fontSize: "12px", color: "var(--ep-faint)", fontVariantNumeric: "tabular-nums" }}>
           {receipts != null && receipts > 0 ? (
             <>
               {receipts.toLocaleString()} recommendations served.{" "}

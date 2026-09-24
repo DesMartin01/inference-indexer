@@ -150,6 +150,17 @@ export function Header({ activePage = "" }: { activePage?: string }) {
             API
           </Link>
           <Link
+            href="/embed-docs"
+            style={{
+              fontSize: "12.5px",
+              fontWeight: 500,
+              color: activePage === "embed" ? "#C4A038" : "#8a8a8a",
+              textDecoration: "none",
+            }}
+          >
+            Embed
+          </Link>
+          <Link
             href="/for-agents"
             style={{
               fontSize: "12.5px",
