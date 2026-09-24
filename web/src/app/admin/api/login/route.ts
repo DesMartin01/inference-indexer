@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      path: "/admin",
+      path: "/",
       maxAge: COOKIE_MAX_AGE,
     });
     return res;

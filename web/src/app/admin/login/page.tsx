@@ -22,8 +22,10 @@ export default function AdminLoginPage() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        router.push("/admin");
+        // Refresh first so the server components re-read the new cookie, then navigate.
         router.refresh();
+        await new Promise((r) => setTimeout(r, 50));
+        router.push("/admin");
         return;
       }
       setError(data.error || "Login failed.");

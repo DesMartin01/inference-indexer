@@ -148,7 +148,7 @@ export default async function Home() {
   const preview = models
     .filter((m) => m.sit_adjusted_price != null && m.tier.toLowerCase() === "frontier")
     .sort((a, b) => (a.sit_adjusted_price ?? Infinity) - (b.sit_adjusted_price ?? Infinity))
-    .slice(0, 3);
+    .slice(0, 10);
 
   return (
     <>
