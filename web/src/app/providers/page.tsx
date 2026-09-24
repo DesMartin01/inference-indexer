@@ -8,6 +8,13 @@ export const metadata: Metadata = {
   title: "AI Inference Providers - Compare Pricing | InferenceIndexer.ai",
   description: "Compare inference pricing across 71 AI model providers. Model counts, price ranges, ZDR and EU sovereign status.",
   alternates: { canonical: "https://www.inferenceindexer.ai/providers" },
+    openGraph: {
+    title: "AI Inference Providers - Compare Pricing | InferenceIndexer.ai",
+    description: "Compare inference pricing across 71 AI model providers. Model counts, price ranges, ZDR and EU sovereign status.",
+    url: "https://www.inferenceindexer.ai/providers",
+    siteName: "InferenceIndexer.ai",
+    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "AI Inference Providers - Compare Pricing | InferenceIndexer.ai" }],
+  },
 };
 
 export default async function ProvidersPage() {

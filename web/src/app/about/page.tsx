@@ -6,7 +6,7 @@ import { CURRENT_MODEL_COUNT, CURRENT_PROVIDER_COUNT } from "@/lib/counts";
 export const metadata = {
   title: "About - Independent Inference Recommendation Engine | InferenceIndexer.ai",
   description:
-    "InferenceIndexer is an independent inference recommendation engine for price, quality, security and privacy, built by Des Martin and Frank Drebin. Not owned by any provider. Open methodology. Free API access.",
+    "InferenceIndexer is an independent inference recommendation engine for price, quality, security and privacy. Built by Des Martin and Frank Drebin. Open methodology.",
   alternates: { canonical: "https://www.inferenceindexer.ai/about" },
   openGraph: {
     title: "About InferenceIndexer.ai - Independent Inference Recommendation Engine",
@@ -295,8 +295,9 @@ export default async function AboutPage() {
         {/* Sticky TOC */}
         <aside
           style={{
-            width: 200,
+            width: "var(--toc-w, 200px)",
             flexShrink: 0,
+            overflow: "hidden",
             position: "sticky",
             top: 76,
             height: "fit-content",

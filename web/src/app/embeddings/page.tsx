@@ -11,6 +11,13 @@ export const metadata: Metadata = {
   description:
     "Live pricing for AI embedding models. Compare per-million-token costs across OpenAI, Cohere, Voyage AI, Jina, Nomic, and Google. Prices per million tokens.",
   alternates: { canonical: "https://www.inferenceindexer.ai/embeddings" },
+    openGraph: {
+    title: "Embedding Model Pricing - Live API Costs | InferenceIndexer.ai",
+    description: "Embedding model pricing compared: input costs per million tokens, verified hourly from provider APIs.",
+    url: "https://www.inferenceindexer.ai/embeddings",
+    siteName: "InferenceIndexer.ai",
+    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "Embedding Model Pricing - Live API Costs | InferenceIndexer.ai" }],
+  },
 };
 
 export default async function EmbeddingsPage() {

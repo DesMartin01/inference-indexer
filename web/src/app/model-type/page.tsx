@@ -7,6 +7,13 @@ export const metadata: Metadata = {
   description:
     "InferenceIndexer tracks pricing across multiple model types including embedding models. Browse all model type directories.",
   alternates: { canonical: "https://www.inferenceindexer.ai/model-type" },
+    openGraph: {
+    title: "Model Types - Embedding Models & More | InferenceIndexer.ai",
+    description: "Beyond text LLMs: embedding models, STT, and other non-standard model types with live pricing.",
+    url: "https://www.inferenceindexer.ai/model-type",
+    siteName: "InferenceIndexer.ai",
+    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "Model Types - Embedding Models & More | InferenceIndexer.ai" }],
+  },
 };
 
 export default function ModelTypePage() {

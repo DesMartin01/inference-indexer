@@ -6,6 +6,13 @@ export const metadata = {
   description:
     "How InferenceIndexer.ai collects, uses, and protects data. Google Analytics, API usage tracking, cookie policy, and data retention.",
   alternates: { canonical: "https://www.inferenceindexer.ai/privacy" },
+    openGraph: {
+    title: "Privacy Policy - InferenceIndexer.ai",
+    description: "How InferenceIndexer handles data, cookies, and privacy. Queries are never stored.",
+    url: "https://www.inferenceindexer.ai/privacy",
+    siteName: "InferenceIndexer.ai",
+    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "Privacy Policy - InferenceIndexer.ai" }],
+  },
 };
 
 const h2: CSSProperties = {

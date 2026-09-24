@@ -8,6 +8,13 @@ export const metadata: Metadata = {
   description:
     "Add the InferenceIndexer recommendation engine to your site. Copy one line of code: a live AI inference recommendation box on verified prices, free.",
   alternates: { canonical: "https://www.inferenceindexer.ai/embed" },
+    openGraph: {
+    title: "Embed the Recommendation Widget | InferenceIndexer.ai",
+    description: "Add the InferenceIndexer recommendation engine to your site with one line of code. Free.",
+    url: "https://www.inferenceindexer.ai/embed-docs",
+    siteName: "InferenceIndexer.ai",
+    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "Embed the Recommendation Widget | InferenceIndexer.ai" }],
+  },
 };
 
 export default function EmbedDocsPage() {

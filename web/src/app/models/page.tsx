@@ -14,7 +14,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const count = (await getModelCount().catch(() => 0)) || CURRENT_MODEL_COUNT;
   return {
     title: `Quality-Adjusted Model Rankings - ${count} Models | InferenceIndexer.ai`,
-    description: `Full rankings across ${count} AI inference models: input, output, and blended prices, Cost/IQ quality-adjusted value, AA intelligence scores, 24h changes. Verified hourly from provider APIs.`,
+    description: `Full rankings across ${count} AI inference models: blended prices, Cost/IQ quality-adjusted value, AA intelligence scores. Verified hourly from provider APIs.`,
     alternates: { canonical: "https://www.inferenceindexer.ai/models" },
   };
 }

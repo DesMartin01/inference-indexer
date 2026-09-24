@@ -438,7 +438,7 @@ export default function ModelTable({ models, totalCount }: Props) {
           </span>
         </div>
         <div style={{ overflowX: "auto" }}>
-          <div role="table" aria-label="AI model inference prices" style={{ minWidth: "auto" }}>
+          <div role="table" aria-label="AI model inference prices" style={{ minWidth: "980px" }}>
             {/* Header */}
             <div
               role="row"

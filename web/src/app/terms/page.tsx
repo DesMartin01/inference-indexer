@@ -6,6 +6,13 @@ export const metadata = {
   description:
     "Terms of Service for InferenceIndexer.ai. Acceptable use, API rate limits, data licensing, disclaimer of financial advice, and limitation of liability.",
   alternates: { canonical: "https://www.inferenceindexer.ai/terms" },
+    openGraph: {
+    title: "Terms of Service - InferenceIndexer.ai",
+    description: "Terms of service for InferenceIndexer.ai, the independent AI inference recommendation engine.",
+    url: "https://www.inferenceindexer.ai/terms",
+    siteName: "InferenceIndexer.ai",
+    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "Terms of Service - InferenceIndexer.ai" }],
+  },
 };
 
 const h2: CSSProperties = {

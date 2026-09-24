@@ -613,7 +613,7 @@ export default function EnginePanel({
         )}
         {/* Provider list results */}
         {providerRows && (
-          <div ref={resultsRef} style={{ borderTop: "1px solid #1d1d21", marginTop: "26px", paddingTop: "18px" }}>
+          <div ref={resultsRef} style={{ borderTop: "1px solid #1d1d21", marginTop: "26px", paddingTop: "18px", overflowX: "auto" }}>
             <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "14px", flexWrap: "wrap", marginBottom: "10px" }}>
               <span style={{ fontSize: "16px", fontWeight: 600, color: "var(--ep-text)" }}>
                 {providerFilter?.zdr && providerFilter?.eu
@@ -635,7 +635,7 @@ export default function EnginePanel({
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "minmax(120px, 1.4fr) minmax(0, 150px) minmax(0, 150px) 80px 90px",
+                    gridTemplateColumns: "var(--ep-grid-prov)", minWidth: "480px",
                     alignItems: "center",
                     gap: "8px",
                     padding: "2px 0 7px",
@@ -671,7 +671,7 @@ export default function EnginePanel({
                     href={`/providers/${encodeURIComponent(pv.name)}`}
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "minmax(120px, 1.4fr) minmax(0, 150px) minmax(0, 150px) 80px 90px",
+                      gridTemplateColumns: "var(--ep-grid-prov)", minWidth: "480px",
                       alignItems: "center",
                       gap: "8px",
                       minHeight: "42px",
@@ -705,7 +705,7 @@ export default function EnginePanel({
 
         {/* Per-provider price comparison for one model */}
         {compare && (
-          <div style={{ borderTop: "1px solid #1d1d21", marginTop: "26px", paddingTop: "18px" }}>
+          <div style={{ borderTop: "1px solid #1d1d21", marginTop: "26px", paddingTop: "18px", overflowX: "auto" }}>
             <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "14px", flexWrap: "wrap", marginBottom: "10px" }}>
               <span style={{ fontSize: "16px", fontWeight: 600, color: "var(--ep-text)" }}>
                 {compare.name}: providers compared
@@ -721,7 +721,7 @@ export default function EnginePanel({
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "minmax(120px, 1.4fr) 90px 90px 100px",
+                    gridTemplateColumns: "var(--ep-grid-cmp)", minWidth: "420px",
                     alignItems: "center",
                     gap: "8px",
                     padding: "2px 0 7px",
@@ -759,7 +759,7 @@ export default function EnginePanel({
                       key={ep.provider}
                       style={{
                         display: "grid",
-                        gridTemplateColumns: "minmax(120px, 1.4fr) 90px 90px 100px",
+                        gridTemplateColumns: "var(--ep-grid-cmp)", minWidth: "420px",
                         alignItems: "center",
                         gap: "8px",
                         minHeight: "40px",
@@ -798,7 +798,7 @@ export default function EnginePanel({
         {/* Results */}
         <div ref={resultsRef}>
           {results && results.length > 0 && (
-            <div style={{ borderTop: "1px solid #1d1d21", marginTop: "26px", paddingTop: "18px" }}>
+            <div style={{ borderTop: "1px solid #1d1d21", marginTop: "26px", paddingTop: "18px", overflowX: "auto" }}>
               <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "14px", flexWrap: "wrap", marginBottom: "10px" }}>
                 <span style={{ fontSize: "16px", fontWeight: 600, color: "var(--ep-text)" }}>Recommendations</span>
                 <span style={{ fontSize: "12px", color: "var(--ep-muted)", fontVariantNumeric: "tabular-nums" }}>
@@ -809,7 +809,7 @@ export default function EnginePanel({
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "34px minmax(140px, 1.6fr) minmax(90px, 1fr) minmax(150px, 1.2fr) 70px 84px",
+                  gridTemplateColumns: "var(--ep-grid-rec)", minWidth: "560px",
                   alignItems: "center",
                   gap: "8px",
                   padding: "2px 0 7px",
@@ -846,7 +846,7 @@ export default function EnginePanel({
                   href={`/models/${r.model_id}`}
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "34px minmax(140px, 1.6fr) minmax(90px, 1fr) minmax(150px, 1.2fr) 70px 84px",
+                    gridTemplateColumns: "var(--ep-grid-rec)", minWidth: "560px",
                     alignItems: "center",
                     gap: "8px",
                     minHeight: "44px",

@@ -30,7 +30,7 @@ export default function EmbedSnippetBuilder() {
 
   return (
     <section style={{ maxWidth: "1320px", margin: "0 auto", padding: "8px 28px 8px" }}>
-      <div style={{ display: "grid", gap: "24px", gridTemplateColumns: "minmax(280px, 380px) 1fr", alignItems: "start" }}>
+      <div style={{ display: "grid", gap: "24px", gridTemplateColumns: "var(--grid-embed-builder)", alignItems: "start" }}>
         {/* Controls */}
         <div
           style={{

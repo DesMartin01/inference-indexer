@@ -4,7 +4,7 @@ import DataSourcesTable from "./DataSourcesTable";
 export const metadata = {
   title: "Methodology - How InferenceIndexer Verifies and Ranks | InferenceIndexer.ai",
   description:
-    "How InferenceIndexer verifies AI inference prices and ranks models. Blended pricing formula, quality tiers, the Standard Inference Token index, recommendation ranking (Cost/IQ), data sources, and governance.",
+    "How InferenceIndexer verifies AI inference prices and ranks models. Blended pricing, quality tiers, the Standard Inference Token index, and Cost/IQ ranking.",
   alternates: { canonical: "https://www.inferenceindexer.ai/methodology" },
   openGraph: {
     title: "Methodology - How AI Inference Prices Are Verified and Ranked",
@@ -831,8 +831,9 @@ Retrieved from https://www.inferenceindexer.ai/methodology`}</pre>
         {/* Sticky Table of Contents */}
         <aside
           style={{
-            width: 200,
+            width: "var(--toc-w, 200px)",
             flexShrink: 0,
+            overflow: "hidden",
             position: "sticky",
             top: 76,
             alignSelf: "flex-start",

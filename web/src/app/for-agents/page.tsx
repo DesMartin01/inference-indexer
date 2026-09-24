@@ -6,7 +6,7 @@ import { CURRENT_MODEL_COUNT, CURRENT_PROVIDER_COUNT } from "@/lib/counts";
 export const metadata = {
   title: "For AI Agents - Free Inference Recommendation & Pricing API | InferenceIndexer.ai",
   description:
-    "Constraint-aware inference recommendations with receipts, plus complete pricing by model, historical trends, and provider comparison. Free API key, self-serve in under a minute. The standard reference for agents choosing models and providers.",
+    "The free API for agents choosing models: constraint-aware recommendations, live and historical pricing, provider comparison. Self-serve key in under a minute.",
   alternates: { canonical: "https://www.inferenceindexer.ai/for-agents" },
   openGraph: {
     title: "For AI Agents - InferenceIndexer",
@@ -75,7 +75,7 @@ export default async function ForAgentsPage() {
       <Header activePage="api" />
       <div style={{ maxWidth: 1320, width: "100%", margin: "0 auto", padding: "44px 28px 0", flex: 1, display: "flex", gap: 48 }}>
         {/* Main content */}
-        <div style={{ maxWidth: 800, flex: 1 }}>
+        <div style={{ maxWidth: 800, flex: 1, minWidth: 0 }}>
           <p
             style={{
               fontSize: 12,
@@ -335,8 +335,8 @@ export default async function ForAgentsPage() {
           {/* Endpoints */}
           <div id="endpoints" style={{ marginBottom: 40 }}>
             <h2 style={sectionHeading}>Key endpoints</h2>
-            <div style={cardBase}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+            <div style={{ ...cardBase, overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14, minWidth: "560px" }}>
                 <thead>
                   <tr style={{ textAlign: "left", color: "#8a8a8a", fontSize: 12, textTransform: "uppercase", letterSpacing: "0.05em" }}>
                     <th style={{ padding: "8px 12px 8px 0", borderBottom: "1px solid #2a2a2a" }}>Endpoint</th>
@@ -382,8 +382,9 @@ export default async function ForAgentsPage() {
         {/* Sticky TOC */}
         <aside
           style={{
-            width: 200,
+            width: "var(--toc-w, 200px)",
             flexShrink: 0,
+            overflow: "hidden",
             position: "sticky",
             top: 76,
             height: "fit-content",

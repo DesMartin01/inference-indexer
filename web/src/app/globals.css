@@ -122,3 +122,70 @@ section[id] {
   --ep-faint: #767676;
   --ep-border: #e2e0da;
 }
+
+
+/* ===== Mobile responsiveness (indirected grids: inline styles reference these vars) ===== */
+:root {
+  --grid-hero: minmax(0, 1fr) minmax(220px, 280px);
+  --grid-pillars: minmax(180px, 1fr) minmax(0, 220px) minmax(0, 220px);
+  --grid-header: 1320px;
+  --grid-embed-builder: minmax(280px, 380px) 1fr;
+}
+@media (max-width: 767px) {
+  :root {
+    --grid-hero: 1fr;
+    --grid-pillars: 1fr;
+    --grid-header: 100%;
+    --grid-embed-builder: 1fr;
+  }
+}
+
+/* Engine panel data tables: keep desktop columns, scroll horizontally on mobile */
+:root {
+  --ep-grid-prov: minmax(120px, 1.4fr) minmax(0, 150px) minmax(0, 150px) 80px 90px;
+  --ep-grid-cmp: minmax(120px, 1.4fr) 90px 90px 100px;
+  --ep-grid-rec: 34px minmax(140px, 1.6fr) minmax(90px, 1fr) minmax(150px, 1.2fr) 70px 84px;
+}
+@media (max-width: 767px) {
+  :root {
+    --ep-grid-prov: minmax(110px, 1.4fr) minmax(0, 110px) minmax(0, 90px) 56px 64px;
+    --ep-grid-cmp: minmax(110px, 1.4fr) 72px 72px 84px;
+    --ep-grid-rec: 26px minmax(120px, 1.6fr) minmax(80px, 1fr) minmax(120px, 1.2fr) 54px 64px;
+  }
+}
+
+:root {
+  --grid-catalog: 40px minmax(160px, 1.5fr) minmax(110px, 1fr) minmax(0, 200px) 88px 88px 92px 84px;
+}
+@media (max-width: 767px) {
+  :root {
+    --grid-catalog: 30px minmax(130px, 1.5fr) minmax(90px, 1fr) minmax(0, 140px) 66px 66px 70px 62px;
+  }
+}
+
+@media (max-width: 767px) {
+  :root { --toc-w: 0px; }
+}
+
+/* Long inline code / URLs must wrap on small screens */
+main code, main pre, td code, li code, p code {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+@media (max-width: 767px) {
+  table {
+    display: block;
+    overflow-x: auto;
+  }
+}
+
+@media (max-width: 767px) {
+  :root { --apitoc-w: 0px; }
+}
+
+@media (max-width: 767px) {
+  /* Long URLs / tokens in prose must break rather than force page width */
+  main p, main li, main td, main span {
+    overflow-wrap: anywhere;
+  }
+}

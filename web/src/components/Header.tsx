@@ -1,25 +1,29 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useModelCount, useProviderCount } from "@/lib/use-model-count";
+import { useIsMobile } from "@/lib/use-is-mobile";
 import { CURRENT_MODEL_COUNT, CURRENT_PROVIDER_COUNT } from "@/lib/counts";
 
 export function Header({ activePage = "" }: { activePage?: string }) {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [q, setQ] = useState("");
   const [loggedIn, setLoggedIn] = useState(false);
   const [userEmail, setUserEmail] = useState("");
   const modelCount = useModelCount(CURRENT_MODEL_COUNT);
+  const isMobile = useIsMobile();
 
-  // Sync with URL query param when on homepage
+  // Sync with URL query param when on homepage (window.location: avoids the
+  // useSearchParams CSR bailout that was turning every page into a client-render shell)
   useEffect(() => {
-    const urlQ = searchParams.get("q");
-    if (urlQ !== null) setQ(urlQ);
-  }, [searchParams]);
+    try {
+      const urlQ = new URLSearchParams(window.location.search).get("q");
+      if (urlQ !== null) setQ(urlQ);
+    } catch {}
+  }, []);
 
   // Check auth state
   useEffect(() => {
@@ -58,11 +62,11 @@ export function Header({ activePage = "" }: { activePage?: string }) {
         style={{
           maxWidth: "1320px",
           margin: "0 auto",
-          padding: "0 28px",
+          padding: isMobile ? "0 14px" : "0 28px",
           height: "56px",
           display: "flex",
           alignItems: "center",
-          gap: "28px",
+          gap: isMobile ? "12px" : "28px",
         }}
       >
         <Link
@@ -90,7 +94,7 @@ export function Header({ activePage = "" }: { activePage?: string }) {
           style={{
             flex: 1,
             maxWidth: "340px",
-            display: "flex",
+            display: isMobile ? "none" : "flex",
             alignItems: "center",
             gap: "8px",
             height: "30px",
@@ -128,7 +132,7 @@ export function Header({ activePage = "" }: { activePage?: string }) {
           />
         </div>
         <div style={{ flex: 1 }} />
-        <nav style={{ display: "flex", alignItems: "center", gap: "22px" }}>
+        <nav style={{ display: "flex", alignItems: "center", gap: isMobile ? "13px" : "22px", flexWrap: "wrap" }}>
           <Link
             href="/providers"
             style={{
@@ -170,6 +174,7 @@ export function Header({ activePage = "" }: { activePage?: string }) {
           >
             For agents
           </Link>
+          {isMobile ? null : (
           <Link
             href="/methodology"
             style={{
@@ -180,6 +185,8 @@ export function Header({ activePage = "" }: { activePage?: string }) {
           >
             Methodology
           </Link>
+          )}
+          {isMobile ? null : (
           <Link
             href="/about"
             style={{
@@ -190,7 +197,8 @@ export function Header({ activePage = "" }: { activePage?: string }) {
           >
             About
           </Link>
-          <span style={{ width: "1px", height: "14px", background: "#222", display: "block" }} />
+          )}
+          <span style={{ width: "1px", height: "14px", background: "#222", display: isMobile ? "none" : "block" }} />
           {loggedIn ? (
             <Link
               href="/dashboard"

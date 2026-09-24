@@ -31,7 +31,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
   title: `AI Inference Recommendation Engine - ${count} Models | InferenceIndexer.ai`,
   description:
-    `Describe your workload and constraints; get ranked AI inference recommendations on verified prices across ${count} models. Standard Inference Token price index, quality-adjusted rankings, and a free API.`,
+    `Get ranked AI inference recommendations on verified prices across ${count} models. Standard Inference Token price index, quality-adjusted rankings, free API.`,
   alternates: { canonical: "https://www.inferenceindexer.ai" },
   openGraph: {
     title: `InferenceIndexer.ai - AI Inference Recommendation Engine (${count} models)`,
@@ -185,7 +185,7 @@ export default async function Home() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "minmax(0, 1fr) minmax(220px, 280px)",
+            gridTemplateColumns: "var(--grid-hero)",
             gap: "48px",
             alignItems: "end",
             paddingBottom: "16px",
@@ -365,7 +365,7 @@ export default async function Home() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "minmax(180px, 1fr) minmax(0, 220px) minmax(0, 220px)",
+              gridTemplateColumns: "var(--grid-pillars)",
               gap: "14px",
               padding: "0 0 8px",
               alignItems: "center",
@@ -400,7 +400,7 @@ export default async function Home() {
               key={claim}
               style={{
                 display: "grid",
-                gridTemplateColumns: "minmax(180px, 1fr) minmax(0, 220px) minmax(0, 220px)",
+                gridTemplateColumns: "var(--grid-pillars)",
                 gap: "14px",
                 alignItems: "center",
                 padding: "11px 0",
@@ -722,7 +722,7 @@ export default async function Home() {
                 <span style={{ display: "inline-block", width: "10px", height: 1, background: "#5c5c5c" }} />
                 era break (basket reconstitution)
               </span>
-              <span style={{ fontSize: "11.5px", color: "#8a8a8a", display: "flex", gap: "7px", whiteSpace: "nowrap" }}>
+              <span style={{ fontSize: "11.5px", color: "#8a8a8a", display: "flex", gap: "7px", flexWrap: "wrap" }}>
                 <span style={{ color: "#22c55e" }}>green = price down</span>
                 <span style={{ color: "#3a3a3a" }}>/</span>
                 <span style={{ color: "#ef4444" }}>red = price up</span>
@@ -761,11 +761,11 @@ export default async function Home() {
           </Link>
         </div>
         {preview.length > 0 && (
-          <div>
+          <div style={{ overflowX: "auto" }}>
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "40px minmax(160px, 1.5fr) minmax(110px, 1fr) minmax(0, 200px) 88px 88px 92px 84px",
+                gridTemplateColumns: "var(--grid-catalog)", minWidth: "700px",
                 alignItems: "center",
                 padding: "0 0 8px",
                 borderBottom: "1px solid #2a2a2a",
@@ -804,7 +804,7 @@ export default async function Home() {
                 href={`/models/${m.model_id}`}
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "40px minmax(160px, 1.5fr) minmax(110px, 1fr) minmax(0, 200px) 88px 88px 92px 84px",
+                  gridTemplateColumns: "var(--grid-catalog)", minWidth: "700px",
                   alignItems: "center",
                   height: "42px",
                   borderBottom: "1px solid #18181c",
