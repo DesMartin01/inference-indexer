@@ -895,7 +895,10 @@ export default function EnginePanel({
               ))}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "14px", paddingTop: "10px", flexWrap: "wrap" }}>
                 <span style={{ fontSize: "12px", lineHeight: 1.55, color: "var(--ep-muted)" }}>
-                  Privacy constraints are matched on provider statements today; II has not verified them. Prices are verified hourly. Ranking is based on data from Artificial Analysis; not endorsed by them.
+                  Privacy constraints are matched on provider statements today; II has not verified them. Prices are verified hourly.{" "}
+                  <Link href="/providers" style={{ color: "#C4A038", fontWeight: 500 }}>
+                    Provider detail →
+                  </Link> Ranking is based on data from Artificial Analysis; not endorsed by them.
                 </span>
                 <Link href="/models" style={{ fontSize: "12.5px", fontWeight: 500, color: "#C4A038", whiteSpace: "nowrap" }}>
                   Full rankings →

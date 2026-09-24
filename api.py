@@ -1159,8 +1159,10 @@ async def recommend_stats():
     total = _recommendations_served_total()
     if total < 0:
         return JSONResponse(content={"total": RECEIPTS_DISPLAY_FLOOR, "available": False}, status_code=200)
+    # Display base + real count (Des, Sep 24): the counter must visibly tick with every
+    # recommendation served, so real usage always adds on top of the display floor.
     return JSONResponse(
-        content={"total": max(RECEIPTS_DISPLAY_FLOOR, total), "available": True},
+        content={"total": RECEIPTS_DISPLAY_FLOOR + max(total, 0), "available": True},
         headers={"Cache-Control": "public, max-age=300"},
     )
 
@@ -1217,7 +1219,7 @@ def _compute_recommendation(body: "RecommendRequest") -> dict:
     modality_val = MODALITY_MAP.get(body.modality, body.modality)
     query = """
         SELECT m.id, m.name, m.provider, m.tier, m.context_length, m.aa_index_score,
-               m.is_reasoning, m.modality,
+               m.is_reasoning, m.modality, m.creator_country,
                lp.input_price_per_m, lp.output_price_per_m, lp.blended_price_per_m,
                lp.sit_adjusted_price, lp.fetched_at,
                COALESCE(zdr_sub.is_zdr, FALSE), COALESCE(eu_sub.is_eu, FALSE)
@@ -1356,7 +1358,7 @@ def _compute_recommendation(body: "RecommendRequest") -> dict:
 
     for i, row in enumerate(rows):
         (model_id, name, creator, tier, ctx, aa, is_reasoning, modality,
-         inp, outp, blended, cpiq, fetched_at, is_zdr, is_eu) = row
+         creator_country, inp, outp, blended, cpiq, fetched_at, is_zdr, is_eu) = row
 
         ep = ep_map.get(model_id)
         endpoint_config = None
@@ -1410,6 +1412,8 @@ def _compute_recommendation(body: "RecommendRequest") -> dict:
         entry = {
             "model_id": model_id,
             "name": name,
+            "creator": creator,
+            "creator_country": creator_country,
             "tier": tier,
             "context_length": ctx,
             "is_reasoning": is_reasoning,
