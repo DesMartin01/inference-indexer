@@ -1,0 +1,1029 @@
+{
+ "generated": "2026-09-24 21:35 UTC",
+ "results": [
+  {
+   "id": "CO01",
+   "category": "coding",
+   "request": "Best model for coding agents priced under $2/M",
+   "scores": {
+    "parse": 4,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [],
+   "parsed": {
+    "budget_max_usd_per_m": 2.0,
+    "use_case": "coding"
+   },
+   "routed": "models",
+   "latency_ms": 84,
+   "violations": [],
+   "n_results": 5,
+   "top": "Sao10K: Llama 3 8B Lunaris"
+  },
+  {
+   "id": "CO02",
+   "category": "coding",
+   "request": "I need a model for a PR review bot. Budget max $5 per million tokens.",
+   "scores": {
+    "parse": 0,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [
+    "expected {'use_case': 'coding', 'budget_max_usd_per_m': 5}, parsed {'budget_max_usd_per_m': 5.0, 'aa_min': None, 'context_min': None, 'zdr': False, 'eu_sovereign': False, 'reasoning': None, 'use_case': None}",
+    "Cost/IQ not ascending (no use_case set)"
+   ],
+   "parsed": {
+    "budget_max_usd_per_m": 5.0
+   },
+   "routed": "models",
+   "latency_ms": 74,
+   "violations": [],
+   "n_results": 5,
+   "top": "Sao10K: Llama 3 8B Lunaris"
+  },
+  {
+   "id": "CO03",
+   "category": "coding",
+   "request": "cheapest coding model with AA score above 30",
+   "scores": {
+    "parse": 4,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [],
+   "parsed": {
+    "aa_min": 30.0,
+    "use_case": "coding"
+   },
+   "routed": "models",
+   "latency_ms": 72,
+   "violations": [],
+   "n_results": 5,
+   "top": "DeepSeek: DeepSeek V4 Flash 0423"
+  },
+  {
+   "id": "CO04",
+   "category": "coding",
+   "request": "Need a developer assistant model under $1/M with reasoning enabled",
+   "scores": {
+    "parse": 4,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [],
+   "parsed": {
+    "budget_max_usd_per_m": 1.0,
+    "reasoning": true,
+    "use_case": "coding"
+   },
+   "routed": "models",
+   "latency_ms": 88,
+   "violations": [],
+   "n_results": 5,
+   "top": "inclusionAI: Ling 3.0 Flash"
+  },
+  {
+   "id": "CO05",
+   "category": "coding",
+   "request": "recommend a strong coding model, price no object, top intelligence",
+   "scores": {
+    "parse": 4,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [],
+   "parsed": {
+    "use_case": "coding"
+   },
+   "routed": "models",
+   "latency_ms": 79,
+   "violations": [],
+   "n_results": 5,
+   "top": "Sao10K: Llama 3 8B Lunaris"
+  },
+  {
+   "id": "CO06",
+   "category": "coding",
+   "request": "model for writing unit tests at scale, under $0.50/M",
+   "scores": {
+    "parse": 0,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [
+    "expected {'use_case': 'coding', 'budget_max_usd_per_m': 0.5}, parsed {'budget_max_usd_per_m': 0.5, 'aa_min': None, 'context_min': None, 'zdr': False, 'eu_sovereign': False, 'reasoning': None, 'use_case': None}",
+    "Cost/IQ not ascending (no use_case set)"
+   ],
+   "parsed": {
+    "budget_max_usd_per_m": 0.5
+   },
+   "routed": "models",
+   "latency_ms": 76,
+   "violations": [],
+   "n_results": 5,
+   "top": "Sao10K: Llama 3 8B Lunaris"
+  },
+  {
+   "id": "CO07",
+   "category": "coding",
+   "request": "best value programming model above AA index 40",
+   "scores": {
+    "parse": 4,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [],
+   "parsed": {
+    "aa_min": 40.0,
+    "use_case": "coding"
+   },
+   "routed": "models",
+   "latency_ms": 80,
+   "violations": [],
+   "n_results": 5,
+   "top": "Z.ai: GLM 5.3 Flash"
+  },
+  {
+   "id": "CO08",
+   "category": "coding",
+   "request": "I'm building a code migration tool. Needs strong reasoning, budget $10/M.",
+   "scores": {
+    "parse": 4,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [],
+   "parsed": {
+    "budget_max_usd_per_m": 10.0,
+    "reasoning": true,
+    "use_case": "coding"
+   },
+   "routed": "models",
+   "latency_ms": 71,
+   "violations": [],
+   "n_results": 5,
+   "top": "inclusionAI: Ling 3.0 Flash"
+  },
+  {
+   "id": "CO09",
+   "category": "coding",
+   "request": "cheap model for autocomplete-style code completion under $0.30/M",
+   "scores": {
+    "parse": 4,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [],
+   "parsed": {
+    "budget_max_usd_per_m": 0.3,
+    "use_case": "coding"
+   },
+   "routed": "models",
+   "latency_ms": 71,
+   "violations": [],
+   "n_results": 5,
+   "top": "Sao10K: Llama 3 8B Lunaris"
+  },
+  {
+   "id": "CO10",
+   "category": "coding",
+   "request": "Which models are good for coding agents on a $3 per million budget?",
+   "scores": {
+    "parse": 4,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [],
+   "parsed": {
+    "budget_max_usd_per_m": 3.0,
+    "use_case": "coding"
+   },
+   "routed": "models",
+   "latency_ms": 71,
+   "violations": [],
+   "n_results": 5,
+   "top": "Sao10K: Llama 3 8B Lunaris"
+  },
+  {
+   "id": "SU01",
+   "category": "support",
+   "request": "Best model for a customer support chatbot under $0.50/M",
+   "scores": {
+    "parse": 4,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [],
+   "parsed": {
+    "budget_max_usd_per_m": 0.5,
+    "use_case": "support"
+   },
+   "routed": "models",
+   "latency_ms": 67,
+   "violations": [],
+   "n_results": 5,
+   "top": "Sao10K: Llama 3 8B Lunaris"
+  },
+  {
+   "id": "SU02",
+   "category": "support",
+   "request": "Model for handling 50k support tickets daily, cheapest possible",
+   "scores": {
+    "parse": 4,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [],
+   "parsed": {
+    "use_case": "support"
+   },
+   "routed": "models",
+   "latency_ms": 70,
+   "violations": [],
+   "n_results": 5,
+   "top": "Sao10K: Llama 3 8B Lunaris"
+  },
+  {
+   "id": "SU03",
+   "category": "support",
+   "request": "support desk assistant, non-reasoning model, fast and cheap",
+   "scores": {
+    "parse": 4,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [],
+   "parsed": {
+    "use_case": "support"
+   },
+   "routed": "models",
+   "latency_ms": 70,
+   "violations": [],
+   "n_results": 5,
+   "top": "Sao10K: Llama 3 8B Lunaris"
+  },
+  {
+   "id": "SU04",
+   "category": "support",
+   "request": "model to answer customer emails under $0.20 per million",
+   "scores": {
+    "parse": 0,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [
+    "expected {'use_case': 'support', 'budget_max_usd_per_m': 0.2}, parsed {'budget_max_usd_per_m': 0.2, 'aa_min': None, 'context_min': None, 'zdr': False, 'eu_sovereign': False, 'reasoning': None, 'use_case': None}",
+    "Cost/IQ not ascending (no use_case set)"
+   ],
+   "parsed": {
+    "budget_max_usd_per_m": 0.2
+   },
+   "routed": "models",
+   "latency_ms": 69,
+   "violations": [],
+   "n_results": 5,
+   "top": "Sao10K: Llama 3 8B Lunaris"
+  },
+  {
+   "id": "SU05",
+   "category": "support",
+   "request": "helpdesk bot model that won't break the bank, say under $0.80/M",
+   "scores": {
+    "parse": 4,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [],
+   "parsed": {
+    "budget_max_usd_per_m": 0.8,
+    "use_case": "support"
+   },
+   "routed": "models",
+   "latency_ms": 77,
+   "violations": [],
+   "n_results": 5,
+   "top": "Sao10K: Llama 3 8B Lunaris"
+  },
+  {
+   "id": "RA01",
+   "category": "rag",
+   "request": "Best model for RAG over company documents under $1/M",
+   "scores": {
+    "parse": 4,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [],
+   "parsed": {
+    "budget_max_usd_per_m": 1.0,
+    "use_case": "summarization"
+   },
+   "routed": "models",
+   "latency_ms": 80,
+   "violations": [],
+   "n_results": 5,
+   "top": "Sao10K: Llama 3 8B Lunaris"
+  },
+  {
+   "id": "RA02",
+   "category": "rag",
+   "request": "I need retrieval-augmented generation for internal wikis, cheap",
+   "scores": {
+    "parse": 4,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [],
+   "parsed": {
+    "use_case": "summarization"
+   },
+   "routed": "models",
+   "latency_ms": 74,
+   "violations": [],
+   "n_results": 5,
+   "top": "Sao10K: Llama 3 8B Lunaris"
+  },
+  {
+   "id": "RA03",
+   "category": "rag",
+   "request": "Model for answering questions from a 200k-token knowledge base",
+   "scores": {
+    "parse": 0,
+    "answer": 4,
+    "compliance": 0,
+    "sanity": 0
+   },
+   "notes": [
+    "expected {'context_min': 200000}, parsed {'budget_max_usd_per_m': None, 'aa_min': None, 'context_min': None, 'zdr': False, 'eu_sovereign': False, 'reasoning': None, 'use_case': None}",
+    "API 400: {\"detail\":{\"error\":{\"code\":\"no_constraints\",\"message\":\"Set at least one of: budget_max_usd_per_m, context_min, zdr, eu_s"
+   ],
+   "parsed": {},
+   "routed": "models"
+  },
+  {
+   "id": "RA04",
+   "category": "rag",
+   "request": "summarization model for research papers under $2/M",
+   "scores": {
+    "parse": 4,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [],
+   "parsed": {
+    "budget_max_usd_per_m": 2.0,
+    "use_case": "summarization"
+   },
+   "routed": "models",
+   "latency_ms": 78,
+   "violations": [],
+   "n_results": 5,
+   "top": "Sao10K: Llama 3 8B Lunaris"
+  },
+  {
+   "id": "RA05",
+   "category": "rag",
+   "request": "model to digest long reports into briefs, under $1.50/M",
+   "scores": {
+    "parse": 4,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [],
+   "parsed": {
+    "budget_max_usd_per_m": 1.5,
+    "use_case": "summarization"
+   },
+   "routed": "models",
+   "latency_ms": 81,
+   "violations": [],
+   "n_results": 5,
+   "top": "Sao10K: Llama 3 8B Lunaris"
+  },
+  {
+   "id": "RA06",
+   "category": "rag",
+   "request": "Inference options for RAG system in a UK law firm",
+   "scores": {
+    "parse": 4,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [],
+   "parsed": {
+    "use_case": "summarization"
+   },
+   "routed": "models",
+   "latency_ms": 116,
+   "violations": [],
+   "n_results": 5,
+   "top": "Sao10K: Llama 3 8B Lunaris"
+  },
+  {
+   "id": "EX01",
+   "category": "extraction",
+   "request": "extract structured data from invoices at scale, cheapest model",
+   "scores": {
+    "parse": 4,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [],
+   "parsed": {
+    "use_case": "extraction"
+   },
+   "routed": "models",
+   "latency_ms": 78,
+   "violations": [],
+   "n_results": 5,
+   "top": "Sao10K: Llama 3 8B Lunaris"
+  },
+  {
+   "id": "EX02",
+   "category": "extraction",
+   "request": "Model for parsing receipts in bulk, under $0.25/M",
+   "scores": {
+    "parse": 4,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [],
+   "parsed": {
+    "budget_max_usd_per_m": 0.25,
+    "use_case": "extraction"
+   },
+   "routed": "models",
+   "latency_ms": 73,
+   "violations": [],
+   "n_results": 5,
+   "top": "Sao10K: Llama 3 8B Lunaris"
+  },
+  {
+   "id": "EX03",
+   "category": "extraction",
+   "request": "I process 10k PDFs daily and need field extraction under $0.40/M",
+   "scores": {
+    "parse": 4,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [],
+   "parsed": {
+    "budget_max_usd_per_m": 0.4,
+    "use_case": "extraction"
+   },
+   "routed": "models",
+   "latency_ms": 95,
+   "violations": [],
+   "n_results": 5,
+   "top": "Sao10K: Llama 3 8B Lunaris"
+  },
+  {
+   "id": "EX04",
+   "category": "extraction",
+   "request": "data extraction from contracts, non-reasoning model to keep costs down",
+   "scores": {
+    "parse": 4,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [],
+   "parsed": {
+    "use_case": "extraction"
+   },
+   "routed": "models",
+   "latency_ms": 75,
+   "violations": [],
+   "n_results": 5,
+   "top": "Sao10K: Llama 3 8B Lunaris"
+  },
+  {
+   "id": "EX05",
+   "category": "extraction",
+   "request": "best value document parsing model above AA 25",
+   "scores": {
+    "parse": 0,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [
+    "expected {'use_case': 'extraction', 'aa_min': 25}, parsed {'budget_max_usd_per_m': None, 'aa_min': 25.0, 'context_min': None, 'zdr': False, 'eu_sovereign': False, 'reasoning': None, 'use_case': None}",
+    "Cost/IQ not ascending (no use_case set)"
+   ],
+   "parsed": {
+    "aa_min": 25.0
+   },
+   "routed": "models",
+   "latency_ms": 73,
+   "violations": [],
+   "n_results": 5,
+   "top": "DeepSeek: DeepSeek V4 Flash 0423"
+  },
+  {
+   "id": "PR01",
+   "category": "privacy",
+   "request": "Which providers offer zero data retention?",
+   "scores": {
+    "parse": 4,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [],
+   "parsed": {
+    "zdr": true
+   },
+   "routed": "providers",
+   "n_results": 4
+  },
+  {
+   "id": "PR02",
+   "category": "privacy",
+   "request": "Zero data retention providers in the EU",
+   "scores": {
+    "parse": 4,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [],
+   "parsed": {
+    "zdr": true,
+    "eu_sovereign": true
+   },
+   "routed": "providers",
+   "n_results": 1
+  },
+  {
+   "id": "PR03",
+   "category": "privacy",
+   "request": "Best options for an agent workload with zero data retention and EU infrastructure",
+   "scores": {
+    "parse": 4,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [],
+   "parsed": {
+    "zdr": true,
+    "eu_sovereign": true
+   },
+   "routed": "models",
+   "latency_ms": 78,
+   "violations": [],
+   "n_results": 5,
+   "top": "Z.ai: GLM 5.3 Flash"
+  },
+  {
+   "id": "PR04",
+   "category": "privacy",
+   "request": "I handle medical records. Need ZDR models only.",
+   "scores": {
+    "parse": 4,
+    "answer": 0,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [
+    "routed providers, expected models"
+   ],
+   "parsed": {
+    "zdr": true
+   },
+   "routed": "providers",
+   "n_results": 4
+  },
+  {
+   "id": "PR05",
+   "category": "privacy",
+   "request": "cheapest model with zero data retention for a legal tech startup",
+   "scores": {
+    "parse": 4,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [],
+   "parsed": {
+    "zdr": true
+   },
+   "routed": "models",
+   "latency_ms": 784,
+   "violations": [],
+   "n_results": 5,
+   "top": "DeepSeek: DeepSeek V4 Flash 0423"
+  },
+  {
+   "id": "PR06",
+   "category": "privacy",
+   "request": "EU-sovereign inference for a German enterprise, quality AA 40 or higher",
+   "scores": {
+    "parse": 0,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [
+    "expected {'eu_sovereign': True, 'aa_min': 40}, parsed {'budget_max_usd_per_m': None, 'aa_min': None, 'context_min': None, 'zdr': False, 'eu_sovereign': True, 'reasoning': None, 'use_case': None}"
+   ],
+   "parsed": {
+    "eu_sovereign": true
+   },
+   "routed": "models",
+   "latency_ms": 83,
+   "violations": [],
+   "n_results": 5,
+   "top": "Z.ai: GLM 5.3 Flash"
+  },
+  {
+   "id": "EU01",
+   "category": "eu",
+   "request": "Models hosted on EU infrastructure under $3/M",
+   "scores": {
+    "parse": 4,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [],
+   "parsed": {
+    "budget_max_usd_per_m": 3.0,
+    "eu_sovereign": true
+   },
+   "routed": "models",
+   "latency_ms": 95,
+   "violations": [],
+   "n_results": 5,
+   "top": "Z.ai: GLM 5.3 Flash"
+  },
+  {
+   "id": "EU02",
+   "category": "eu",
+   "request": "GDPR-compliant model options for processing customer data",
+   "scores": {
+    "parse": 4,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [],
+   "parsed": {
+    "eu_sovereign": true
+   },
+   "routed": "models",
+   "latency_ms": 73,
+   "violations": [],
+   "n_results": 5,
+   "top": "Z.ai: GLM 5.3 Flash"
+  },
+  {
+   "id": "EU03",
+   "category": "eu",
+   "request": "Need EU-sovereign inference for a government project",
+   "scores": {
+    "parse": 4,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [],
+   "parsed": {
+    "eu_sovereign": true
+   },
+   "routed": "models",
+   "latency_ms": 142,
+   "violations": [],
+   "n_results": 5,
+   "top": "Z.ai: GLM 5.3 Flash"
+  },
+  {
+   "id": "EU04",
+   "category": "eu",
+   "request": "recommend models on European infrastructure with AA above 30",
+   "scores": {
+    "parse": 4,
+    "answer": 0,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [
+    "routed providers, expected models"
+   ],
+   "parsed": {
+    "aa_min": 30.0,
+    "eu_sovereign": true
+   },
+   "routed": "providers",
+   "n_results": 2
+  },
+  {
+   "id": "BV01",
+   "category": "volume",
+   "request": "Cheapest model overall for high-volume batch jobs",
+   "scores": {
+    "parse": 4,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [],
+   "parsed": {
+    "use_case": "volume"
+   },
+   "routed": "models",
+   "latency_ms": 209,
+   "violations": [],
+   "n_results": 5,
+   "top": "Sao10K: Llama 3 8B Lunaris"
+  },
+  {
+   "id": "BV02",
+   "category": "volume",
+   "request": "I need to classify 5 million rows monthly. Absolute cheapest acceptable quality.",
+   "scores": {
+    "parse": 4,
+    "answer": 4,
+    "compliance": 0,
+    "sanity": 0
+   },
+   "notes": [
+    "API 400: {\"detail\":{\"error\":{\"code\":\"no_constraints\",\"message\":\"Set at least one of: budget_max_usd_per_m, context_min, zdr, eu_s"
+   ],
+   "parsed": {},
+   "routed": "models"
+  },
+  {
+   "id": "BV03",
+   "category": "volume",
+   "request": "high volume model under $0.10 per million tokens",
+   "scores": {
+    "parse": 4,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [],
+   "parsed": {
+    "budget_max_usd_per_m": 0.1,
+    "use_case": "volume"
+   },
+   "routed": "models",
+   "latency_ms": 85,
+   "violations": [],
+   "n_results": 5,
+   "top": "Sao10K: Llama 3 8B Lunaris"
+  },
+  {
+   "id": "BV04",
+   "category": "volume",
+   "request": "bulk text classification, thousands of requests per second, cheapest",
+   "scores": {
+    "parse": 4,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [],
+   "parsed": {
+    "use_case": "volume"
+   },
+   "routed": "models",
+   "latency_ms": 85,
+   "violations": [],
+   "n_results": 5,
+   "top": "Sao10K: Llama 3 8B Lunaris"
+  },
+  {
+   "id": "LC01",
+   "category": "context",
+   "request": "Models with 128k or larger context window under $5/M",
+   "scores": {
+    "parse": 0,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [
+    "expected {'context_min': 128000, 'budget_max_usd_per_m': 5}, parsed {'budget_max_usd_per_m': 5.0, 'aa_min': None, 'context_min': None, 'zdr': False, 'eu_sovereign': False, 'reasoning': None, 'use_case': None}",
+    "Cost/IQ not ascending (no use_case set)"
+   ],
+   "parsed": {
+    "budget_max_usd_per_m": 5.0
+   },
+   "routed": "models",
+   "latency_ms": 68,
+   "violations": [],
+   "n_results": 5,
+   "top": "Sao10K: Llama 3 8B Lunaris"
+  },
+  {
+   "id": "LC02",
+   "category": "context",
+   "request": "I need to summarise entire books. 200k context minimum.",
+   "scores": {
+    "parse": 4,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [
+    "Cost/IQ not ascending (no use_case set)"
+   ],
+   "parsed": {
+    "context_min": 200000
+   },
+   "routed": "models",
+   "latency_ms": 81,
+   "violations": [],
+   "n_results": 5,
+   "top": "inclusionAI: Ling 3.0 Flash"
+  },
+  {
+   "id": "LC03",
+   "category": "context",
+   "request": "model with 1M token context for repository analysis",
+   "scores": {
+    "parse": 0,
+    "answer": 4,
+    "compliance": 0,
+    "sanity": 0
+   },
+   "notes": [
+    "expected {'context_min': 1000000}, parsed {'budget_max_usd_per_m': None, 'aa_min': None, 'context_min': None, 'zdr': False, 'eu_sovereign': False, 'reasoning': None, 'use_case': None}",
+    "API 400: {\"detail\":{\"error\":{\"code\":\"no_constraints\",\"message\":\"Set at least one of: budget_max_usd_per_m, context_min, zdr, eu_s"
+   ],
+   "parsed": {},
+   "routed": "models"
+  },
+  {
+   "id": "LC04",
+   "category": "context",
+   "request": "long document analysis, big context, cheap as possible",
+   "scores": {
+    "parse": 4,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [
+    "Cost/IQ not ascending (no use_case set)"
+   ],
+   "parsed": {
+    "context_min": 128000
+   },
+   "routed": "models",
+   "latency_ms": 76,
+   "violations": [],
+   "n_results": 5,
+   "top": "inclusionAI: Ling 3.0 Flash"
+  },
+  {
+   "id": "LG01",
+   "category": "legal",
+   "request": "Inference options for a law firm handling sensitive legal documents, ZDR required",
+   "scores": {
+    "parse": 4,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [],
+   "parsed": {
+    "zdr": true
+   },
+   "routed": "models",
+   "latency_ms": 78,
+   "violations": [],
+   "n_results": 5,
+   "top": "DeepSeek: DeepSeek V4 Flash 0423"
+  },
+  {
+   "id": "LG02",
+   "category": "legal",
+   "request": "model for reviewing NDAs, privacy-conscious, EU hosting",
+   "scores": {
+    "parse": 4,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [],
+   "parsed": {
+    "eu_sovereign": true
+   },
+   "routed": "models",
+   "latency_ms": 72,
+   "violations": [],
+   "n_results": 5,
+   "top": "Z.ai: GLM 5.3 Flash"
+  },
+  {
+   "id": "ME01",
+   "category": "medical",
+   "request": "Model for summarising clinical notes, must have zero data retention",
+   "scores": {
+    "parse": 4,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [],
+   "parsed": {
+    "zdr": true
+   },
+   "routed": "models",
+   "latency_ms": 77,
+   "violations": [],
+   "n_results": 5,
+   "top": "DeepSeek: DeepSeek V4 Flash 0423"
+  },
+  {
+   "id": "FI01",
+   "category": "finance",
+   "request": "Model for accounts receivable automation for an SME, budget $4/M, EU infra",
+   "scores": {
+    "parse": 4,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [],
+   "parsed": {
+    "budget_max_usd_per_m": 4.0,
+    "eu_sovereign": true
+   },
+   "routed": "models",
+   "latency_ms": 93,
+   "violations": [],
+   "n_results": 5,
+   "top": "Z.ai: GLM 5.3 Flash"
+  },
+  {
+   "id": "ST01",
+   "category": "startup",
+   "request": "I'm a startup building an MVP chatbot. Cheapest model that's not terrible.",
+   "scores": {
+    "parse": 4,
+    "answer": 4,
+    "compliance": 0,
+    "sanity": 0
+   },
+   "notes": [
+    "API 400: {\"detail\":{\"error\":{\"code\":\"no_constraints\",\"message\":\"Set at least one of: budget_max_usd_per_m, context_min, zdr, eu_s"
+   ],
+   "parsed": {},
+   "routed": "models"
+  },
+  {
+   "id": "AG01",
+   "category": "agency",
+   "request": "Model for a marketing agency producing campaign briefs at volume, under $0.60/M",
+   "scores": {
+    "parse": 0,
+    "answer": 4,
+    "compliance": 4,
+    "sanity": 4
+   },
+   "notes": [
+    "expected {'use_case': 'summarization', 'budget_max_usd_per_m': 0.6}, parsed {'budget_max_usd_per_m': 0.6, 'aa_min': None, 'context_min': None, 'zdr': False, 'eu_sovereign': False, 'reasoning': None, 'use_case': 'volume'}"
+   ],
+   "parsed": {
+    "budget_max_usd_per_m": 0.6,
+    "use_case": "volume"
+   },
+   "routed": "models",
+   "latency_ms": 75,
+   "violations": [],
+   "n_results": 5,
+   "top": "Sao10K: Llama 3 8B Lunaris"
+  }
+ ]
+}

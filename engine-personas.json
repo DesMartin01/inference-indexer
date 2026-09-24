@@ -1,0 +1,526 @@
+[
+ {
+  "id": "CO01",
+  "category": "coding",
+  "request": "Best model for coding agents priced under $2/M",
+  "expected_constraints": {
+   "use_case": "coding",
+   "budget_max_usd_per_m": 2
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "CO02",
+  "category": "coding",
+  "request": "I need a model for a PR review bot. Budget max $5 per million tokens.",
+  "expected_constraints": {
+   "use_case": "coding",
+   "budget_max_usd_per_m": 5
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "CO03",
+  "category": "coding",
+  "request": "cheapest coding model with AA score above 30",
+  "expected_constraints": {
+   "use_case": "coding",
+   "aa_min": 30
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "CO04",
+  "category": "coding",
+  "request": "Need a developer assistant model under $1/M with reasoning enabled",
+  "expected_constraints": {
+   "use_case": "coding",
+   "budget_max_usd_per_m": 1,
+   "reasoning": true
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "CO05",
+  "category": "coding",
+  "request": "recommend a strong coding model, price no object, top intelligence",
+  "expected_constraints": {
+   "use_case": "coding"
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "CO06",
+  "category": "coding",
+  "request": "model for writing unit tests at scale, under $0.50/M",
+  "expected_constraints": {
+   "use_case": "coding",
+   "budget_max_usd_per_m": 0.5
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "CO07",
+  "category": "coding",
+  "request": "best value programming model above AA index 40",
+  "expected_constraints": {
+   "use_case": "coding",
+   "aa_min": 40
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "CO08",
+  "category": "coding",
+  "request": "I'm building a code migration tool. Needs strong reasoning, budget $10/M.",
+  "expected_constraints": {
+   "use_case": "coding",
+   "reasoning": true,
+   "budget_max_usd_per_m": 10
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "CO09",
+  "category": "coding",
+  "request": "cheap model for autocomplete-style code completion under $0.30/M",
+  "expected_constraints": {
+   "use_case": "coding",
+   "budget_max_usd_per_m": 0.3
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "CO10",
+  "category": "coding",
+  "request": "Which models are good for coding agents on a $3 per million budget?",
+  "expected_constraints": {
+   "use_case": "coding",
+   "budget_max_usd_per_m": 3
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "SU01",
+  "category": "support",
+  "request": "Best model for a customer support chatbot under $0.50/M",
+  "expected_constraints": {
+   "use_case": "support",
+   "budget_max_usd_per_m": 0.5
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "SU02",
+  "category": "support",
+  "request": "Model for handling 50k support tickets daily, cheapest possible",
+  "expected_constraints": {
+   "use_case": "support"
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "SU03",
+  "category": "support",
+  "request": "support desk assistant, non-reasoning model, fast and cheap",
+  "expected_constraints": {
+   "use_case": "support",
+   "reasoning": false
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "SU04",
+  "category": "support",
+  "request": "model to answer customer emails under $0.20 per million",
+  "expected_constraints": {
+   "use_case": "support",
+   "budget_max_usd_per_m": 0.2
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "SU05",
+  "category": "support",
+  "request": "helpdesk bot model that won't break the bank, say under $0.80/M",
+  "expected_constraints": {
+   "use_case": "support",
+   "budget_max_usd_per_m": 0.8
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "RA01",
+  "category": "rag",
+  "request": "Best model for RAG over company documents under $1/M",
+  "expected_constraints": {
+   "use_case": "summarization",
+   "budget_max_usd_per_m": 1
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "RA02",
+  "category": "rag",
+  "request": "I need retrieval-augmented generation for internal wikis, cheap",
+  "expected_constraints": {
+   "use_case": "summarization"
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "RA03",
+  "category": "rag",
+  "request": "Model for answering questions from a 200k-token knowledge base",
+  "expected_constraints": {
+   "context_min": 200000
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "RA04",
+  "category": "rag",
+  "request": "summarization model for research papers under $2/M",
+  "expected_constraints": {
+   "use_case": "summarization",
+   "budget_max_usd_per_m": 2
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "RA05",
+  "category": "rag",
+  "request": "model to digest long reports into briefs, under $1.50/M",
+  "expected_constraints": {
+   "use_case": "summarization",
+   "budget_max_usd_per_m": 1.5
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "RA06",
+  "category": "rag",
+  "request": "Inference options for RAG system in a UK law firm",
+  "expected_constraints": {
+   "use_case": "summarization"
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "EX01",
+  "category": "extraction",
+  "request": "extract structured data from invoices at scale, cheapest model",
+  "expected_constraints": {
+   "use_case": "extraction"
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "EX02",
+  "category": "extraction",
+  "request": "Model for parsing receipts in bulk, under $0.25/M",
+  "expected_constraints": {
+   "use_case": "extraction",
+   "budget_max_usd_per_m": 0.25
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "EX03",
+  "category": "extraction",
+  "request": "I process 10k PDFs daily and need field extraction under $0.40/M",
+  "expected_constraints": {
+   "use_case": "extraction",
+   "budget_max_usd_per_m": 0.4
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "EX04",
+  "category": "extraction",
+  "request": "data extraction from contracts, non-reasoning model to keep costs down",
+  "expected_constraints": {
+   "use_case": "extraction",
+   "reasoning": false
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "EX05",
+  "category": "extraction",
+  "request": "best value document parsing model above AA 25",
+  "expected_constraints": {
+   "use_case": "extraction",
+   "aa_min": 25
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "PR01",
+  "category": "privacy",
+  "request": "Which providers offer zero data retention?",
+  "expected_constraints": {},
+  "answer_type": "providers",
+  "checks": {
+   "zdr_filter": true
+  }
+ },
+ {
+  "id": "PR02",
+  "category": "privacy",
+  "request": "Zero data retention providers in the EU",
+  "expected_constraints": {},
+  "answer_type": "providers",
+  "checks": {
+   "zdr_filter": true,
+   "eu_filter": true
+  }
+ },
+ {
+  "id": "PR03",
+  "category": "privacy",
+  "request": "Best options for an agent workload with zero data retention and EU infrastructure",
+  "expected_constraints": {
+   "zdr": true,
+   "eu_sovereign": true
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "PR04",
+  "category": "privacy",
+  "request": "I handle medical records. Need ZDR models only.",
+  "expected_constraints": {
+   "zdr": true
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "PR05",
+  "category": "privacy",
+  "request": "cheapest model with zero data retention for a legal tech startup",
+  "expected_constraints": {
+   "zdr": true
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "PR06",
+  "category": "privacy",
+  "request": "EU-sovereign inference for a German enterprise, quality AA 40 or higher",
+  "expected_constraints": {
+   "eu_sovereign": true,
+   "aa_min": 40
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "EU01",
+  "category": "eu",
+  "request": "Models hosted on EU infrastructure under $3/M",
+  "expected_constraints": {
+   "eu_sovereign": true,
+   "budget_max_usd_per_m": 3
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "EU02",
+  "category": "eu",
+  "request": "GDPR-compliant model options for processing customer data",
+  "expected_constraints": {
+   "eu_sovereign": true
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "EU03",
+  "category": "eu",
+  "request": "Need EU-sovereign inference for a government project",
+  "expected_constraints": {
+   "eu_sovereign": true
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "EU04",
+  "category": "eu",
+  "request": "recommend models on European infrastructure with AA above 30",
+  "expected_constraints": {
+   "eu_sovereign": true,
+   "aa_min": 30
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "BV01",
+  "category": "volume",
+  "request": "Cheapest model overall for high-volume batch jobs",
+  "expected_constraints": {},
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "BV02",
+  "category": "volume",
+  "request": "I need to classify 5 million rows monthly. Absolute cheapest acceptable quality.",
+  "expected_constraints": {},
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "BV03",
+  "category": "volume",
+  "request": "high volume model under $0.10 per million tokens",
+  "expected_constraints": {
+   "budget_max_usd_per_m": 0.1
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "BV04",
+  "category": "volume",
+  "request": "bulk text classification, thousands of requests per second, cheapest",
+  "expected_constraints": {
+   "use_case": "volume"
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "LC01",
+  "category": "context",
+  "request": "Models with 128k or larger context window under $5/M",
+  "expected_constraints": {
+   "context_min": 128000,
+   "budget_max_usd_per_m": 5
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "LC02",
+  "category": "context",
+  "request": "I need to summarise entire books. 200k context minimum.",
+  "expected_constraints": {
+   "context_min": 200000
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "LC03",
+  "category": "context",
+  "request": "model with 1M token context for repository analysis",
+  "expected_constraints": {
+   "context_min": 1000000
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "LC04",
+  "category": "context",
+  "request": "long document analysis, big context, cheap as possible",
+  "expected_constraints": {
+   "context_min": 128000
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "LG01",
+  "category": "legal",
+  "request": "Inference options for a law firm handling sensitive legal documents, ZDR required",
+  "expected_constraints": {
+   "zdr": true
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "LG02",
+  "category": "legal",
+  "request": "model for reviewing NDAs, privacy-conscious, EU hosting",
+  "expected_constraints": {
+   "eu_sovereign": true
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "ME01",
+  "category": "medical",
+  "request": "Model for summarising clinical notes, must have zero data retention",
+  "expected_constraints": {
+   "zdr": true
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "FI01",
+  "category": "finance",
+  "request": "Model for accounts receivable automation for an SME, budget $4/M, EU infra",
+  "expected_constraints": {
+   "budget_max_usd_per_m": 4,
+   "eu_sovereign": true
+  },
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "ST01",
+  "category": "startup",
+  "request": "I'm a startup building an MVP chatbot. Cheapest model that's not terrible.",
+  "expected_constraints": {},
+  "answer_type": "models",
+  "checks": {}
+ },
+ {
+  "id": "AG01",
+  "category": "agency",
+  "request": "Model for a marketing agency producing campaign briefs at volume, under $0.60/M",
+  "expected_constraints": {
+   "use_case": "summarization",
+   "budget_max_usd_per_m": 0.6
+  },
+  "answer_type": "models",
+  "checks": {}
+ }
+]
