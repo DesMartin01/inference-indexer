@@ -36,7 +36,7 @@ export default async function ModelsPage() {
           Quality-adjusted price across {totalCount} models
         </h1>
         <p style={{ margin: "8px 0 0", maxWidth: "56em", fontSize: "14px", lineHeight: 1.5, color: "#8a8a8a" }}>
-          Grouped by quality tier, ranked within tier by Cost/IQ — verified price per million tokens per unit of
+          Grouped by quality tier, ranked within tier by Cost/IQ: verified price per million tokens per unit of
           AA Intelligence Index. Input, output, and blended prices shown per model.{" "}
           <a href="/api-docs" style={{ color: "#C4A038" }}>
             Full data via the API

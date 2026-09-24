@@ -117,20 +117,20 @@ export function ApiUsageClient({
       >
         <MetricCard
           label="Registered-Key Requests Today"
-          value={today ? String(today.requests) : "—"}
+          value={today ? String(today.requests) : "-"}
         />
         <MetricCard
           label="Unique API-Key Users"
-          value={today ? String(today.unique_users) : "—"}
+          value={today ? String(today.unique_users) : "-"}
           accent
         />
         <MetricCard
           label="Free-Key Requests"
-          value={today ? `${today.free_requests} (${today.free_users} users)` : "—"}
+          value={today ? `${today.free_requests} (${today.free_users} users)` : "-"}
         />
         <MetricCard
           label="Anonymous (public, no key)"
-          value={today ? String(today.public_requests) : "—"}
+          value={today ? String(today.public_requests) : "-"}
         />
       </div>
 
@@ -323,7 +323,7 @@ export function ApiUsageClient({
           Free-Key Users · traction
         </div>
         <div style={{ fontSize: 12, color: MUTED, marginBottom: 16 }}>
-          New free signups (30d): <strong style={{ color: ACCENT }}>{data ? data.new_free_signups_30d : "—"}</strong>
+          New free signups (30d): <strong style={{ color: ACCENT }}>{data ? data.new_free_signups_30d : "-"}</strong>
         </div>
         {data && data.free_key_activity.length > 0 ? (
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
@@ -342,7 +342,7 @@ export function ApiUsageClient({
                   <td style={{ padding: "8px", fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: "#e5e5e5" }}>{a.endpoint}</td>
                   <td style={{ padding: "8px", textAlign: "right", fontVariantNumeric: "tabular-nums", color: "#e5e5e5" }}>{a.requests}</td>
                   <td style={{ padding: "8px", textAlign: "right", fontSize: 11, color: MUTED }}>
-                    {a.last ? new Date(a.last).toISOString().replace("T", " ").slice(0, 16) + "Z" : "—"}
+                    {a.last ? new Date(a.last).toISOString().replace("T", " ").slice(0, 16) + "Z" : "-"}
                   </td>
                 </tr>
               ))}

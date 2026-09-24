@@ -213,7 +213,7 @@ export function FeedClient({
                         fontWeight: s.age_minutes && s.age_minutes > 100 ? 600 : 400,
                       }}
                     >
-                      {s.age_minutes != null ? s.age_minutes.toFixed(0) : "—"}
+                      {s.age_minutes != null ? s.age_minutes.toFixed(0) : "-"}
                     </td>
                     <td style={{ padding: "12px 16px" }}>{s.cadence}</td>
                   </tr>

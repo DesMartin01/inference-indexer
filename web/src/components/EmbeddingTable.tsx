@@ -447,7 +447,7 @@ export default function EmbeddingTable({ models, totalCount }: Props) {
                         color: m.is_zdr ? "#22c55e" : "#3a3a3a",
                       }}
                     >
-                      {m.is_zdr ? "✓" : "—"}
+                      {m.is_zdr ? "✓" : "-"}
                     </span>
                   </div>
 
@@ -461,7 +461,7 @@ export default function EmbeddingTable({ models, totalCount }: Props) {
                         color: m.is_eu_sovereign ? "#5b8def" : "#3a3a3a",
                       }}
                     >
-                      {m.is_eu_sovereign ? "✓" : "—"}
+                      {m.is_eu_sovereign ? "✓" : "-"}
                     </span>
                   </div>
                 </div>

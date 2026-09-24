@@ -126,7 +126,7 @@ export default async function Home() {
     }
   }
 
-  const heroPrice = composite ? formatPrice(composite.price_per_m) : "—";
+  const heroPrice = composite ? formatPrice(composite.price_per_m) : "-";
   const d1 = composite?.change_24h ?? 0;
   const d7 = composite?.change_7d ?? 0;
   const d30 = composite?.change_30d ?? 0;
@@ -720,7 +720,7 @@ export default async function Home() {
             >
               <span style={{ fontSize: "11.5px", color: "#8a8a8a", display: "flex", alignItems: "center", gap: "7px", whiteSpace: "nowrap" }}>
                 <span style={{ display: "inline-block", width: "10px", height: 1, background: "#5c5c5c" }} />
-                era break — basket reconstitution
+                era break (basket reconstitution)
               </span>
               <span style={{ fontSize: "11.5px", color: "#8a8a8a", display: "flex", gap: "7px", whiteSpace: "nowrap" }}>
                 <span style={{ color: "#22c55e" }}>green = price down</span>
@@ -749,7 +749,7 @@ export default async function Home() {
               <span style={{ color: "#C4A038" }}>Quality-adjusted price</span> across {totalCount.toLocaleString()} models
             </h2>
             <p style={{ margin: 0, maxWidth: "56em", fontSize: "13.5px", lineHeight: 1.5, color: "#8a8a8a" }}>
-              Grouped by quality tier, ranked within tier by Cost/IQ — verified price per million tokens per unit of AA
+              Grouped by quality tier, ranked within tier by Cost/IQ: verified price per million tokens per unit of AA
               Intelligence Index. Input, output, and blended prices per model.
             </p>
           </div>

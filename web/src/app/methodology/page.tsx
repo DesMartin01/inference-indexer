@@ -132,7 +132,7 @@ export default function MethodologyPage() {
             How the recommendation engine ranks models, how the Standard Inference Token price is defined, calculated, and governed.
           </p>
           <p style={{ fontFamily: "var(--font-jetbrains-mono), 'JetBrains Mono', monospace", fontSize: 12, color: "#8a8a8a", marginBottom: 40 }}>
-            Version 0.4 — Last updated: August 6, 2026
+            Version 0.4, last updated August 6, 2026
           </p>
 
           {/* 1. Overview */}
@@ -277,12 +277,12 @@ export default function MethodologyPage() {
                 </tr>
                 <tr>
                   <td style={{ ...tdStyle, color: "#C4A038", fontFamily: "var(--font-jetbrains-mono), 'JetBrains Mono', monospace" }}>SIT-Standard</td>
-                  <td style={tdStyle}>P70 — P90</td>
+                  <td style={tdStyle}>P70-P90</td>
                   <td style={tdStyle}>Mid-tier production models</td>
                 </tr>
                 <tr>
                   <td style={{ ...tdStyle, color: "#C4A038", fontFamily: "var(--font-jetbrains-mono), 'JetBrains Mono', monospace" }}>SIT-Budget</td>
-                  <td style={tdStyle}>P40 — P70</td>
+                  <td style={tdStyle}>P40-P70</td>
                   <td style={tdStyle}>Low-cost models for high-volume tasks</td>
                 </tr>
                 <tr>
@@ -805,7 +805,7 @@ Retrieved from https://www.inferenceindexer.ai/methodology`}</pre>
                 <a href="https://www.emergentmind.com/topics/standard-inference-token-sit" style={{ color: "#C4A038", textDecoration: "none" }}>
                   Standard Inference Token (SIT)
                 </a>
-                {" "}— Xing, Z. (23 Mar 2026) and Cunningham, M. (27 Feb 2026). EmergentMind topic summary.
+                {" "}: Xing, Z. (23 Mar 2026) and Cunningham, M. (27 Feb 2026). EmergentMind topic summary.
                 Defines SIT as a quality-gated inference token (MMLU &gt;= 86%, HumanEval &gt;= 67%, GSM8K &gt;= 92%)
                 and the Token Price Index (TPI) as a volume-weighted, quality-adjusted mean of spot prices. Our
                 quality gate and adjusted price formula are adapted from this framework.
@@ -814,14 +814,14 @@ Retrieved from https://www.inferenceindexer.ai/methodology`}</pre>
                 <a href="https://artificialanalysis.ai/" style={{ color: "#C4A038", textDecoration: "none" }}>
                   Artificial Analysis Intelligence Index
                 </a>
-                {" "}— Independent third-party benchmark for LLM intelligence scoring. Intelligence Index v4.1
+                {" "}: Independent third-party benchmark for LLM intelligence scoring. Intelligence Index v4.1
                 covers 257 models across 9 sub-evaluations. Used as the quality metric in our SIT formula.
               </li>
               <li style={bulletItem}>
                 <a href="https://openrouter.ai/" style={{ color: "#C4A038", textDecoration: "none" }}>
                   OpenRouter API
                 </a>
-                {" "}— Primary pricing data source. 400+ models from 70+ providers. Hourly price refresh.
+                {" "}: Primary pricing data source. 400+ models from 70+ providers. Hourly price refresh.
                 Rankings endpoint provides weekly usage data for composite weighting.
               </li>
             </ul>

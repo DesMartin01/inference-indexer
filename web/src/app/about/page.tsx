@@ -111,7 +111,7 @@ export default async function AboutPage() {
             </p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 16, marginTop: 24 }}>
               <div style={cardBase}>
-                <h3 style={{ fontSize: 15, fontWeight: 600, color: "#C4A038", margin: "0 0 8px" }}>Price — verified</h3>
+                <h3 style={{ fontSize: 15, fontWeight: 600, color: "#C4A038", margin: "0 0 8px" }}>Price: verified</h3>
                 <p style={{ fontSize: 13, color: "#8a8a8a", lineHeight: 1.6, margin: 0 }}>
                   The best inference pricing data on the web. Pulled directly from provider APIs, not estimates or
                   listings. Median pricing across providers, historical tracking, and the Standard Inference Token
@@ -119,14 +119,14 @@ export default async function AboutPage() {
                 </p>
               </div>
               <div style={cardBase}>
-                <h3 style={{ fontSize: 15, fontWeight: 600, color: "#C4A038", margin: "0 0 8px" }}>Quality — verified: intelligence</h3>
+                <h3 style={{ fontSize: 15, fontWeight: 600, color: "#C4A038", margin: "0 0 8px" }}>Quality: verified (intelligence)</h3>
                 <p style={{ fontSize: 13, color: "#8a8a8a", lineHeight: 1.6, margin: 0 }}>
                   Intelligence verified against the Artificial Analysis index, then divided into price so rankings
-                  reward value, not cheapness. [COPY: latency/uptime verification in development — final wording Des.]
+                  reward value, not cheapness. [COPY: latency/uptime verification in development, final wording Des.]
                 </p>
               </div>
               <div style={cardBase}>
-                <h3 style={{ fontSize: 15, fontWeight: 600, color: "#C4A038", margin: "0 0 8px" }}>Privacy — provider-stated today</h3>
+                <h3 style={{ fontSize: 15, fontWeight: 600, color: "#C4A038", margin: "0 0 8px" }}>Privacy: provider-stated today</h3>
                 <p style={{ fontSize: 13, color: "#8a8a8a", lineHeight: 1.6, margin: 0 }}>
                   Zero data retention status, infrastructure jurisdiction, and training-use terms, collected and shown
                   with their source. Verification of these claims is in development; today they are provider-stated,
@@ -134,7 +134,7 @@ export default async function AboutPage() {
                 </p>
               </div>
               <div style={cardBase}>
-                <h3 style={{ fontSize: 15, fontWeight: 600, color: "#C4A038", margin: "0 0 8px" }}>Security — in development</h3>
+                <h3 style={{ fontSize: 15, fontWeight: 600, color: "#C4A038", margin: "0 0 8px" }}>Security: in development</h3>
                 <p style={{ fontSize: 13, color: "#8a8a8a", lineHeight: 1.6, margin: 0 }}>
                   Prompt-injection exposure, router interference, tenant isolation, and incident disclosure records.
                   Criteria will be published before any provider is rated against them. [COPY: final wording Des.]

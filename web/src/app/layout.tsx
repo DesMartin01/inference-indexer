@@ -22,7 +22,7 @@ const jetbrainsMono = JetBrains_Mono({
 export async function generateMetadata(): Promise<Metadata> {
   const count = (await getModelCount().catch(() => 0)) || CURRENT_MODEL_COUNT;
   return {
-  title: "InferenceIndexer.ai — Inference Recommendation Engine",
+  title: "InferenceIndexer.ai: Inference Recommendation Engine",
   description:
     `The Standard Inference Token (SIT) is a standardized unit for tracking AI inference prices across providers. ${count} models, updated hourly.`,
   };

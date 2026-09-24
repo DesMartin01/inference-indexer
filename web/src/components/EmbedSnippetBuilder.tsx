@@ -16,7 +16,7 @@ export default function EmbedSnippetBuilder() {
     return `<!-- InferenceIndexer recommendation widget -->
 <iframe src="${src}" width="100%" height="520" style="border:0;border-radius:8px" loading="lazy" title="InferenceIndexer AI inference recommendations"></iframe>
 <p style="font-size:12px;color:#666">
-  Powered by <a href="https://www.inferenceindexer.ai/?utm_source=embed" rel="noopener">InferenceIndexer</a> — AI inference recommendations on verified prices
+  Powered by <a href="https://www.inferenceindexer.ai/?utm_source=embed" rel="noopener">InferenceIndexer</a>: AI inference recommendations on verified prices
 </p>`;
   }, [theme, preset]);
 

@@ -140,8 +140,8 @@ export function SubmissionsClient() {
               </a>
             </div>
             {s.website && <div>Site: {s.website}</div>}
-            <div>Country: {s.country || "—"}</div>
-            <div>Contact: {s.contact_email || "—"}</div>
+            <div>Country: {s.country || "-"}</div>
+            <div>Contact: {s.contact_email || "-"}</div>
             <div>EU: {s.is_eu_sovereign ? "Yes" : "No"}</div>
             <div>ZDR: {s.is_zdr ? "Yes" : "No"}</div>
           </div>
@@ -186,7 +186,7 @@ export function SubmissionsClient() {
                 <strong style={{ fontWeight: 600, color: "var(--text-heading)" }}>
                   Pending integration
                 </strong>
-                {" — approved and added to the index, but no pipeline connector "
+                {" : approved and added to the index, but no pipeline connector "
                 + "fetches its prices yet. Add a no-auth connector or API key to "
                 + "complete integration."}
               </div>

@@ -294,9 +294,11 @@ function classifyAnswer(text: string, c: Constraints): AnswerType {
 export default function EnginePanel({
   totalModels,
   initialQuery,
+  showEmbedLink = true,
 }: {
   totalModels: number;
   initialQuery?: string;
+  showEmbedLink?: boolean;
 }) {
   const [text, setText] = useState(initialQuery ?? "");
   const [chips, setChips] = useState<EchoChip[]>([]);
@@ -466,9 +468,25 @@ export default function EnginePanel({
       <div style={{ borderTop: "1px solid var(--ep-border)", paddingTop: "22px" }}>
         <label
           htmlFor="ii-engine-q"
-          style={{ fontSize: "19px", fontWeight: 600, letterSpacing: "-0.015em", color: "var(--ep-text)", display: "block" }}
+          style={{
+            fontSize: "19px",
+            fontWeight: 600,
+            letterSpacing: "-0.015em",
+            color: "var(--ep-text)",
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+          }}
         >
-          What type of inference are you looking for?
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/profile-icon.png"
+            alt="InferenceIndexer"
+            width={22}
+            height={22}
+            style={{ borderRadius: "4px", flexShrink: 0 }}
+          />
+          What type of AI Inference are you looking for?
         </label>
         <div
           style={{
@@ -504,7 +522,7 @@ export default function EnginePanel({
           />
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "14px", flexWrap: "wrap" }}>
             <span style={{ fontSize: "12px", color: "var(--ep-muted)" }}>
-              Plain language or structured constraints — both work. Queries are never stored.
+              Enter plain language or structured constraints. Queries are never stored.
             </span>
             <button
               type="button"
@@ -664,16 +682,16 @@ export default function EnginePanel({
                   >
                     <span style={{ fontSize: "13.5px", fontWeight: 500, color: "var(--ep-text)" }}>{pv.name}</span>
                     <span style={{ fontSize: "11.5px", color: pv.is_zdr ? "#22c55e" : "var(--ep-muted)" }}>
-                      {pv.is_zdr ? "ZDR: stated" : "—"}
+                      {pv.is_zdr ? "ZDR: stated" : "-"}
                     </span>
                     <span style={{ fontSize: "11.5px", color: pv.is_eu_sovereign ? "#22c55e" : "var(--ep-muted)" }}>
-                      {pv.is_eu_sovereign ? "EU: stated" : "—"}
+                      {pv.is_eu_sovereign ? "EU: stated" : "-"}
                     </span>
                     <span style={{ textAlign: "right", fontFamily: "Inter, sans-serif", fontSize: "12.5px", color: "var(--ep-text-2)", fontVariantNumeric: "tabular-nums" }}>
                       {pv.model_count}
                     </span>
                     <span style={{ textAlign: "right", fontFamily: "Inter, sans-serif", fontSize: "12.5px", color: "var(--ep-text)", fontVariantNumeric: "tabular-nums" }}>
-                      {pv.min_price != null ? `$${pv.min_price.toFixed(2)}` : "—"}
+                      {pv.min_price != null ? `$${pv.min_price.toFixed(2)}` : "-"}
                     </span>
                   </Link>
                 ))}
@@ -845,7 +863,7 @@ export default function EnginePanel({
                   </span>
                   <span style={{ fontSize: "12px", color: "var(--ep-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                     {creatorFlag(r.creator ?? r.provider)?.flag}{" "}
-                    {r.creator ?? r.provider ?? "—"}
+                    {r.creator ?? r.provider ?? "-"}
                   </span>
                   <span style={{ display: "flex", gap: "5px", flexWrap: "wrap" }}>
                     <span
@@ -865,13 +883,13 @@ export default function EnginePanel({
                     title="Artificial Analysis Intelligence Index"
                     style={{ textAlign: "right", fontFamily: "Inter, sans-serif", fontSize: "12.5px", color: "var(--ep-text-2)", fontVariantNumeric: "tabular-nums" }}
                   >
-                    {r.aa_index_score != null ? r.aa_index_score.toFixed(0) : "—"}
+                    {r.aa_index_score != null ? r.aa_index_score.toFixed(0) : "-"}
                   </span>
                   <span
                     title="Cost/IQ: blended price × (40 / AA score). Lower is better."
                     style={{ textAlign: "right", fontFamily: "Inter, sans-serif", fontSize: "12.5px", color: "#C4A038", fontVariantNumeric: "tabular-nums" }}
                   >
-                    {r.cost_per_iq != null ? r.cost_per_iq.toFixed(2) : "—"}
+                    {r.cost_per_iq != null ? r.cost_per_iq.toFixed(2) : "-"}
                   </span>
                 </Link>
               ))}
@@ -887,7 +905,17 @@ export default function EnginePanel({
           )}
         </div>
 
-        {/* Receipts line */}
+        {/* Embed call-to-action: shown once an answer has been served */}
+      {showEmbedLink && (results !== null || providerRows !== null || compare !== null) && (
+        <p style={{ margin: "14px 0 0", fontSize: "12.5px", color: "var(--ep-muted)" }}>
+          Like this engine?{" "}
+          <Link href="/embed-docs" style={{ color: "#C4A038", fontWeight: 500 }}>
+            Embed it in your website
+          </Link>
+        </p>
+      )}
+
+      {/* Receipts line */}
         <p style={{ margin: "16px 0 0", fontSize: "12px", color: "var(--ep-faint)", fontVariantNumeric: "tabular-nums" }}>
           {receipts != null && receipts > 0 ? (
             <>

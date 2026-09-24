@@ -34,7 +34,7 @@ export default async function EmbedPage({
       }}
     >
       <EmbedFrame />
-      <EnginePanel totalModels={total} initialQuery={initialQuery} />
+      <EnginePanel totalModels={total} initialQuery={initialQuery} showEmbedLink={false} />
       <div
         style={{
           padding: "4px 28px 22px",
@@ -51,7 +51,7 @@ export default async function EmbedPage({
         >
           InferenceIndexer
         </a>{" "}
-        — AI inference recommendations on verified prices.
+        : AI inference recommendations on verified prices.
       </div>
     </div>
   );
