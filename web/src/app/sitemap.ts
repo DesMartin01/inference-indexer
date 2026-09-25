@@ -41,14 +41,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     });
   }
 
-  // Dynamic model pages (API caps a single page at 500)
+  // Dynamic model pages (API caps a single page at 500; paginate with offset
+  // until exhausted so the sitemap covers the full catalogue)
   try {
-    const res = await fetch(`${API_URL}/v1/models?limit=500`, {
-      next: { revalidate: 3600 },
-    });
-    if (res.ok) {
+    const PAGE_SIZE = 500;
+    let offset = 0;
+    for (;;) {
+      const res = await fetch(`${API_URL}/v1/models?limit=${PAGE_SIZE}&offset=${offset}`, {
+        next: { revalidate: 3600 },
+      });
+      if (!res.ok) break;
       const data = await res.json();
       const models: ModelSummary[] = data.models || [];
+      if (models.length === 0) break;
 
       for (const model of models) {
         entries.push({
@@ -58,6 +63,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
           priority: 0.9,
         });
       }
+
+      if (models.length < PAGE_SIZE) break;
+      offset += PAGE_SIZE;
     }
   } catch {
     // If API is down, just serve static pages

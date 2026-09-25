@@ -759,6 +759,7 @@ async def get_models(
     provider: Optional[str] = Query(None),
     sort: str = Query("sit_adjusted_price", regex="^(blended|input|output|sit_score|sit_adjusted_price)$"),
     limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
     authorization: Optional[str] = Header(None)
 ):
     """Returns all tracked models with current pricing."""
@@ -824,10 +825,11 @@ async def get_models(
         "sit_score": "lp.sit_adjusted_price ASC NULLS LAST",  # alias, same as sit_adjusted_price
         "sit_adjusted_price": "lp.sit_adjusted_price ASC NULLS LAST",
     }
-    query += f" ORDER BY {sort_map.get(sort, sort_map['sit_adjusted_price'])}"
+    query += f" ORDER BY {sort_map.get(sort, sort_map['sit_adjusted_price'])}, m.id"
     
-    query += " LIMIT %s"
+    query += " LIMIT %s OFFSET %s"
     params.append(limit)
+    params.append(offset)
     
     cur.execute(query, params)
     rows = cur.fetchall()

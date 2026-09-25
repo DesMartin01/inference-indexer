@@ -903,7 +903,7 @@ export default async function Home() {
           </Link>
         </div>
         <p style={{ margin: "18px 0 0", fontSize: "12px", color: "#6a6a6a" }}>
-          Free forever for 1,000 requests/day. No credit card required.
+          Free for 1,000 requests/day. No credit card required.
         </p>
       </section>
 
