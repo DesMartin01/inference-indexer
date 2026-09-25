@@ -134,6 +134,16 @@ export function Header({ activePage = "" }: { activePage?: string }) {
         <div style={{ flex: 1 }} />
         <nav style={{ display: "flex", alignItems: "center", gap: isMobile ? "13px" : "22px", flexWrap: "wrap" }}>
           <Link
+            href="/models"
+            style={{
+              fontSize: "12.5px",
+              color: activePage === "models" ? "#C4A038" : "#8a8a8a",
+              textDecoration: "none",
+            }}
+          >
+            Models
+          </Link>
+          <Link
             href="/providers"
             style={{
               fontSize: "12.5px",
