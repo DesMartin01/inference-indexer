@@ -16,6 +16,7 @@ Checks:
   7. Index points sanity        - TPI rows not frozen at 1000.
   8. AA rebase detector         - version flip or >5% median-score shift day-over-day.
   9. TPI basket churn           - providers entering/leaving the basket.
+ 10. Direct-source freshness    - scrapers returning zero endpoints (silent regex break).
 
 Exit code 0 = all clear. Non-zero with issues printed otherwise.
 
@@ -229,6 +230,43 @@ def main():
             print("    no churn")
     else:
         print("    insufficient basket history (rows must carry basket_providers)")
+
+    # ---- 10. Direct-source freshness (zero-endpoint detector, Sep 2026) ----
+    # Scrapers (direct_scrapers.py etc.) write endpoints with a `source` tag.
+    # If a page layout changes, the regex matches nothing, zero rows are
+    # inserted, and the run "succeeds" silently. Detect by checking that each
+    # expected source has inserted at least one endpoint in the last 26 hours
+    # (hourly cron + 2h slack). Thresholds are per-source minimums, not zero:
+    # a source whose true yield is small still needs a floor above 0.
+    DIRECT_SOURCE_FLOORS = {
+        "alibaba_direct": 20,
+        "zai_direct": 5,
+        "moonshot_direct": 2,
+        "openrelay_direct": 1,
+        "sarvam_direct": 1,
+        "tensorx_direct": 5,
+        "engy_direct": 1,
+    }
+    cur.execute("""
+        SELECT source, COUNT(DISTINCT model_id) AS n_models
+        FROM model_endpoints
+        WHERE fetched_at >= NOW() - INTERVAL '26 hours'
+          AND source = ANY(%s)
+        GROUP BY source
+    """, (list(DIRECT_SOURCE_FLOORS.keys()),))
+    counts = {row[0]: row[1] for row in cur.fetchall()}
+    print("[10] Direct-source endpoint freshness (last 26h)")
+    for src, floor in sorted(DIRECT_SOURCE_FLOORS.items()):
+        n = counts.get(src, 0)
+        status = "OK" if n >= floor else "STALE/BROKEN"
+        print("    %-18s %3d models (floor %d) %s" % (src, n, floor, status))
+        if n < floor:
+            issues.append(
+                "direct source '%s' yielded %d models in last 26h (floor %d) - "
+                "scraper may be silently broken (regex/layout change)" % (src, n, floor))
+    unexpected = sorted(set(counts) - set(DIRECT_SOURCE_FLOORS))
+    if unexpected:
+        print("    (other sources seen, no floor set: %s)" % ", ".join(unexpected))
 
     cur.close()
     conn.close()

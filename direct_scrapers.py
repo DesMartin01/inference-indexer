@@ -180,34 +180,12 @@ ALIBABA_MODEL_MAP = {
 }
 
 
-def fetch_alibaba_pricing(timeout=30):
-    """Fetch Alibaba Cloud (DashScope) pricing from their docs page.
+def _parse_alibaba_text(text, endpoints, new_models, seen_models):
+    """Parse Qwen model IDs + $prices out of flattened page text.
 
-    The Alibaba pricing page is complex HTML. We use web_extract to get the text
-    and parse the Singapore (International) pricing section.
-
-    Returns (endpoints, new_models).
+    Shared by the direct fetch and the r.jina.ai fallback. Appends to
+    endpoints/new_models, dedupes via seen_models.
     """
-    print(f"[{datetime.now(timezone.utc).isoformat()}] Fetching Alibaba Cloud pricing...")
-    try:
-        r = requests.get(ALIBABA_PRICING_URL, timeout=timeout)
-        r.raise_for_status()
-        html = r.text
-    except Exception as e:
-        print(f"  Alibaba fetch error: {e}")
-        return [], []
-
-    # The Alibaba page is very complex with nested tables.
-    # Extract text and look for price patterns near model IDs.
-    # We'll use a regex approach to find "qwen" model IDs with $X.XX prices
-    endpoints = []
-    new_models = []
-    seen_models = set()
-
-    # Remove HTML tags, get text
-    text = re.sub(r"<[^>]+>", " ", html)
-    text = re.sub(r"\s+", " ", text)
-
     # Find Qwen model IDs and nearby prices
     # Pattern: qwen[version]-[tier] followed by $X.XX input and $X.XX output
     # The Singapore section uses $X.XX format for international pricing
@@ -262,7 +240,70 @@ def fetch_alibaba_pricing(timeout=30):
             "modality": "text",
         })
 
-    print(f"  Alibaba priced endpoints: {len(endpoints)}")
+
+def fetch_alibaba_pricing(timeout=30):
+    """Fetch Alibaba Cloud (DashScope) pricing from their docs page.
+
+    Alibaba bot-walls datacenter IPs with their 'punish'/x5sec captcha page
+    (HTTP 200, no model data) - hit us from Sep 19 2026 on Lightsail. Strategy:
+    1. Direct fetch; parse.
+    2. If 0 matches (block OR layout drift), retry through the r.jina.ai
+       reader proxy, which fetches from Jina's IPs and returns clean text.
+    3. If both fail, print a loud WARN so a silent zero-day shows in the log.
+
+    Returns (endpoints, new_models).
+    """
+    print(f"[{datetime.now(timezone.utc).isoformat()}] Fetching Alibaba Cloud pricing...")
+    endpoints = []
+    new_models = []
+    seen_models = set()
+
+    # --- Attempt 1: direct fetch ---
+    html = None
+    try:
+        r = requests.get(ALIBABA_PRICING_URL, timeout=timeout)
+        r.raise_for_status()
+        html = r.text
+    except Exception as e:
+        print(f"  Alibaba direct fetch error: {e}")
+
+    if html:
+        # Remove HTML tags, get text
+        text = re.sub(r"<[^>]+>", " ", html)
+        text = re.sub(r"\s+", " ", text)
+        _parse_alibaba_text(text, endpoints, new_models, seen_models)
+
+    if endpoints:
+        print(f"  Alibaba priced endpoints: {len(endpoints)} (direct)")
+        return endpoints, new_models
+
+    # --- Attempt 2: r.jina.ai reader proxy (bot-wall bypass) ---
+    # Runs when the direct fetch errored OR returned the captcha/punish page
+    # (HTTP 200 but zero matches - the silent-failure shape).
+    print("  Direct fetch yielded 0 endpoints (block or layout drift); trying r.jina.ai fallback...")
+    try:
+        r = requests.get(
+            f"https://r.jina.ai/{ALIBABA_PRICING_URL}",
+            timeout=timeout * 2,
+            headers={"Accept": "text/plain"},
+        )
+        r.raise_for_status()
+        jina_text = r.text
+    except Exception as e:
+        print(f"  WARN: Alibaba pricing fetch FAILED completely (direct + jina): {e}")
+        print("  WARN: alibaba_direct prices will go stale - investigate the source page.")
+        return [], []
+
+    # Jina returns markdown/plain text; strip any residual HTML then parse.
+    text = re.sub(r"<[^>]+>", " ", jina_text)
+    text = re.sub(r"\s+", " ", text)
+    _parse_alibaba_text(text, endpoints, new_models, seen_models)
+
+    if not endpoints:
+        print("  WARN: Alibaba pricing parse found 0 endpoints via BOTH direct and r.jina.ai.")
+        print("  WARN: This is an incident, not an empty day - check the source page layout.")
+    else:
+        print(f"  Alibaba priced endpoints: {len(endpoints)} (via r.jina.ai fallback)")
     return endpoints, new_models
 
 
