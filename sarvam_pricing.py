@@ -44,9 +44,12 @@ INR_USD_FALLBACK = 0.010498
 
 # Only the chat-completion models belong in the index. Non-token services
 # (TTS/STT/translation/vision) are excluded - they're priced per char/hour/page.
+# Page labels are matched AFTER normalisation (lowercase, hyphens->spaces),
+# so a rename like "Sarvam-105B" -> "Sarvam 105B" cannot silently zero the
+# scraper again (it did exactly that on Sep 25 2026).
 SARVAM_CHAT_MODELS = {
-    "Sarvam-105B": "sarvam/sarvam-105b",
-    "Sarvam-30B": "sarvam/sarvam-30b",
+    "sarvam 105b": "sarvam/sarvam-105b",
+    "sarvam 105b conversations": "sarvam/sarvam-105b-conversations",
 }
 
 # Context lengths (tokens) - not on the pricing page; from Sarvam's model
@@ -151,9 +154,14 @@ def fetch_sarvam_pricing(timeout: int = 20) -> tuple[list[dict], list[dict]]:
 
     now = datetime.now(timezone.utc).isoformat()
     for service, canonical_id in SARVAM_CHAT_MODELS.items():
-        obj = by_service.get(service)
+        # Normalise both sides: page may render "Sarvam 105B" or "Sarvam-105B"
+        norm = lambda s: re.sub(r"[-_]+", " ", str(s)).strip().lower()
+        obj = next((o for o in objects
+                    if norm((o["service"][-1] if isinstance(o["service"], list) else o["service"]))
+                    == norm(service)), None)
         if not obj:
-            log.warning("  Sarvam: %s pricing object not found on page", service)
+            log.warning("  Sarvam: %s pricing object not found on page (may be discontinued - "
+                        "verify at %s before treating as an incident)", service, PRICING_URL)
             continue
 
         input_inr, cached_inr, output_inr = _parse_triple(obj["price"])
