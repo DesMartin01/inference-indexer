@@ -3,9 +3,12 @@ import type { Metadata } from "next";
 import {
   getModels,
   getModelCount,
+  getAllModels,
 } from "@/lib/api";
 import { Header, Footer } from "@/components/Header";
 import ModelTable from "@/components/ModelTable";
+import ModelDirectory from "@/components/ModelDirectory";
+import { SITEMAP_EXCLUDED_MODEL_IDS } from "@/lib/sitemap-exclusions";
 import { CURRENT_MODEL_COUNT, CURRENT_PROVIDER_COUNT } from "@/lib/counts";
 
 export const revalidate = 60;
@@ -20,13 +23,15 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function ModelsPage() {
-  const [modelsData, apiModelCount] = await Promise.all([
-    getModels(undefined, undefined, 500).catch(() => null),
+  // Full catalogue (paginated past the API's 500-row cap) so the
+  // server-rendered directory covers every live model, not just page 1.
+  const [allModels, apiModelCount] = await Promise.all([
+    getAllModels().catch(() => [] as Awaited<ReturnType<typeof getModels>>["models"]),
     getModelCount().catch(() => null),
   ]);
-  const models = modelsData?.models ?? [];
+  const models = allModels.filter((m) => !SITEMAP_EXCLUDED_MODEL_IDS.has(m.model_id));
   const totalCount =
-    apiModelCount ?? modelsData?.count ?? modelsData?.returned ?? models.length ?? CURRENT_MODEL_COUNT;
+    apiModelCount ?? models.length ?? CURRENT_MODEL_COUNT;
 
   return (
     <>
@@ -53,6 +58,7 @@ export default async function ModelsPage() {
           <ModelTable models={models} totalCount={totalCount} />
         </Suspense>
       )}
+      {models.length > 0 && <ModelDirectory models={models} />}
       <p style={{ maxWidth: "1320px", margin: "0 auto", padding: "0 28px 8px", fontSize: "12px", color: "#6a6a6a" }}>
         Quality scores: source Artificial Analysis (artificialanalysis.ai). Tier groupings and rankings are
         InferenceIndexer&apos;s own; not endorsed by Artificial Analysis.
