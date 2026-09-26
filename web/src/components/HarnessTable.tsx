@@ -127,9 +127,26 @@ export default function HarnessTable({
                     href={r.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={{ color: "#e5e5e5", textDecoration: "none" }}
+                    className="harness-link"
+                    style={{ color: "#C4A038", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "5px" }}
                   >
                     {r.name}
+                    <svg
+                      width="11"
+                      height="11"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.4"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      style={{ opacity: 0.75, flexShrink: 0 }}
+                      aria-hidden="true"
+                    >
+                      <path d="M7 17 17 7" />
+                      <path d="M8 7h9v9" />
+                    </svg>
+                    <span className="visually-hidden">(opens in a new tab)</span>
                   </a>
                 ) : (
                   r.name

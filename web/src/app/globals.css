@@ -52,6 +52,27 @@ header a[href]:focus-visible {
   color: var(--accent) !important;
 }
 
+/* Harness table name links: gold + arrow already signal "clickable";
+   hover/focus adds an underline for extra affordance. */
+.harness-link:hover,
+.harness-link:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Screen-reader-only helper (external-link announcements). */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 html,
 body {
   margin: 0;
