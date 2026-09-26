@@ -31,7 +31,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
   title: `AI Inference Recommendation Engine - ${count} Models | InferenceIndexer.ai`,
   description:
-    `Get ranked AI inference recommendations on verified prices across ${count} models. Standard Inference Token price index, quality-adjusted rankings, free API.`,
+    `Get ranked AI inference recommendations on verified prices across ${count} models. AI inference recommendation engine, quality-adjusted rankings, free API.`,
   alternates: { canonical: "https://www.inferenceindexer.ai" },
   openGraph: {
     title: `InferenceIndexer.ai - AI Inference Recommendation Engine (${count} models)`,
@@ -62,7 +62,7 @@ export async function generateMetadata(): Promise<Metadata> {
     "per million tokens cost",
     "SIT Standard Inference Token",
     "model API cost comparison",
-    "inference price index",
+    "inference recommendation engine",
   ],
   };
 }
@@ -159,7 +159,7 @@ export default async function Home() {
           __html: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "Dataset",
-            name: "InferenceIndexer Standard Inference Token price index - AI Inference Prices",
+            name: "InferenceIndexer AI Inference Recommendation Engine - Verified AI Inference Prices",
             description: `Independent inference recommendation engine for price, quality, security and privacy. ${composite ? `Standard Inference Token price: $${composite.price_per_m.toFixed(4)}/M GPT-4-equivalent tokens, equal-weighted across ${composite.providers} providers.` : `${totalCount} models, updated hourly.`}`,
             url: "https://www.inferenceindexer.ai",
             creator: {

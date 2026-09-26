@@ -8,7 +8,7 @@ export async function generateMetadata() {
   return {
   title: "API Documentation - Free Inference Recommendation & Pricing API | InferenceIndexer.ai",
   description:
-    `Free API for AI inference recommendations and pricing. Constraint-aware ranking, the Standard Inference Token price index, and price history for ${count}+ models. No credit card required.`,
+    `Free API for AI inference recommendations and pricing. Constraint-aware ranking, verified per-model prices, and price history for ${count}+ models. No credit card required.`,
   alternates: { canonical: "https://www.inferenceindexer.ai/api-docs" },
   openGraph: {
     title: "InferenceIndexer API - Free AI Pricing Data",
@@ -37,7 +37,7 @@ export default function ApiDocsPage() {
     "@type": "WebAPI",
     name: "InferenceIndexer API",
     description:
-      "Free API for AI inference recommendations and pricing. Ranked recommendations with receipts, live and historical prices by model, provider comparison, and the Standard Inference Token price index.",
+      "Free API for AI inference recommendations and pricing. Ranked recommendations with receipts, live and historical prices by model, provider comparison, and constraint-aware ranking.",
     url: "https://www.inferenceindexer.ai/api-docs",
     termsOfService: "https://www.inferenceindexer.ai/terms",
     provider: {
