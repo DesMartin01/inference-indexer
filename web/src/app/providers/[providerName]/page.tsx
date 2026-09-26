@@ -63,7 +63,9 @@ export async function generateMetadata({ params }: { params: Promise<{ providerN
   try {
     provider = await getProviderDetail(decoded);
   } catch {
-    return { title: "Provider Not Found | InferenceIndexer" };
+    // Same soft-404 fix as the model page: throw instead of returning a title
+    // so unknown providers get the real not-found route (no 200 + noindex).
+    notFound();
   }
 
   return {

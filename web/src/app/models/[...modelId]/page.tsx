@@ -63,7 +63,10 @@ export async function generateMetadata({ params }: { params: Promise<{ modelId: 
   try {
     model = await getModel(modelId);
   } catch {
-    return { title: "Model Not Found | InferenceIndexer" };
+    // Metadata failure used to return a title with a rendered page (soft 404,
+    // HTTP 200 + noindex — Google's "Excluded by noindex" bucket). Throw so
+    // Next.js serves the real not-found route instead.
+    notFound();
   }
 
   const name = cleanModelName(model.name);

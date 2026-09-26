@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { SITEMAP_EXCLUDED_MODEL_IDS } from "@/lib/sitemap-exclusions";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const BASE_URL = "https://www.inferenceindexer.ai";
@@ -57,6 +58,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       if (models.length === 0) break;
 
       for (const model of models) {
+        // Skip dead (404) and legacy (redirecting) IDs — verified against the
+        // live site; see tools/gen_sitemap_exclusions.py
+        if (SITEMAP_EXCLUDED_MODEL_IDS.has(model.model_id)) continue;
         entries.push({
           url: `${BASE_URL}/models/${model.model_id}`,
           lastModified: model.fetched_at ? new Date(model.fetched_at) : new Date(),

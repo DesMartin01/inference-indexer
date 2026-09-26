@@ -23,46 +23,68 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 interface LiveSlugs {
   modelProviderSlugs: Set<string>;
+  modelIds: Set<string>;
+  // True only when the model list fetch covered the whole catalogue (the API
+  // caps a single page at 500; a sub-500 page means nothing was left). The
+  // exact-ID guard only 404s on complete lists, so partial fetches never
+  // 404 a model that just fell outside the fetched window.
+  modelIdsComplete: boolean;
   providerNames: Set<string>;
   ts: number;
 }
 
 let liveCache: LiveSlugs | null = null;
 const CACHE_TTL_MS = 300_000; // 5 minutes
-const FETCH_TIMEOUT_MS = 2_500;
+// Covers two paginated model-list pages plus the providers fetch on a cold
+// cache. A miss here fails open (no 404 guard for 5 min), so err generous.
+const FETCH_TIMEOUT_MS = 8_000;
 
 async function fetchLiveSlugs(): Promise<LiveSlugs | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
-    // Model provider slugs come from the model list (model_id = slug/model).
-    // Provider page names come from the providers list (the /providers/{name}
-    // URLs are built from the providers endpoint's `name` field, which differs
-    // from the model `provider` field for some providers, e.g. "Z.AI" vs
-    // "Z Ai"). So we fetch both.
-    const [modelsRes, providersRes] = await Promise.all([
-      fetch(`${API_URL}/v1/models?limit=500`, {
+    // Fetch ALL pages of the model list (API caps a page at 500) so the
+    // exact-ID guard has a complete catalogue. Full model_ids are collected
+    // so dead exact URLs (e.g. legacy endpoint-host slugs like
+    // sambanova/gpt-oss-120b) 404 before rendering — the slug-level check
+    // alone lets them through to a soft-404 page.
+    const allModels: Array<{ model_id: string }> = [];
+    const PAGE = 500;
+    let complete = false; // true iff a page came back with fewer than PAGE rows
+    let modelsOk = true;
+    for (let offset = 0; ; offset += PAGE) {
+      const res = await fetch(`${API_URL}/v1/models?limit=${PAGE}&offset=${offset}`, {
         cache: "no-store",
         headers: { "X-SSR-Secret": "inferenceindexer-ssr-2026" },
         signal: controller.signal,
-      }),
-      fetch(`${API_URL}/v1/providers`, {
-        cache: "no-store",
-        headers: { "X-SSR-Secret": "inferenceindexer-ssr-2026" },
-        signal: controller.signal,
-      }),
-    ]);
-    if (!modelsRes.ok || !providersRes.ok) return null;
+      });
+      if (!res.ok) {
+        modelsOk = false;
+        break;
+      }
+      const data = await res.json();
+      const page: Array<{ model_id: string }> = data.models || [];
+      allModels.push(...page);
+      if (page.length < PAGE) {
+        complete = true;
+        break;
+      }
+      if (offset > 5_000) break; // hard stop: catalogue can't be this big
+    }
 
-    const [modelsData, providersData] = await Promise.all([
-      modelsRes.json(),
-      providersRes.json(),
-    ]);
-    const models: Array<{ model_id: string }> = modelsData.models || [];
+    const providersRes = await fetch(`${API_URL}/v1/providers`, {
+      cache: "no-store",
+      headers: { "X-SSR-Secret": "inferenceindexer-ssr-2026" },
+      signal: controller.signal,
+    });
+    if (!modelsOk || !providersRes.ok) return null;
+    const providersData = await providersRes.json();
     const providers: Array<{ name: string }> = providersData.providers || [];
 
     const modelProviderSlugs = new Set<string>();
-    for (const m of models) {
+    const modelIds = new Set<string>();
+    for (const m of allModels) {
+      modelIds.add(m.model_id);
       const slash = m.model_id.indexOf("/");
       if (slash > 0) modelProviderSlugs.add(m.model_id.slice(0, slash));
     }
@@ -71,7 +93,13 @@ async function fetchLiveSlugs(): Promise<LiveSlugs | null> {
       if (p.name) providerNames.add(p.name);
     }
 
-    return { modelProviderSlugs, providerNames, ts: Date.now() };
+    return {
+      modelProviderSlugs,
+      modelIds,
+      modelIdsComplete: complete,
+      providerNames,
+      ts: Date.now(),
+    };
   } catch {
     return null; // pass through on any API failure
   } finally {
@@ -103,8 +131,26 @@ export async function proxy(request: NextRequest) {
     const live = await getLiveSlugs();
     if (live && !isStaticProviderPage) {
       if (pathname.startsWith("/models/")) {
-        const slug = pathname.slice("/models/".length).split("/")[0];
+        const rest = pathname.slice("/models/".length);
+        const slug = rest.split("/")[0];
         if (slug && !live.modelProviderSlugs.has(slug)) {
+          return NextResponse.json(
+            { error: "Not found" },
+            { status: 404, headers: { "X-Robots-Tag": "noindex" } },
+          );
+        }
+        // Exact-ID guard: the provider slug exists but the model doesn't
+        // (e.g. legacy endpoint-host slugs). The API list is paginated (limit
+        // 500) and the catalogue is ~670, so a one-page miss is not proof of
+        // death — only 404 when the fetched list is complete (fewer than the
+        // page size) or the ID appeared on a fetched page.
+        const requestedId = decodeURIComponent(rest);
+        if (
+          slug &&
+          live.modelProviderSlugs.has(slug) &&
+          !live.modelIds.has(requestedId) &&
+          live.modelIdsComplete
+        ) {
           return NextResponse.json(
             { error: "Not found" },
             { status: 404, headers: { "X-Robots-Tag": "noindex" } },
