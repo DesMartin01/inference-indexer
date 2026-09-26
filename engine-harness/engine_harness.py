@@ -34,11 +34,11 @@ SSR = {"X-SSR-Secret": "inferenceindexer-ssr-2026"}
 USE_CASES = ["support", "volume", "extraction", "summarization", "coding", "research"]
 UC_SYNONYMS = [
     (re.compile(r"\brag\b|retrieval[\s-]augmented"), "summarization"),
-    (re.compile(r"\bcod(?:e|ing)\b|programming|\bdeveloper\b", re.I), "coding"),
-    (re.compile(r"customer (?:service|support)|helpdesk|\bticket", re.I), "support"),
-    (re.compile(r"high[\s-]volume|\bbulk\b|batch processing", re.I), "volume"),
-    (re.compile(r"extract|parse documents|\binvoices?\b|\breceipts?\b", re.I), "extraction"),
-    (re.compile(r"summariz|\bdigest\b|briefing|report writing", re.I), "summarization"),
+    (re.compile(r"\bcod(?:e|ing)\b|programming|\bdeveloper\b|\bpr review\b|pull request review|unit tests?|code migration|autocomplete", re.I), "coding"),
+    (re.compile(r"customer (?:service|support)|helpdesk|\bticket|chatbot|chat bots?|customer emails?", re.I), "support"),
+    (re.compile(r"high[\s-]volume|\bbulk\b|batch processing|classify .* rows|rows .* monthly|10k .* daily", re.I), "volume"),
+    (re.compile(r"extract|parse documents|\binvoices?\b|\breceipts?\b|document parsing", re.I), "extraction"),
+    (re.compile(r"summariz|\bdigest\b|briefing|report writing|campaign briefs|briefs at volume", re.I), "summarization"),
 ]
 
 
@@ -55,13 +55,15 @@ def parse_constraints(text: str) -> dict:
     }
     if re.search(r"zero[\s-]?data[\s-]?retention|\bzdr\b|no[\s-]?(data[\s-]?)?(retention|logging|training)", t):
         c["zdr"] = True
-    if re.search(r"\beu\b|european|eu[\s-]?(infra|sovereign|domicile)|gdpr", t):
+    if re.search(r"\beu\b|european|eu[\s-]?(infra|sovereign|domicile)|gdpr|germany|german|france|french|spain|spanish|italy|italian|netherlands|dutch|ireland|irish|belgium|austria|denmark|sweden|finland|poland|portugal", t):
         c["eu_sovereign"] = True
 
     aa = (
         re.search(r"aa(?:\s|intelligence)?(?:\s+(?:index|score))?\s*(?:above|over|>|of at least|at least)\s*([0-9]+(?:\.[0-9]+)?)", t)
         or re.search(r"(?:above|over|>|of at least|at least)\s*(?:an\s+)?aa(?:\s+(?:index|score))?\s*(?:of\s*)?([0-9]+(?:\.[0-9]+)?)", t)
         or re.search(r"aa\s*(?:index|score)?\s*([0-9]+(?:\.[0-9]+)?)\s*\+", t)
+        or re.search(r"(?:quality|intelligence)\s+aa\s*([0-9]+(?:\.[0-9]+)?)\s*(?:or\s+(?:higher|more|above|greater))", t)
+        or re.search(r"aa\s*(?:index|score)?\s*(?:of\s*)?([0-9]+(?:\.[0-9]+)?)\s*(?:or\s+(?:higher|more|above|greater))", t)
     )
     if aa:
         v = float(aa.group(1))
@@ -75,11 +77,27 @@ def parse_constraints(text: str) -> dict:
         if 0 < v < 1000:
             c["budget_max_usd_per_m"] = v
 
-    ctx = re.search(r"([0-9]+)\s*k?\s*(?:token)?\s*context", t) or re.search(r"context[^0-9]{0,10}([0-9]+)\s*k", t)
-    if ctx:
-        k = int(ctx.group(1))
-        if 4 <= k <= 2000:
-            c["context_min"] = k * 1000
+    ctx_num = (
+        re.search(r"([0-9]+)\s*([km])\s*[- ]?\s*(?:tokens?)?\s*[- ]?\s*context", t)
+        or re.search(r"([0-9]+)\s*([km])\s*[- ]?\s*tokens?\b", t)
+        or re.search(r"context[^0-9]{0,10}([0-9]+)\s*k\b", t)
+        or re.search(r"([0-9]+)\s*k\s*(?:or\s+(?:larger|more|above|bigger|greater))\s*context", t)
+        or re.search(r"context\s+(?:of\s+)?([0-9]+)\s*k\s*(?:or\s+(?:larger|more|above|bigger|greater))?", t)
+    )
+    if ctx_num:
+        m = re.search(r"([0-9]+)\s*([km])\b\s*[- ]?\s*(?:tokens?)?\s*[- ]?\s*context", t)
+        if not m:
+            m = re.search(r"([0-9]+)\s*([km])\s*[- ]?\s*tokens?\b", t)
+        if m:
+            num = int(m.group(1))
+            unit = 1000000 if m.group(2) == "m" else 1000
+            tokens = num * unit
+            if 4000 <= tokens <= 2000000:
+                c["context_min"] = tokens
+        else:
+            k = int(ctx_num.group(1))
+            if 4 <= k <= 2000:
+                c["context_min"] = k * 1000
     elif re.search(r"large context|long context|big context", t):
         c["context_min"] = 128000
 

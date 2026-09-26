@@ -129,14 +129,16 @@ export function parseConstraints(text: string): { constraints: Constraints; chip
     chips.push({ label: "ZDR", gold: true });
   }
   // EU
-  if (/\beu\b|european|eu[\s-]?(infra|sovereign|domicile)|gdpr/.test(t)) {
+  if (/\beu\b|european|eu[\s-]?(infra|sovereign|domicile)|gdpr|germany|german|france|french|spain|spanish|italy|italian|netherlands|dutch|ireland|irish|belgium|austria|denmark|sweden|finland|poland|portugal/.test(t)) {
     c.eu_sovereign = true;
     chips.push({ label: "EU infra", gold: true });
   }
-  // AA quality floor: "above AA index 50", "AA score above 60", "AA 45+"
+  // AA quality floor: "above AA index 50", "AA score above 60", "AA 45+", "quality AA 40 or higher"
   const aaFloor = t.match(/aa(?:\s|intelligence)?(?:\s+(?:index|score))?\s*(?:above|over|>|of at least|at least)\s*([0-9]+(?:\.[0-9]+)?)/)
     || t.match(/(?:above|over|>|of at least|at least)\s*(?:an\s+)?aa(?:\s+(?:index|score))?\s*(?:of\s*)?([0-9]+(?:\.[0-9]+)?)/)
-    || t.match(/aa\s*(?:index|score)?\s*([0-9]+(?:\.[0-9]+)?)\s*\+/);
+    || t.match(/aa\s*(?:index|score)?\s*([0-9]+(?:\.[0-9]+)?)\s*\+/)
+    || t.match(/(?:quality|intelligence)\s+aa\s*([0-9]+(?:\.[0-9]+)?)\s*(?:or\s+(?:higher|more|above|greater))/)
+    || t.match(/aa\s*(?:index|score)?\s*(?:of\s*)?([0-9]+(?:\.[0-9]+)?)\s*(?:or\s+(?:higher|more|above|greater))/);
   if (aaFloor) {
     const v = parseFloat(aaFloor[1]);
     if (v > 0 && v <= 100) {
@@ -153,13 +155,30 @@ export function parseConstraints(text: string): { constraints: Constraints; chip
       chips.push({ label: `Best price under $${v}/M`, gold: true });
     }
   }
-  // Context window: "100k context", "large context", "128k+"
-  const ctxK = t.match(/([0-9]+)\s*k?\s*(?:token)?\s*context/) || t.match(/context[^0-9]{0,10}([0-9]+)\s*k/);
-  if (ctxK) {
-    const k = parseInt(ctxK[1], 10);
-    if (k >= 4 && k <= 2000) {
-      c.context_min = k * 1000;
-      chips.push({ label: `Context ${k}k+`, gold: true });
+  // Context window: "100k context", "large context", "128k+", "200k-token", "1M token context",
+  // "128k or larger context", "context of 200k or larger"
+  const ctxMatch =
+    t.match(/([0-9]+)\s*([km])\s*[- ]?\s*(?:tokens?)?\s*[- ]?\s*context/) ||
+    t.match(/([0-9]+)\s*([km])\s*[- ]?\s*tokens?\b/) ||
+    t.match(/context[^0-9]{0,10}([0-9]+)\s*k\b/) ||
+    t.match(/([0-9]+)\s*k\s*(?:or\s+(?:larger|more|above|bigger|greater))\s*context/) ||
+    t.match(/context\s+(?:of\s+)?([0-9]+)\s*k\s*(?:or\s+(?:larger|more|above|bigger|greater))?/);
+  if (ctxMatch) {
+    const m = t.match(/([0-9]+)\s*([km])\b\s*[- ]?\s*(?:tokens?)?\s*[- ]?\s*context/) || t.match(/([0-9]+)\s*([km])\s*[- ]?\s*tokens?\b/);
+    if (m) {
+      const num = parseInt(m[1], 10);
+      const unit = m[2] === "m" ? 1000000 : 1000;
+      const tokens = num * unit;
+      if (tokens >= 4000 && tokens <= 2000000) {
+        c.context_min = tokens;
+        chips.push({ label: `Context ${num}${m[2].toUpperCase()}+`, gold: true });
+      }
+    } else {
+      const k = parseInt(ctxMatch[1], 10);
+      if (k >= 4 && k <= 2000) {
+        c.context_min = k * 1000;
+        chips.push({ label: `Context ${k}k+`, gold: true });
+      }
     }
   } else if (/large context|long context|big context/.test(t)) {
     c.context_min = 128000;
@@ -176,11 +195,11 @@ export function parseConstraints(text: string): { constraints: Constraints; chip
   // Use case: synonyms first, then earliest occurrence in the text wins (not list order).
   const ucSynonyms: [RegExp, (typeof USE_CASES)[number]][] = [
     [/\brag\b|retrieval[\s-]augmented/, "summarization"],
-    [/\bcod(?:e|ing)\b|programming|\bdeveloper\b/i, "coding"],
-    [/customer (?:service|support)|helpdesk|\bticket/, "support"],
-    [/high[\s-]volume|\bbulk\b|batch processing/, "volume"],
-    [/extract|parse documents|\binvoices?\b|\breceipts?\b/, "extraction"],
-    [/summariz|\bdigest\b|briefing|report writing/, "summarization"],
+    [/\bcod(?:e|ing)\b|programming|\bdeveloper\b|\bpr review\b|pull request review|unit tests?|code migration|autocomplete/i, "coding"],
+    [/customer (?:service|support)|helpdesk|\bticket|chatbot|chat bots?|customer emails?/i, "support"],
+    [/high[\s-]volume|\bbulk\b|batch processing|classify .* rows|rows .* monthly|10k .* daily/i, "volume"],
+    [/extract|parse documents|\binvoices?\b|\breceipts?\b|document parsing/i, "extraction"],
+    [/summariz|\bdigest\b|briefing|report writing|campaign briefs|briefs at volume/i, "summarization"],
   ];
   let bestUC: (typeof USE_CASES)[number] | null = null;
   let bestPos = Infinity;
