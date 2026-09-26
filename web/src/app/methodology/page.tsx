@@ -100,6 +100,7 @@ const TOC_ITEMS: { n: string; title: string; href: string }[] = [
   { n: "9", title: "Limitations", href: "#limitations" },
   { n: "10", title: "Citing the SIT", href: "#citing" },
   { n: "11", title: "References", href: "#references" },
+  { n: "12", title: "Harness Tables", href: "#harness-tables" },
 ];
 
 export default function MethodologyPage() {
@@ -825,6 +826,63 @@ Retrieved from https://www.inferenceindexer.ai/methodology`}</pre>
                 Rankings endpoint provides weekly usage data for composite weighting.
               </li>
             </ul>
+          </Section>
+          {/* 12. Harness Tables */}
+          <Section n="12" title="Harness Tables" id="harness-tables">
+            <p style={p}>
+              The <a href="/harnesses" style={{ color: "#C4A038", textDecoration: "none" }}>harness page</a>{" "}
+              ranks AI agent harnesses by category. It is a separate data surface from model pricing and uses a
+              different honesty model, documented here.
+            </p>
+            <p style={p}>
+              <strong>Source:</strong> best-of-Agent-Harnesses, a hand-curated list of 167 harnesses rescored
+              weekly by its maintainer (stars captured 2026-09-20 at our last refresh). We fetch its public JSON,
+              apply the category rubrics below, and publish the result as a static table. Attribution and license
+              (CC-BY-SA-4.0) appear on the page itself.
+            </p>
+            <p style={p}>
+              <strong>What is fact and what is our judgment:</strong> stars, licenses, tiers, autonomy and
+              recovery labels are the source&apos;s facts, republished with attribution. Category fit (which
+              harness appears under Enterprise or Small business) is OUR rubric, not a verified benchmark. The
+              source&apos;s ranking is curation plus GitHub stars, not benchmarked evaluation; we say so on the
+              page and do not style anything there as &quot;verified&quot;. A research-harness table is prepared
+              but withheld until the source list grows.
+            </p>
+            <p style={p}><strong>Enterprise rubric:</strong> include a harness if its license signal is
+              open-source AND at least one of:
+            </p>
+            <ul style={bulletList}>
+              <li style={bulletItem}>
+                strong sandboxing (tooling_sandboxing rank 3: container/VM/OS-level isolation of agent tool
+                execution), or
+              </li>
+              <li style={bulletItem}>
+                durable recovery (execution state survives process restarts).
+              </li>
+            </ul>
+            <p style={p}><strong>Small business rubric:</strong> include a harness if ALL of:
+            </p>
+            <ul style={bulletList}>
+              <li style={bulletItem}>
+                it is a runnable runtime (personal-agent runtimes, coding-agent products, frameworks,
+                multi-agent, research-task, libraries/SDKs); skill packs, curated lists, benchmark suites,
+                observability tools, and memory layers are excluded;
+              </li>
+              <li style={bulletItem}>
+                it is managed (build-vs-buy tier 3: buy, not build) OR simple to adopt (adoption tier of mostly
+                simple or better), AND it has at least 100 GitHub stars.
+              </li>
+            </ul>
+            <p style={p}>
+              <strong>Personal agents rubric:</strong> the source&apos;s personal-agent-runtimes category
+              verbatim, no filter: always-on, self-hosted agents run as a daemon and talked to from chat apps.
+            </p>
+            <p style={p}>
+              <strong>Refresh:</strong> the rubrics run weekly (Mondays) on our infrastructure and write a static
+              snapshot; the page shows its generated-at date and the count of harnesses researched in depth by
+              the source (87 of 167 at our last refresh). If the source changes its research coverage, the
+              derived tables shift; the page discloses both numbers so the shift is visible, not hidden.
+            </p>
           </Section>
         </main>
 
