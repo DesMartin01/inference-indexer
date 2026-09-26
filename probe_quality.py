@@ -108,6 +108,8 @@ def get_provider_api_key(provider_env_var):
 PROVIDERS = [
     # name, chat_url, key_env, probe_model
     {
+        # NOTE (Sep 3): TensorX probe key budget cap hit ($0.0 max budget) - Des must
+        # raise the budget in the TensorX console before probes succeed again.
         "name": "TensorX",
         "chat_url": "https://api.tensorx.ai/v1/chat/completions",
         "key_env": "TENSORX_API_KEY",
@@ -144,10 +146,11 @@ PROVIDERS = [
         "probe_model": "llama-3.1-8b-instant",
     },
     {
+        # FIXED Sep 3: gpt-oss-20b no longer served (404); gpt-oss-120b verified live
         "name": "Fireworks",
         "chat_url": "https://api.fireworks.ai/inference/v1/chat/completions",
         "key_env": "FIREWORKS_API_KEY",
-        "probe_model": "accounts/fireworks/models/gpt-oss-20b",
+        "probe_model": "accounts/fireworks/models/gpt-oss-120b",
     },
     {
         "name": "SambaNova",
@@ -160,6 +163,14 @@ PROVIDERS = [
         "chat_url": "https://api.inference.net/v1/chat/completions",
         "key_env": "INFERENCE_NET_API_KEY",
         "probe_model": "meta-llama/Llama-3.1-8B-Instruct",
+    },
+    {
+        # ADDED Sep 3: key held on Lightsail (XAI_API_KEY) but key itself is invalid -
+        # Des must regenerate at console.x.ai before this probe works.
+        "name": "xAI",
+        "chat_url": "https://api.x.ai/v1/chat/completions",
+        "key_env": "XAI_API_KEY",
+        "probe_model": "grok-3-mini",
     },
 ]
 

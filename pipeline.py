@@ -29,8 +29,14 @@ from provider_scrapers import (
     fetch_together_pricing as _fetch_together_pricing,
 )
 from tensorx_pricing import fetch_tensorx_pricing as _fetch_tensorx_pricing
+from vercel_pricing import fetch_vercel_pricing as _fetch_vercel_pricing
 from openrelay_pricing import fetch_openrelay_pricing as _fetch_openrelay_pricing
 from sarvam_pricing import fetch_sarvam_pricing as _fetch_sarvam_pricing
+from direct_scrapers import (
+    fetch_zai_pricing as _fetch_zai_pricing,
+    fetch_alibaba_pricing as _fetch_alibaba_pricing,
+    fetch_moonshot_pricing as _fetch_moonshot_pricing,
+)
 
 # Try psycopg2 for Supabase, fall back to just printing
 try:
@@ -84,6 +90,11 @@ TIER_FRONTIER = 50
 TIER_STANDARD = 30
 TIER_BUDGET = 15
 
+# Current AA Intelligence Index version, set by fetch_aa_scores().
+# Used to tag models + index rows and to detect rebases (Sep 2026 lesson:
+# AA shipped v4.2 and v4.3 a week apart and reclassified half the leaderboard).
+AA_LATEST_VERSION = None
+
 # Quality gate: models below this AA score are excluded from the composite
 # GPT-4-Turbo (Jan 2024) scored ~35-40 on AA Intelligence Index v4.1
 GPT4_TURBO_AA_REFERENCE = 40.0
@@ -102,6 +113,10 @@ NON_REASONING_MULTIPLIER = 1.0
 # Base date for index rebaselining
 BASE_DATE = date(2026, 8, 3)
 BASE_VALUE = 1000.0
+# Sep 2026 rebase: TPI series re-anchored to this date = 1000 after AA
+# rebased their Intelligence Index twice in one week (v4.2 Sep 4, v4.3 Sep 7).
+# See rebase_tpi_sep2026.py. insert_sit_values anchors to this date.
+REBASE_DATE = date(2026, 9, 4)
 
 # Anomaly threshold
 ANOMALY_THRESHOLD = 0.50  # 50% price change in one fetch
@@ -139,6 +154,22 @@ def assign_tier(aa_score, blended_price=None):
             return "budget"
     return "micro"
 
+def assign_tier_percentile(aa_score, thresholds):
+    """Assign tier using percentile cutoffs computed from the scored population.
+
+    thresholds: dict from compute_percentile_thresholds() (frontier/standard/budget).
+    Unscored models must NOT be routed here - callers keep assign_tier() fallback.
+    """
+    if aa_score is None or thresholds is None:
+        return None
+    if aa_score >= thresholds["frontier"]:
+        return "frontier"
+    if aa_score >= thresholds["standard"]:
+        return "standard"
+    if aa_score >= thresholds["budget"]:
+        return "budget"
+    return "micro"
+
 def get_reasoning_multiplier(tier, is_reasoning):
     """Get the reasoning token multiplier for a model.
     
@@ -151,6 +182,36 @@ def get_reasoning_multiplier(tier, is_reasoning):
         return NON_REASONING_MULTIPLIER
     return REASONING_MULTIPLIERS.get(tier, NON_REASONING_MULTIPLIER)
 
+# Percentile cutoffs for tier assignment (fix 2, Sep 2026).
+# Tiers are relative to the scored model population, NOT absolute AA scores.
+# AA rebased v4.1 -> v4.2 -> v4.3 in a week (Sep 2026) and absolute thresholds
+# reclassified half the leaderboard twice. Percentiles are invariant under a
+# monotone rescale, so a rebase no longer relabels anyone.
+TIER_PERCENTILES = {
+    "frontier": 0.90,  # top 10% of scored models
+    "standard": 0.70,  # P70-P90
+    "budget": 0.40,    # P40-P70
+}
+
+def compute_percentile_thresholds(scores):
+    """Compute tier cutoffs from the scored model population.
+
+    Returns {"frontier": x, "standard": y, "budget": z} or None if the
+    population is too small for stable percentiles (falls back to the
+    legacy absolute thresholds).
+    """
+    clean = sorted(s for s in scores if s is not None)
+    if len(clean) < 50:
+        return None
+
+    def pct(p):
+        i = (len(clean) - 1) * p
+        lo = int(i)
+        frac = i - lo
+        return clean[lo] * (1 - frac) + clean[min(lo + 1, len(clean) - 1)] * frac
+
+    return {tier: pct(p) for tier, p in TIER_PERCENTILES.items()}
+
 def calculate_sit_adjusted_price(blended_price, reasoning_multiplier, aa_score):
     """Calculate the quality-adjusted price (Cost per IQ).
     
@@ -159,6 +220,10 @@ def calculate_sit_adjusted_price(blended_price, reasoning_multiplier, aa_score):
     This gives the cost of producing GPT-4-Turbo-equivalent inference tokens.
     A model scoring higher than GPT-4-Turbo will have a lower adjusted price
     (cheaper per unit of intelligence). Lower is better.
+    
+    The reasoning_multiplier parameter is kept for backward compatibility but
+    ignored: reasoning token overhead varies by task, not model, so a fixed
+    multiplier is misleading. The is_reasoning flag is shown in the UI instead.
     
     For models without an AA score, returns None.
     """
@@ -551,10 +616,28 @@ def upsert_venice_models(conn, new_models, existing_priced):
         provider = provider.replace("-", " ").replace("_", " ").title()
         provider_map = {
             "Openai": "OpenAI",
+            "Open Ai": "OpenAI",
             "X Ai": "xAI",
+            "Xai": "xAI",
             "Z.Ai": "Z.ai",
+            "Z Ai": "Z.ai",
+            "Zai Org": "Z-AI",
             "Meta Llama": "Meta Llama",
-            "Bytedance Seed": "Bytedance Seed",
+            "Bytedance Seed": "ByteDance Seed",
+            "Mistralai": "Mistral AI",
+            "Mistral Ai": "Mistral AI",
+            "Mistral": "Mistral AI",
+            "Deepseek Ai": "DeepSeek",
+            "Deepseek": "DeepSeek",
+            "Moonshotai": "Moonshot AI",
+            "Moonshot": "Moonshot AI",
+            "Minimax Ai": "MiniMax",
+            "Minimaxai": "MiniMax",
+            "Minimax": "MiniMax",
+            "Zhipu Ai": "Zhipu AI",
+            "Ibm Granite": "IBM Granite",
+            "Ibm": "IBM",
+            "Sambanova": "SambaNova",
         }
         provider = provider_map.get(provider, provider)
         
@@ -1785,6 +1868,23 @@ def fetch_sarvam_direct():
 
 
 # ============================================
+# VERCEL AI GATEWAY DIRECT PRICING (public JSON API)
+# ============================================
+
+def fetch_vercel_direct():
+    """Fetch Vercel AI Gateway per-model token pricing.
+
+    Vercel's public, no-auth /v1/models catalog includes per-token USD pricing
+    for ~260 language models across 20+ underlying providers. Delegates to
+    vercel_pricing.py (per-token -> $/M conversion, canonical id remapping).
+    Doubles as an independent second source to cross-check OpenRouter prices.
+
+    Returns (endpoints, new_models).
+    """
+    return _fetch_vercel_pricing()
+
+
+# ============================================
 # REPLICATE DIRECT CONNECTOR
 # ============================================
 
@@ -2018,7 +2118,8 @@ def fetch_aa_scores():
     AA's leaderboard page embeds all model scores in Next.js RSC data.
     This scraper extracts them so we don't depend on OpenRouter's stale copy.
 
-    Returns dict: { aa_slug: { "name": str, "score": float, "estimated": bool } }
+    Returns dict: { aa_slug: { "name": str, "score": float, "estimated": bool,
+                               "creator": str, "country": str|None } }
     """
     import re
     print(f"\n[{datetime.now(timezone.utc).isoformat()}] Fetching AA leaderboard scores...")
@@ -2029,26 +2130,65 @@ def fetch_aa_scores():
 
     html = resp.text
 
-    # Pattern: name -> slug -> modelCreatorCountry -> ... -> intelligenceIndex -> intelligenceIndexIsEstimated
-    # The JSON is escaped with backslashes in Next.js RSC data.
-    # modelCreatorCountry comes BEFORE intelligenceIndex in the JSON structure.
-    pattern = r'\\"name\\":\\"([^"]+)\\"[^}]*?\\"slug\\":\\"([^"]+)\\"[^}]*?\\"modelCreatorCountry\\":\\"([a-z]{2})\\"[^}]*?\\"intelligenceIndex\\":([0-9.]+),\\"intelligenceIndexIsEstimated\\":(true|false)'
-    matches = re.findall(pattern, html, re.DOTALL)
+    # v4.3-era layout (fixed Sep 2026): flat leaderboard records:
+    #   slug -> shortName -> ... -> modelCreatorName -> ... -> intelligenceIndex
+    # The OLD pattern (name -> slug -> modelCreatorCountry -> intelligenceIndex)
+    # stopped matching when AA restructured their RSC data, silently returning
+    # zero scores and leaving catalog-dropped models on stale values forever.
+    new_pattern = (r'\\"slug\\":\\"([^"]+)\\"[^}]*?\\"shortName\\":\\"([^"]*)\\"'
+                   r'[^}]*?\\"modelCreatorName\\":\\"([^"]*)\\"'
+                   r'[^}]*?\\"intelligenceIndex\\":([0-9.]+),\\"intelligenceIndexIsEstimated\\":(true|false)')
+    matches = re.findall(new_pattern, html, re.DOTALL)
+    layout = "v4.3-flat"
+
+    if not matches:
+        # Fallback: pre-v4.2 layout
+        old_pattern = (r'\\"name\\":\\"([^"]+)\\"[^}]*?\\"slug\\":\\"([^"]+)\\"'
+                       r'[^}]*?\\"modelCreatorCountry\\":\\"([a-z]{2})\\"'
+                       r'[^}]*?\\"intelligenceIndex\\":([0-9.]+),\\"intelligenceIndexIsEstimated\\":(true|false)')
+        old_matches = re.findall(old_pattern, html, re.DOTALL)
+        matches = [(slug, name, creator, score, est)
+                   for (name, slug, country, score, est) in old_matches]
+        layout = "v4.1-legacy" if old_matches else "none"
 
     scores = {}
-    for name, slug, country, score_str, est_str in matches:
+    for slug, name, creator, score_str, est_str in matches:
         if slug not in scores:
             scores[slug] = {
-                "name": name,
+                "name": name or slug,
                 "score": float(score_str),
                 "estimated": est_str == "true",
-                "country": country,
+                "creator": creator,
+                "country": None,
             }
 
-    print(f"  AA leaderboard: {len(scores)} models with scores")
+    # Country-of-origin (Sep 2026): AA's v4.3 layout dropped
+    # modelCreatorCountry. Derive it from the creator name via the static map.
+    try:
+        from creator_countries import country_for_creator
+        for slug, d in scores.items():
+            d["country"] = country_for_creator(d.get("creator"))
+    except ImportError:
+        print("  WARN: creator_countries.py missing - countries stay NULL")
 
-    # Also build a name->slug mapping for fuzzy matching against OpenRouter IDs
-    # AA uses hyphens, OpenRouter uses slashes and dots
+    print(f"  AA leaderboard: {len(scores)} models with scores (layout: {layout})")
+    if not scores:
+        print("  WARN: AA scrape produced zero scores - DO NOT overwrite DB scores")
+        return {}
+
+    # Version-aware ingestion (Sep 2026): AA rebases the Index without notice
+    # (v4.2 on Sep 4, v4.3 on Sep 7). Extract the live version from the page
+    # banner, e.g. "Updated to Intelligence Index v4.3: ...".
+    global AA_LATEST_VERSION
+    ver_match = re.findall(r'Intelligence Index v(\d+\.\d+)', html)
+    if ver_match:
+        # Banner may mention historical versions; take the highest.
+        AA_LATEST_VERSION = "v" + max(ver_match, key=lambda v: [int(x) for x in v.split(".")])
+        print(f"  AA Index version: {AA_LATEST_VERSION}")
+    else:
+        AA_LATEST_VERSION = None
+        print("  WARN: could not determine AA Index version from page")
+
     return scores
 
 
@@ -2071,7 +2211,27 @@ def match_aa_score(model_id, model_name, aa_scores):
     # Strip provider prefix, normalize
     parts = model_id.split("/")
     model_part = parts[-1] if len(parts) > 1 else model_id
-    # Remove version suffixes for matching (0813, 0731, etc.)
+
+    # Variant models (Sep 2026 fix): ":batch" / "Contributor" variants must
+    # resolve to their BASE model's AA record, never fuzzy-matched on their
+    # own. Fuzzy-matching variants independently landed 78 models on wrong
+    # records (gpt-5.6-terra:batch -> "GPT-5 (high)", "Muse Spark 1.3
+    # Contributor" -> bare "Muse Spark"). The variant's parent slug is the
+    # model_id minus the variant suffix; resolve THAT, then inherit.
+    variant_match = re.search(r"^(.*?)(:batch|[-_ ]contributor)$", model_part, re.IGNORECASE)
+    if variant_match:
+        parent_id = "/".join(parts[:-1] + [variant_match.group(1)])
+        parent = match_aa_score(parent_id, model_name, aa_scores)
+        if parent is not None:
+            return parent
+        # Parent unresolved: fall through to normal matching but with the
+        # variant suffix stripped from the name too (below).
+
+    # Country no longer scraped (Sep 2026): AA's v4.3 RSC layout dropped
+    # modelCreatorCountry. Country-of-origin comes from the static map in
+    # creator_countries.py, applied in fetch_aa_scores()/main() by creator
+    # name - not here.
+
     base = re.sub(r'-\d{4}$', '', model_part)  # Remove trailing -0813
     base = base.replace(".", "-").replace("_", "-")
 
@@ -2085,24 +2245,36 @@ def match_aa_score(model_id, model_name, aa_scores):
     if base_no_version in aa_scores:
         return aa_scores[base_no_version]
 
-    # Strategy 3: Check if any AA slug is a substring of our model ID
+    # Strategy 3: Check if any AA slug is a substring of our model ID.
+    # Longest-match wins (Sep 2026): short wrong records ("GPT-5", "Muse
+    # Spark") previously beat specific right ones on first-encounter order.
     model_lower = model_id.lower()
+    best_slug = None
+    best_len = 0
     for slug, data in aa_scores.items():
-        if slug in model_lower or model_lower in slug:
-            return data
+        if (slug in model_lower or model_lower in slug) and len(slug) > best_len:
+            best_slug, best_len = slug, len(slug)
+    if best_slug:
+        return aa_scores[best_slug]
 
-    # Strategy 4: Name-based match (normalized, lowercase, no spaces/punctuation)
+    # Strategy 4: Name-based match (normalized, lowercase, no spaces/punctuation).
+    # Variant suffixes are stripped before matching so "X Contributor" resolves
+    # like its parent. Among candidates, LONGEST containment wins, not first.
     def normalize(s):
         return re.sub(r'[^a-z0-9]', '', s.lower())
 
-    norm_name = normalize(model_name or model_id)
+    norm_name = normalize(re.sub(r'(?i)\(batch\)|contributor', '', model_name or model_id))
+    candidates = []
     for slug, data in aa_scores.items():
         norm_aa_name = normalize(data["name"])
         if norm_name == norm_aa_name:
             return data
-        # Check partial match (AA name contains model name or vice versa)
         if len(norm_name) > 5 and (norm_name in norm_aa_name or norm_aa_name in norm_name):
-            return data
+            candidates.append((len(norm_aa_name), data))
+    if candidates:
+        # Prefer the most specific (longest) AA record among containment hits.
+        candidates.sort(key=lambda t: t[0], reverse=True)
+        return candidates[0][1]
 
     return None
 
@@ -2121,12 +2293,52 @@ def normalize_model(raw):
     provider = model_id.split("/")[0] if "/" in model_id else "unknown"
     # Capitalize provider
     provider = provider.replace("-", " ").replace("_", " ").title()
-    # Fix common ones
+    # Fix common ones - consolidate naming variants from OpenRouter
     provider_map = {
         "Openai": "OpenAI",
+        "Open Ai": "OpenAI",
         "X Ai": "xAI",
+        "Xai": "xAI",
         "Z.Ai": "Z.ai",
+        "Z Ai": "Z.ai",
+        "Zai Org": "Z-AI",
         "Meta": "Meta",
+        "Meta Llama": "Meta Llama",
+        "Mistralai": "Mistral AI",
+        "Mistral Ai": "Mistral AI",
+        "Mistral": "Mistral AI",
+        "Deepseek Ai": "DeepSeek",
+        "Deepseek": "DeepSeek",
+        "Moonshotai": "Moonshot AI",
+        "Moonshot": "Moonshot AI",
+        "Minimax Ai": "MiniMax",
+        "Minimaxai": "MiniMax",
+        "Minimax": "MiniMax",
+        "Bytedance Seed": "ByteDance Seed",
+        "Bytedance": "ByteDance",
+        "Zhipu Ai": "Zhipu AI",
+        "Ibm Granite": "IBM Granite",
+        "Ibm": "IBM",
+        "Sambanova": "SambaNova",
+        "Thinkingmachines": "Thinking Machines",
+        "Aion Labs": "AionLabs",
+        "Aionlabs": "AionLabs",
+        "Stability AI": "Stability AI",
+        "Sakana": "Sakana AI",
+        "Nvidia": "NVIDIA",
+        "Perplexity": "Perplexity",
+        "Anthracite Org": "Anthracite",
+        "Stepfun Ai": "StepFun",
+        "Stepfun": "StepFun",
+        "Pearl Ai": "Pearl AI",
+        "Nex Agi": "NexAGI",
+        "Glm 5.3 Flash": "Z-AI",
+        "Allenai": "Allen AI",
+        "Aisingapore": "AI Singapore",
+        "Cognitivecomputations": "Cognitive Computations",
+        "Sao10K": "Sao10K",
+        "Nousresearch": "Nous Research",
+        "Rekaai": "Reka AI",
     }
     provider = provider_map.get(provider, provider)
     
@@ -2165,8 +2377,9 @@ def normalize_model(raw):
     # Reasoning
     is_reasoning = raw.get("reasoning") is not None and raw.get("reasoning") != False
     
-    # Reasoning multiplier (tier-based estimate)
-    reasoning_multiplier = get_reasoning_multiplier(tier, is_reasoning)
+    # Reasoning multiplier: always 1.0 (no longer used in SIT calculation).
+    # Kept in the dict for DB backward compat. The is_reasoning flag is shown in the UI.
+    reasoning_multiplier = 1.0
     
     # SIT-adjusted price (cost per unit of intelligence)
     sit_adjusted_price = calculate_sit_adjusted_price(
@@ -2183,6 +2396,8 @@ def normalize_model(raw):
         "modality": modality,
         "tokenizer": arch.get("tokenizer"),
         "is_reasoning": is_reasoning,
+        "description": raw.get("description"),
+        "description_source": "openrouter" if raw.get("description") else None,
         "reasoning_multiplier": reasoning_multiplier,
         "sit_adjusted_price": sit_adjusted_price,
         "input_price_per_m": input_price_per_m,
@@ -2455,6 +2670,106 @@ def calculate_composite_usage_weighted(conn):
         }
     return {"price": 0.0, "model_count": 0, "provider_count": 0}
 
+def calculate_tpi(conn):
+    """Calculate the Token Price Index (TPI).
+
+    Equal weight per provider, 30% cap.
+    Eligibility is RELATIVE (fix 1, Sep 2026): a model qualifies if its AA
+    score is at or above the P60 of scored active models (top 40%). The old
+    absolute gate (AA >= 35) was pinned to AA's scale, which AA rebased twice
+    in one week (v4.2 Sep 4, v4.3 Sep 7) - 7 of 17 providers fell out of the
+    basket and the headline TPI tripled while real prices were flat or falling.
+    A relative gate is invariant under a monotone rescale, so rebases no
+    longer churn the basket.
+
+    The P60 threshold used is returned for storage alongside the index value.
+    For each provider, take their cheapest eligible model's sit_adjusted_price
+    (cost per GPT-4-equivalent token).
+    """
+    cur = conn.cursor()
+
+    # Population = scored, priced, active, non-embedding models (same exclusions
+    # as the old quality gate). P60 keeps the gate meaningfully selective
+    # (comparable to the old AA>=35 under v4.1) while being rebase-proof.
+    cur.execute("""
+        SELECT m.aa_index_score
+        FROM models m
+        JOIN latest_prices lp ON m.id = lp.model_id
+        WHERE m.is_active = TRUE
+          AND lp.blended_price_per_m > 0
+          AND m.aa_index_score IS NOT NULL
+          AND m.id NOT LIKE '%%:batch'
+          AND m.modality NOT IN ('embedding', 'tts', 'stt', 'reranker', 'reader',
+                                  'image-generation', 'video-generation')
+    """)
+    all_scores = [float(r[0]) for r in cur.fetchall() if r[0] is not None]
+
+    if len(all_scores) < 50:
+        # Too small a population for a stable percentile - fall back to the
+        # legacy absolute gate rather than producing a junk basket.
+        threshold = QUALITY_FLOOR
+        print(f"  TPI: only {len(all_scores)} scored models, falling back to absolute gate {threshold}")
+    else:
+        s = sorted(all_scores)
+        idx = (len(s) - 1) * 0.60
+        lo = int(idx)
+        frac = idx - lo
+        threshold = s[lo] * (1 - frac) + s[min(lo + 1, len(s) - 1)] * frac
+        print(f"  TPI: relative eligibility threshold P60 = {threshold:.1f} (from {len(all_scores)} scored models)")
+
+    # For each provider, find their cheapest eligible model
+    cur.execute("""
+        WITH qualified AS (
+            SELECT m.id, m.provider,
+                   lp.blended_price_per_m,
+                   lp.sit_adjusted_price
+            FROM models m
+            JOIN latest_prices lp ON m.id = lp.model_id
+            WHERE m.is_active = TRUE
+              AND lp.blended_price_per_m > 0
+              AND lp.sit_adjusted_price IS NOT NULL
+              AND lp.sit_adjusted_price > 0
+              AND m.aa_index_score IS NOT NULL
+              AND m.aa_index_score >= %(threshold)s
+              AND m.id NOT LIKE '%%:batch'
+              AND m.modality NOT IN ('embedding', 'tts', 'stt', 'reranker', 'reader',
+                                      'image-generation', 'video-generation')
+        ),
+        cheapest_per_provider AS (
+            SELECT DISTINCT ON (provider)
+                provider,
+                sit_adjusted_price
+            FROM qualified
+            ORDER BY provider, sit_adjusted_price ASC
+        )
+        SELECT provider, sit_adjusted_price
+        FROM cheapest_per_provider
+        ORDER BY provider
+    """, {"threshold": threshold})
+
+    providers = cur.fetchall()
+    cur.close()
+
+    if not providers:
+        return {"price": 0.0, "model_count": 0, "provider_count": 0,
+                "eligibility_threshold": threshold, "basket_providers": []}
+
+    n = len(providers)
+    base_weight = 1.0 / n
+    capped = [min(base_weight, 0.30) for _ in providers]
+    total = sum(capped)
+    weights = [w / total for w in capped]
+
+    tpi = sum(w * p[1] for w, p in zip(weights, providers))
+
+    return {
+        "price": round(tpi, 6),
+        "model_count": n,
+        "provider_count": n,
+        "eligibility_threshold": round(threshold, 4),
+        "basket_providers": [p[0] for p in providers],
+    }
+
 def calculate_tier_indices(models):
     """Calculate SIT index values for each tier and the composite."""
     results = {}
@@ -2549,18 +2864,115 @@ def get_db_connection():
         print("Set it in ~/.hermes/.env as: SUPABASE_DB_URL=postgresql://postgres:...")
         sys.exit(1)
     
+    # Longer statement timeout for materialized view refreshes which can take
+    # up to 135s on large tables (286K snapshots, latest_prices CONCURRENTLY).
+    # 300s default; override with DB_STATEMENT_TIMEOUT_MS.
+    timeout_ms = os.environ.get("DB_STATEMENT_TIMEOUT_MS", "300000")
+    if "options" not in db_url:
+        sep = "&" if "?" in db_url else "?"
+        db_url = f"{db_url}{sep}options=-c%20statement_timeout%3D{timeout_ms}"
     return psycopg2.connect(db_url, connect_timeout=10)
+
+def rescore_db_models(conn, aa_scores, aa_version, pct_thresholds=None):
+    """Rescore active DB models that today's catalog run did NOT touch.
+
+    Models dropped from OpenRouter's catalog (e.g. anthropic/claude-opus-5-fast)
+    still have active rows and price history, but the normal upsert never
+    updates them - their AA scores went stale (this is exactly how Opus 5 Fast
+    kept a v4.1 score of 63.1 for a week after the rebase). Match them against
+    the AA leaderboard directly and update score/tier/version.
+
+    Also rewrites scores that DISAGREE with the current matcher result even
+    when the version stamp matches: a wrong fuzzy match gets stamped with the
+    current version just like a right one, so version alone cannot prove
+    freshness (the Sep 2026 variant bug put 78 models on wrong AA records
+    under the then-current version stamp).
+
+    Returns (updated_count, unmatched_count).
+    """
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT id, name, aa_index_score, aa_score_version
+        FROM models
+        WHERE is_active AND aa_index_score IS NOT NULL
+          AND (aa_score_version IS NULL OR aa_score_version != %s)
+    """, (aa_version,))
+    stale = cur.fetchall()
+
+    updated = 0
+    unmatched = 0
+    checked = 0
+    for model_id, name, old_score, old_ver in stale:
+        aa_match = match_aa_score(model_id, name, aa_scores)
+        if aa_match is None:
+            continue  # leave score, version stays old => detectable as stale
+        new_score = aa_match["score"]
+        if pct_thresholds is not None:
+            new_tier = assign_tier_percentile(new_score, pct_thresholds) or assign_tier(new_score)
+        else:
+            new_tier = assign_tier(new_score)
+        if abs(new_score - (old_score or 0)) < 0.01 and old_ver == aa_version:
+            continue  # already correct
+        cur.execute("""
+            UPDATE models
+            SET aa_index_score = %s, aa_score_version = %s, tier = %s, updated_at = NOW()
+            WHERE id = %s
+        """, (new_score, aa_version, new_tier, model_id))
+        updated += 1
+    unmatched = len(stale) - updated
+    conn.commit()
+    cur.close()
+    print(f"  DB rescore pass: {updated} models updated to {aa_version}, {unmatched} had no AA match (left as-is, marked stale by version)")
+    return updated, unmatched
+
+
+def rescore_all_active(conn, aa_scores, aa_version, pct_thresholds=None):
+    """Full-coverage consistency pass: verify EVERY active scored model
+    against the current matcher and rewrite disagreements.
+
+    This is the defense against matcher bugs that pre-date a version stamp:
+    it re-derives each score from the live AA scrape rather than trusting the
+    stored version tag. Run after any match_aa_score change.
+    """
+    cur = conn.cursor()
+    cur.execute("SELECT id, name, aa_index_score FROM models WHERE is_active AND aa_index_score IS NOT NULL")
+    rows = cur.fetchall()
+    fixed = 0
+    verified = 0
+    for model_id, name, old_score in rows:
+        m = match_aa_score(model_id, name, aa_scores)
+        if m is None:
+            continue
+        verified += 1
+        new_score = m["score"]
+        if abs(new_score - (old_score or 0)) >= 0.01:
+            if pct_thresholds is not None:
+                new_tier = assign_tier_percentile(new_score, pct_thresholds) or assign_tier(new_score)
+            else:
+                new_tier = assign_tier(new_score)
+            cur.execute("""
+                UPDATE models
+                SET aa_index_score = %s, aa_score_version = %s, tier = %s, updated_at = NOW()
+                WHERE id = %s
+            """, (new_score, aa_version, new_tier, model_id))
+            fixed += 1
+    conn.commit()
+    cur.close()
+    print(f"  Full rescore: verified {verified}, corrected {fixed} models")
+    return fixed
+
 
 def upsert_models(conn, models):
     """Insert or update models in the database."""
     cur = conn.cursor()
     count = 0
-    
+
     for m in models:
         cur.execute("""
-            INSERT INTO models (id, name, provider, tier, context_length, aa_index_score, 
-                              modality, tokenizer, is_reasoning, creator_country, updated_at, is_active)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), TRUE)
+            INSERT INTO models (id, name, provider, tier, context_length, aa_index_score,
+                              modality, tokenizer, is_reasoning, creator_country, updated_at, is_active,
+                              aa_score_version, description, description_source)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), TRUE, %s, %s, %s)
             ON CONFLICT (id) DO UPDATE SET
                 name = EXCLUDED.name,
                 provider = EXCLUDED.provider,
@@ -2571,12 +2983,18 @@ def upsert_models(conn, models):
                 tokenizer = EXCLUDED.tokenizer,
                 is_reasoning = EXCLUDED.is_reasoning,
                 creator_country = EXCLUDED.creator_country,
+                aa_score_version = COALESCE(EXCLUDED.aa_score_version, models.aa_score_version),
+                description = COALESCE(EXCLUDED.description, models.description),
+                description_source = COALESCE(EXCLUDED.description_source, models.description_source),
                 updated_at = NOW()
         """, (
             m["model_id"], m["name"], m["provider"], m["tier"],
             m["context_length"], m["aa_index_score"],
             m["modality"], m["tokenizer"], m["is_reasoning"],
-            m.get("creator_country")
+            m.get("creator_country"),
+            m.get("aa_score_version"),
+            m.get("description"),
+            m.get("description_source")
         ))
         count += 1
     
@@ -2607,6 +3025,132 @@ def insert_endpoints(conn, endpoint_data):
     print(f"  Inserted {count} endpoint records")
     return count
 
+def build_orphan_snapshots(conn, priced_models):
+    """Build snapshot records for models that have priced endpoints from
+    direct scrapers but were dropped by filter_priced (OpenRouter catalog
+    price = 0). These models get endpoints inserted but never appear in
+    latest_prices because latest_prices is built from price_snapshots.
+
+    This function queries model_endpoints for active models with priced
+    endpoints that are NOT in the priced_models list, builds median-priced
+    snapshot dicts, and returns them for insertion via insert_price_snapshots.
+    """
+    cur = conn.cursor()
+
+    # IDs already in the priced list (will get snapshots normally)
+    priced_ids = {m["model_id"] for m in priced_models}
+
+    # Get all model IDs that have fresh priced endpoints but are not in priced_ids
+    cur.execute("""
+        SELECT DISTINCT ep.model_id
+        FROM model_endpoints ep
+        JOIN models m ON m.id = ep.model_id
+        WHERE m.is_active
+          AND ep.blended_price_per_m > 0
+          AND ep.fetched_at >= NOW() - INTERVAL '24 hours'
+          AND m.id NOT LIKE '%%:batch'
+    """)
+    all_endpoint_model_ids = {row[0] for row in cur.fetchall()}
+    orphan_ids = all_endpoint_model_ids - priced_ids
+
+    if not orphan_ids:
+        cur.close()
+        return []
+
+    # Get model metadata for orphans
+    cur.execute("""
+        SELECT id, name, provider, tier, modality, is_reasoning, aa_index_score
+        FROM models WHERE id = ANY(%s)
+    """, (list(orphan_ids),))
+    model_meta = {}
+    for row in cur.fetchall():
+        model_meta[row[0]] = {
+            "model_id": row[0],
+            "name": row[1],
+            "provider": row[2],
+            "tier": row[3],
+            "modality": row[4],
+            "is_reasoning": row[5],
+            "aa_index_score": row[6],
+        }
+
+    # Get latest endpoint prices per provider for each orphan
+    cur.execute("""
+        SELECT DISTINCT ON (model_id, endpoint_provider)
+            model_id, endpoint_provider, input_price_per_m,
+            output_price_per_m, blended_price_per_m, source
+        FROM model_endpoints
+        WHERE model_id = ANY(%s)
+          AND blended_price_per_m > 0
+          AND fetched_at >= NOW() - INTERVAL '24 hours'
+        ORDER BY model_id, endpoint_provider, fetched_at DESC
+    """, (list(orphan_ids),))
+
+    # Group endpoints by model
+    model_endpoints = {}
+    for row in cur.fetchall():
+        model_endpoints.setdefault(row[0], []).append(row)
+
+    cur.close()
+
+    # Build snapshot dicts in the same format as normalized models
+    orphans = []
+    for mid, meta in model_meta.items():
+        eps = model_endpoints.get(mid, [])
+        if not eps:
+            continue
+
+        blended_prices = [ep[4] for ep in eps if ep[4] and ep[4] > 0]
+        input_prices = [ep[2] for ep in eps if ep[2] and ep[2] > 0]
+        output_prices = [ep[3] for ep in eps if ep[3] and ep[3] > 0]
+        ep_sources = [ep[5] for ep in eps if ep[5]]
+
+        if not blended_prices:
+            continue
+
+        blended = compute_median(blended_prices)
+        inp = compute_median(input_prices) if input_prices else 0
+        out = compute_median(output_prices) if output_prices else 0
+
+        reasoning_mult = 1.0  # No longer tier-based; is_reasoning shown in UI
+        sit_adj = calculate_sit_adjusted_price(blended, reasoning_mult, meta["aa_index_score"])
+
+        has_direct = any(s and s != "openrouter" for s in ep_sources)
+        has_aggregator = any(s and s == "openrouter" for s in ep_sources)
+        if has_direct and has_aggregator:
+            source_label = "blended"
+        elif has_direct:
+            source_label = "direct"
+        else:
+            source_label = "aggregator"
+
+        orphans.append({
+            "model_id": mid,
+            "name": meta["name"],
+            "provider": meta["provider"],
+            "tier": meta["tier"],
+            "context_length": meta.get("context_length"),
+            "aa_index_score": meta["aa_index_score"],
+            "modality": meta["modality"],
+            "is_reasoning": meta["is_reasoning"],
+            "reasoning_multiplier": reasoning_mult,
+            "sit_adjusted_price": sit_adj,
+            "input_price_per_m": inp,
+            "output_price_per_m": out,
+            "blended_price_per_m": blended,
+            "source_count": len(blended_prices),
+            "source_label": source_label,
+            "raw_data": {"orphan_from_endpoints": True},
+        })
+
+    # Per-model SIT scores (tier-relative) are no longer computed.
+    # Orphan snapshots already have sit_adjusted_price set above.
+    # Ranking is by sit_adjusted_price (absolute, cost per GPT-4-equivalent token).
+
+    print(f"  Found {len(orphans)} endpoint-only models needing snapshots")
+    return orphans
+
+
 def insert_price_snapshots(conn, models):
     """Insert price snapshots for all models."""
     cur = conn.cursor()
@@ -2614,9 +3158,12 @@ def insert_price_snapshots(conn, models):
     anomalies_found = 0
     
     # Get previous prices for anomaly detection
+    # Only look at snapshots from the last 24 hours to avoid full-table scan
+    # on the 286K-row price_snapshots table (was timing out at >30s)
     cur.execute("""
         SELECT DISTINCT ON (model_id) model_id, blended_price_per_m
         FROM price_snapshots
+        WHERE fetched_at > NOW() - INTERVAL '24 hours'
         ORDER BY model_id, fetched_at DESC
     """)
     previous = {row[0]: row[1] for row in cur.fetchall()}
@@ -2660,25 +3207,31 @@ def insert_price_snapshots(conn, models):
     print(f"  Inserted {count} price snapshots ({anomalies_found} anomalies flagged)")
     return count
 
-def insert_sit_values(conn, indices, today):
+def insert_sit_values(conn, indices, today, aa_version=None):
     """Insert SIT index values for today."""
     cur = conn.cursor()
     count = 0
     
     for tier, data in indices.items():
-        # For index points: the base is the EARLIEST stored price for this tier
-        # (anchored to whenever we first have real data). index_points =
-        # (current_price / base_price) * 1000, so 1000 = base date.
-        # NOTE: We anchor to the earliest existing row, NOT a hardcoded
-        # BASE_DATE (2026-08-03), because no Aug-3 data exists (earliest is
-        # Aug 4). A hardcoded BASE_DATE with no row made the index freeze at
-        # 1000 forever. See data_integrity_check.py #7.
+        # For index points: anchor to the REBASE DATE row for this tier
+        # (2026-09-04 = 1000, set by rebase_tpi_sep2026.py). Anchoring to the
+        # earliest stored row (the pre-rebase behaviour) would silently
+        # re-anchor to Aug 4 and corrupt the rebased series on the next run.
         cur.execute("""
             SELECT sit_price FROM sit_index_values 
-            WHERE tier = %s
-            ORDER BY date ASC LIMIT 1
-        """, (tier,))
+            WHERE tier = %s AND date = %s
+            LIMIT 1
+        """, (tier, REBASE_DATE))
         row = cur.fetchone()
+        if not row:
+            # No rebase-date row (e.g. a tier added later): fall back to the
+            # earliest stored price for this tier.
+            cur.execute("""
+                SELECT sit_price FROM sit_index_values 
+                WHERE tier = %s
+                ORDER BY date ASC LIMIT 1
+            """, (tier,))
+            row = cur.fetchone()
 
         if row:
             base_price = row[0]
@@ -2692,38 +3245,47 @@ def insert_sit_values(conn, indices, today):
         
         # Use correct calculation method name
         if tier == "composite":
-            method = "usage_weighted_quality_gated"
+            method = "tpi_equal_weight_provider_capped"
         else:
             method = "median_tier"
         
         cur.execute("""
             INSERT INTO sit_index_values 
                 (date, tier, sit_price, sit_index_points, model_count, 
-                 provider_count, calculation_method)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+                 provider_count, calculation_method, aa_version,
+                 basket_providers, eligibility_threshold, rebase_group)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (date, tier) DO UPDATE SET
                 sit_price = EXCLUDED.sit_price,
                 sit_index_points = EXCLUDED.sit_index_points,
                 model_count = EXCLUDED.model_count,
                 provider_count = EXCLUDED.provider_count,
                 calculation_method = EXCLUDED.calculation_method,
+                aa_version = EXCLUDED.aa_version,
+                basket_providers = EXCLUDED.basket_providers,
+                eligibility_threshold = EXCLUDED.eligibility_threshold,
+                rebase_group = EXCLUDED.rebase_group,
                 calculated_at = NOW()
         """, (
             today, tier, data["price"], index_points,
-            data["model_count"], data["provider_count"], method
+            data["model_count"], data["provider_count"], method,
+            aa_version,
+            json.dumps(data["basket_providers"]) if data.get("basket_providers") is not None else None,
+            data.get("eligibility_threshold"),
+            aa_version,  # rebase_group = the AA version that produced the row
         ))
         count += 1
     
     conn.commit()
     cur.close()
-    print(f"  Inserted {count} SIT index values")
+    print(f"  Inserted {count} SIT index values (aa_version={aa_version})")
     return count
 
 # ============================================
 # PRINT SUMMARY (for --fetch-only mode)
 # ============================================
 
-def print_summary(models, tier_avgs, indices):
+def print_summary(models, indices):
     """Print a summary of the fetched data."""
     print("\n" + "=" * 60)
     print("INFERENCEINDEXER DATA SUMMARY")
@@ -2739,7 +3301,9 @@ def print_summary(models, tier_avgs, indices):
     print(f"\nTier breakdown:")
     for tier in ["frontier", "standard", "budget", "micro"]:
         count = tier_counts.get(tier, 0)
-        avg = tier_avgs.get(tier, 0)
+        # Use tier indices (from calculate_tier_indices) instead of tier_avgs
+        tier_idx = indices.get(tier, {})
+        avg = tier_idx.get("price", 0)
         print(f"  {tier:10s}: {count:4d} models, median blended ${avg:.4f}/M")
     
     print(f"\nSIT-Composite: ${indices['composite']['price']:.4f}/M")
@@ -2749,25 +3313,23 @@ def print_summary(models, tier_avgs, indices):
     if "spread" in indices:
         print(f"\nSIT-Spread: ${indices['spread']['price']:.4f}/M")
     
-    # Top 10 cheapest by SIT Score
-    scored = [m for m in models if m.get("sit_score") is not None and isinstance(m.get("sit_score"), int)]
-    scored.sort(key=lambda x: x["sit_score"])
-    
-    print(f"\nTop 10 by SIT Score (cheapest for tier, adjusted, 100=median):")
-    print(f"  {'Model':<40} {'Tier':<10} {'Blended $/M':<12} {'R.Mult':<7} {'Adj $/M':<10} {'SIT':>6}")
+    # Top 10 cheapest by Cost / IQ (sit_adjusted_price)
+    scored = [m for m in models if m.get("sit_adjusted_price") is not None and m.get("sit_adjusted_price") > 0]
+    scored.sort(key=lambda x: x["sit_adjusted_price"])
+
+    print(f"\nTop 10 by Cost / IQ (cheapest first, quality-adjusted $/M):")
+    print(f"  {'Model':<40} {'Tier':<10} {'Blended $/M':<12} {'Adj $/M':<10}")
     for m in scored[:10]:
-        rm = m.get("reasoning_multiplier", 1.0)
         adj = m.get("sit_adjusted_price")
         adj_str = f"${adj:.6f}" if adj else "N/A"
-        print(f"  {m['name'][:40]:<40} {m['tier']:<10} ${m['blended_price_per_m']:<11.4f} {rm:<7.1f} {adj_str:<10} {m['sit_score']:>6}")
-    
-    # Top 5 most expensive by SIT Score
-    print(f"\nTop 5 most expensive (by SIT Score):")
+        print(f"  {m['name'][:40]:<40} {m['tier']:<10} ${m['blended_price_per_m']:<11.4f} {adj_str:<10}")
+
+    # Top 5 most expensive by Cost / IQ
+    print(f"\nTop 5 most expensive (by Cost / IQ):")
     for m in scored[-5:]:
-        rm = m.get("reasoning_multiplier", 1.0)
         adj = m.get("sit_adjusted_price")
         adj_str = f"${adj:.6f}" if adj else "N/A"
-        print(f"  {m['name'][:40]:<40} {m['tier']:<10} ${m['blended_price_per_m']:<11.4f} {rm:<7.1f} {adj_str:<10} {m['sit_score']}")
+        print(f"  {m['name'][:40]:<40} {m['tier']:<10} ${m['blended_price_per_m']:<11.4f} {adj_str:<10}")
     
     print("\n" + "=" * 60)
 
@@ -2805,9 +3367,35 @@ def main():
     
     # Fetch AA scores directly from Artificial Analysis (overrides stale OpenRouter scores)
     aa_scores = fetch_aa_scores()
+    aa_version = AA_LATEST_VERSION
     
     # Override AA scores with direct-from-AA values (OpenRouter's copy lags by days/weeks)
     if aa_scores:
+        # Rebase alert (fix 3): compare the live version against the last one
+        # recorded in aa_daily_ingest. A version flip means scores are not
+        # comparable to yesterday's - log it loudly.
+        _prev_version_row = None
+        try:
+            _c = get_db_connection()
+            _rc = _c.cursor()
+            _rc.execute("SELECT aa_version FROM aa_daily_ingest ORDER BY date DESC LIMIT 1")
+            _prev_version_row = _rc.fetchone()
+            _rc.close()
+            _c.close()
+        except Exception as _e:
+            print(f"  WARN: could not read aa_daily_ingest for version check: {_e}")
+        if _prev_version_row and _prev_version_row[0] and aa_version and _prev_version_row[0] != aa_version:
+            print(f"  *** AA REBASE ALERT: {aa_version} != previous {_prev_version_row[0]} ***")
+            print("  *** Scores are NOT comparable across this boundary. Tiers and TPI re-derive from relative ranks (safe), but historical comparisons break at this date. ***")
+        elif aa_version is None:
+            print("  WARN: AA version unknown - rows will be stored with NULL aa_version")
+
+        # Percentile thresholds (fix 2): compute BEFORE assigning tiers so the
+        # whole population is tiered against the same cutoffs.
+        scored = [m.get("aa_index_score") for m in normalized]
+        # Start from DB scores too (models not in OpenRouter's catalog keep DB scores)
+        pct_thresholds = compute_percentile_thresholds([s for s in scored if s is not None])
+
         updated = 0
         tier_changed = 0
         for m in normalized:
@@ -2816,13 +3404,21 @@ def main():
                 direct_score = aa_match["score"]
                 old_score = m.get("aa_index_score")
                 m["aa_index_score"] = direct_score
+                m["aa_score_version"] = aa_version
                 if old_score != direct_score:
                     updated += 1
-                # Store country of origin
-                m["creator_country"] = aa_match.get("country")
-                # Reassign tier based on the fresh AA score
+                # Store country of origin (new AA layout has no per-model
+                # country field; only overwrite when we actually have one,
+                # otherwise NULLing would wipe good data every hourly run)
+                if aa_match.get("country"):
+                    m["creator_country"] = aa_match.get("country")
+                # Reassign tier: percentile-based when thresholds are available,
+                # legacy absolute thresholds otherwise
                 old_tier = m.get("tier")
-                new_tier = assign_tier(direct_score, m.get("blended_price_per_m"))
+                if pct_thresholds is not None:
+                    new_tier = assign_tier_percentile(direct_score, pct_thresholds) or assign_tier(direct_score, m.get("blended_price_per_m"))
+                else:
+                    new_tier = assign_tier(direct_score, m.get("blended_price_per_m"))
                 if old_tier != new_tier:
                     m["tier"] = new_tier
                     tier_changed += 1
@@ -2830,6 +3426,10 @@ def main():
                 m["sit_adjusted_price"] = calculate_sit_adjusted_price(
                     m.get("blended_price_per_m", 0), m.get("reasoning_multiplier", 1.0), direct_score
                 )
+        if pct_thresholds is not None:
+            print(f"  Percentile tier thresholds: " + ", ".join(f"{k}={v:.1f}" for k, v in sorted(pct_thresholds.items())))
+        else:
+            print("  WARN: scored population too small for percentile tiers - using legacy absolute thresholds")
         print(f"  AA direct scores: {updated} models updated (out of {len(normalized)})")
         print(f"  Tier changes: {tier_changed} models reclassified")
 
@@ -2949,23 +3549,48 @@ def main():
         endpoint_data.extend(sarvam_endpoints)
         print(f"  Sarvam direct: {len(sarvam_endpoints)} endpoints added")
 
+    # Vercel AI Gateway direct (public JSON API, per-token USD pricing)
+    vercel_endpoints, vercel_new_models = fetch_vercel_direct()
+    if vercel_endpoints:
+        endpoint_data.extend(vercel_endpoints)
+        print(f"  Vercel direct: {len(vercel_endpoints)} endpoints added")
+
+    # Z.AI (Zhipu) direct (markdown pricing page, no API key)
+    zai_endpoints, zai_new_models = _fetch_zai_pricing()
+    if zai_endpoints:
+        endpoint_data.extend(zai_endpoints)
+        print(f"  Z.AI direct: {len(zai_endpoints)} endpoints added")
+
+    # Alibaba Cloud (DashScope) direct (pricing page scrape, no API key)
+    alibaba_endpoints, alibaba_new_models = _fetch_alibaba_pricing()
+    if alibaba_endpoints:
+        endpoint_data.extend(alibaba_endpoints)
+        print(f"  Alibaba direct: {len(alibaba_endpoints)} endpoints added")
+
+    # Moonshot AI direct (markdown pricing pages, no API key)
+    moonshot_endpoints, moonshot_new_models = _fetch_moonshot_pricing()
+    if moonshot_endpoints:
+        endpoint_data.extend(moonshot_endpoints)
+        print(f"  Moonshot direct: {len(moonshot_endpoints)} endpoints added")
+
     # Replicate direct (pricing page scrape, no API key needed)
     replicate_endpoints, replicate_new_models = fetch_replicate_direct()
     if replicate_endpoints:
         endpoint_data.extend(replicate_endpoints)
         print(f"  Replicate direct: {len(replicate_endpoints)} endpoints added")
     
-    # Calculate tier averages and SIT scores
-    # Use DAILY-STABLE tier medians so per-model SIT scores are constant across
-    # the day's hourly runs (catalog churn no longer flips the median hourly).
-    tier_avgs = get_stable_tier_medians(get_db_connection())
-    priced = calculate_sit_scores(priced, tier_avgs)
+    # Per-model SIT scores (tier-relative) are no longer computed.
+    # Ranking is by sit_adjusted_price (absolute, cost per GPT-4-equivalent token).
+    # sit_adjusted_price is set in normalize_model() and apply_median_pricing().
+    # The calculate_sit_scores() function is kept for backward compat / backfill scripts.
+    # tier_avgs = get_stable_tier_medians(get_db_connection())
+    # priced = calculate_sit_scores(priced, tier_avgs)
     
-    # Calculate SIT indices
+    # Calculate SIT indices (per-tier medians + TPI composite)
     indices = calculate_tier_indices(priced)
     
     # Print summary
-    print_summary(priced, tier_avgs, indices)
+    print_summary(priced, indices)
     
     if args.fetch_only:
         print("\n--fetch-only: skipping database storage")
@@ -2982,6 +3607,16 @@ def main():
     
     try:
         upsert_models(conn, priced)
+
+        # Rescore pass (fix 4): models dropped from OpenRouter's catalog never
+        # get touched by upsert_models and keep stale AA scores across rebases
+        # (Opus 5 Fast carried v4.1's 63.1 for a week). Re-score them directly.
+        if aa_scores and aa_version:
+            rescore_db_models(conn, aa_scores, aa_version, pct_thresholds if aa_scores else None)
+            # Full-coverage verification: re-derive every scored model from
+            # the live scrape, catches wrong-match bugs the version stamp
+            # cannot see (Sep 2026 variant bug: 78 models on wrong records).
+            rescore_all_active(conn, aa_scores, aa_version, pct_thresholds if aa_scores else None)
         
         # Always upsert provider-discovered models
         if venice_endpoints:
@@ -3032,25 +3667,76 @@ def main():
             upsert_venice_models(conn, openrelay_new_models, priced)
         if sarvam_new_models:
             upsert_venice_models(conn, sarvam_new_models, priced)
+        if vercel_new_models:
+            upsert_venice_models(conn, vercel_new_models, priced)
+        if zai_new_models:
+            upsert_venice_models(conn, zai_new_models, priced)
+        if alibaba_new_models:
+            upsert_venice_models(conn, alibaba_new_models, priced)
+        if moonshot_new_models:
+            upsert_venice_models(conn, moonshot_new_models, priced)
         
         if endpoint_data:
             insert_endpoints(conn, endpoint_data)
         insert_price_snapshots(conn, priced)
+
+        # Insert snapshots for models that have priced endpoints from direct
+        # scrapers but are NOT in the OpenRouter catalog (so filter_priced
+        # dropped them). Without this, models like anthropic/claude-haiku-4-5
+        # (only on DeepInfra) get endpoints but never appear in latest_prices.
+        orphan_snapshots = build_orphan_snapshots(conn, priced)
+        if orphan_snapshots:
+            insert_price_snapshots(conn, orphan_snapshots)
+            print(f"  Inserted {len(orphan_snapshots)} snapshots for endpoint-only models")
         
-        # Recalculate composite using usage-weighted top 50 with quality gate
-        # (the API methodology, not the simple median used in calculate_tier_indices)
-        composite_data = calculate_composite_usage_weighted(conn)
+        # Recalculate composite using TPI (equal weight per provider, 30% cap,
+        # quality gate AA >= 35, cheapest SIT-qualified model per provider).
+        # Replaces the old usage_weighted_quality_gated composite.
+        composite_data = calculate_tpi(conn)
         if composite_data["price"] > 0:
             indices["composite"] = composite_data
         
-        insert_sit_values(conn, indices, today)
+        insert_sit_values(conn, indices, today, aa_version=aa_version)
+
+        # Daily AA ingest stats (fix 5): median score + version per UTC date.
+        # Powers the rebase-detection check in data_integrity_check.py.
+        try:
+            _cur = conn.cursor()
+            _cur.execute("""
+                INSERT INTO aa_daily_ingest (date, aa_version, models_scored, median_score, updated_at)
+                VALUES (%s, %s, %s, %s, NOW())
+                ON CONFLICT (date) DO UPDATE SET
+                    aa_version = EXCLUDED.aa_version,
+                    models_scored = EXCLUDED.models_scored,
+                    median_score = EXCLUDED.median_score,
+                    updated_at = NOW()
+            """, (
+                today,
+                aa_version,
+                len([s for s in scored if s is not None]) if aa_scores else 0,
+                _median([float(s) for s in scored if s is not None]) if aa_scores else None,
+            ))
+            conn.commit()
+            _cur.close()
+            print(f"  aa_daily_ingest: {today} v={aa_version} scored={len([s for s in scored if s is not None]) if aa_scores else 0}")
+        except Exception as _e:
+            conn.rollback()
+            print(f"  WARN: aa_daily_ingest insert failed: {_e}")
         
-        # Refresh materialized views so the API sees fresh data
+        # Refresh materialized views in a separate connection with autocommit
+        # and a longer timeout (these can take 130+ seconds each on 286K snapshots)
         # (latest_prices, price_changes_24h, price_changes_7d are MATVIEWs for performance)
-        cur = conn.cursor()
-        cur.execute("REFRESH MATERIALIZED VIEW latest_prices")
-        cur.execute("REFRESH MATERIALIZED VIEW price_changes_24h")
-        cur.execute("REFRESH MATERIALIZED VIEW price_changes_7d")
+        refresh_conn = get_db_connection()
+        refresh_conn.autocommit = True
+        try:
+            rcur = refresh_conn.cursor()
+            rcur.execute("SET statement_timeout = '300s'")
+            rcur.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY latest_prices")
+            rcur.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY price_changes_24h")
+            rcur.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY price_changes_7d")
+            rcur.close()
+        finally:
+            refresh_conn.close()
         conn.commit()
         print(f"  Refreshed materialized views (latest_prices, price_changes_24h, price_changes_7d)")
         

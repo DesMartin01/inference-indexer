@@ -412,7 +412,7 @@ async def root():
         "version": "1.2.0",
         "description": (
             "Independent AI inference price reporting. Live and historical "
-            "pricing by model, provider comparison, and the SIT-Composite index. "
+            "pricing by model, provider comparison, and the SIT Token Price Index (TPI). "
             "Pulled direct from inference providers - a more complete picture "
             "than aggregators like OpenRouter."
         ),
@@ -427,6 +427,8 @@ async def root():
         "endpoints": [
             "/v1/sit/composite/latest",
             "/v1/sit/composite/history",
+            "/v1/tpi/latest",
+            "/v1/tpi/history",
             "/v1/models",
             "/v1/models/{model_id}",
             "/v1/models/{model_id}/endpoints",
@@ -439,12 +441,14 @@ async def root():
     }
 
 @app.get("/v1/sit/composite/latest")
+@app.get("/v1/tpi/latest")  # Alias for TPI naming (v0.2)
 async def get_sit_latest(request: Request, authorization: Optional[str] = Header(None)):
-    """Returns the current SIT-Composite index value, including tier breakdowns.
-    
-    The SIT-Composite is a usage-weighted mean of the top 50 models by OpenRouter
-    token volume. This reflects what CTOs actually pay for inference, not the
-    raw median of all models (which is dragged down by cheap micro models).
+    """Returns the current SIT Token Price Index (TPI), including tier breakdowns.
+
+    The TPI is the market price for GPT-4-Turbo-equivalent inference (1 SIT).
+    Equal weight per provider (cheapest SIT-qualified model), 30% cap,
+    AA Intelligence Index >= 35. Computed by the hourly pipeline; this
+    endpoint reads from sit_index_values (method: tpi_equal_weight_provider_capped).
     """
     api_user = get_api_user(authorization)
     limits = check_rate_limit(api_user, is_ssr=request.headers.get("X-SSR-Secret") == SSR_SECRET)
@@ -501,24 +505,59 @@ async def get_sit_latest(request: Request, authorization: Optional[str] = Header
     tier_rows = cur.fetchall()
 
     # Fetch the latest STORED sit_index_points per tier (real rebased values,
-    # anchored to the earliest data date). The API must NOT hardcode 1000.0 —
+    # anchored to the Sep 2026 rebase date). The API must NOT hardcode 1000.0 —
     # that froze the index and hid real price movement.
     cur.execute("""
-        SELECT DISTINCT ON (tier) tier, sit_index_points
+        SELECT DISTINCT ON (tier) tier, sit_price, sit_index_points,
+               aa_version, basket_providers, eligibility_threshold,
+               model_count, provider_count
         FROM sit_index_values
+        WHERE calculation_method = 'tpi_equal_weight_provider_capped'
         ORDER BY tier, date DESC
     """)
-    stored_points = {row[0]: row[1] for row in cur.fetchall()}
+    tpi_rows = cur.fetchall()
+
+    # Fallback: if no TPI rows yet (e.g. mid-deploy), use any method
+    if not tpi_rows:
+        cur.execute("""
+            SELECT DISTINCT ON (tier) tier, sit_price, sit_index_points,
+                   aa_version, basket_providers, eligibility_threshold,
+                   model_count, provider_count
+            FROM sit_index_values
+            ORDER BY tier, date DESC
+        """)
+        tpi_rows = cur.fetchall()
+
+    stored = {row[0]: (float(row[1]), float(row[2])) for row in tpi_rows}
+    # Composite methodology metadata (Sep 2026): AA version, basket, threshold.
+    # Counts come from the stored row: the basket IS the index. Live-computing
+    # counts from a different (old absolute-gate) query desyncs them, which is
+    # how the site showed 8 providers next to an 18-provider basket.
+    comp_meta = {}
+    comp_meta_counts = (None, None)
+    for row in tpi_rows:
+        if row[0] == "composite" and len(row) >= 8:
+            comp_meta = {
+                "aa_version": row[3],
+                "basket_providers": row[4] if row[4] else [],
+                "eligibility_threshold": float(row[5]) if row[5] is not None else None,
+            }
+            comp_meta_counts = (row[6], row[7])
 
     def idx(tier):
-        v = stored_points.get(tier)
-        return float(v) if v is not None else 1000.0
+        v = stored.get(tier)
+        return v[1] if v else 1000.0
+    def tpi_price(tier, fallback=None):
+        v = stored.get(tier)
+        return v[0] if v else fallback
 
     composite = {
-        "price_per_m": round(weighted_mean, 2),
+        "price_per_m": round(tpi_price("composite", weighted_mean), 4),
         "index_points": idx("composite"),
-        "models": model_count,
-        "providers": provider_count,
+        # Stored basket counts (Sep 2026): the basket IS the index. Do not
+        # recompute from the usage-weighted top-50 (different methodology).
+        "models": comp_meta_counts[0] or model_count,
+        "providers": comp_meta_counts[1] or provider_count,
     }
 
     tiers = {}
@@ -641,11 +680,13 @@ async def get_sit_latest(request: Request, authorization: Optional[str] = Header
             "composite": composite,
             "tiers": tiers,
             "spread": spread,
+            "methodology": comp_meta,
         },
         headers=headers
     )
 
 @app.get("/v1/sit/composite/history")
+@app.get("/v1/tpi/history")  # Alias for TPI naming (v0.2)
 async def get_sit_history(
     request: Request,
     days: int = Query(30, ge=1, le=365),
@@ -666,14 +707,14 @@ async def get_sit_history(
     
     if tier:
         cur.execute("""
-            SELECT date, tier, sit_price, sit_index_points, model_count
+            SELECT date, tier, sit_price, sit_index_points, model_count, aa_version
             FROM sit_index_values
             WHERE tier = %s AND date >= CURRENT_DATE - make_interval(days => %s)
             ORDER BY date ASC
         """, (tier, days))
     else:
         cur.execute("""
-            SELECT date, tier, sit_price, sit_index_points, model_count
+            SELECT date, tier, sit_price, sit_index_points, model_count, aa_version
             FROM sit_index_values
             WHERE date >= CURRENT_DATE - make_interval(days => %s)
             ORDER BY date ASC, tier
@@ -698,6 +739,7 @@ async def get_sit_history(
             "price_per_m": row[2],
             "index_points": row[3],
             "model_count": row[4],
+            "aa_version": row[5],  # era tag for chart era-breaks (Sep 2026 rebase)
         }
     
     if current_entry:
@@ -715,8 +757,9 @@ async def get_models(
     request: Request,
     tier: Optional[str] = Query(None, regex="^(frontier|standard|budget|micro)$"),
     provider: Optional[str] = Query(None),
-    sort: str = Query("sit_score", regex="^(blended|input|output|sit_score)$"),
+    sort: str = Query("sit_adjusted_price", regex="^(blended|input|output|sit_score|sit_adjusted_price)$"),
     limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
     authorization: Optional[str] = Header(None)
 ):
     """Returns all tracked models with current pricing."""
@@ -738,7 +781,7 @@ async def get_models(
                COALESCE(zdr_sub.is_zdr, FALSE), COALESCE(eu_sub.is_eu, FALSE),
                COALESCE(pc24.change_24h_pct, 0),
                COALESCE(ch7.change_pct, 0),
-               ps.source
+               ps.source, m.description
         FROM models m
         JOIN latest_prices lp ON m.id = lp.model_id
         LEFT JOIN price_changes_24h pc24 ON m.id = pc24.model_id
@@ -779,12 +822,14 @@ async def get_models(
         "blended": "lp.blended_price_per_m ASC",
         "input": "lp.input_price_per_m ASC",
         "output": "lp.output_price_per_m ASC",
-        "sit_score": "lp.sit_score ASC NULLS LAST",
+        "sit_score": "lp.sit_adjusted_price ASC NULLS LAST",  # alias, same as sit_adjusted_price
+        "sit_adjusted_price": "lp.sit_adjusted_price ASC NULLS LAST",
     }
-    query += f" ORDER BY {sort_map.get(sort, sort_map['sit_score'])}"
+    query += f" ORDER BY {sort_map.get(sort, sort_map['sit_adjusted_price'])}, m.id"
     
-    query += " LIMIT %s"
+    query += " LIMIT %s OFFSET %s"
     params.append(limit)
+    params.append(offset)
     
     cur.execute(query, params)
     rows = cur.fetchall()
@@ -826,6 +871,7 @@ async def get_models(
             "fetched_at": row[15].isoformat() if row[15] else None,
             "source_count": row[16] if row[16] else 1,
             "source": row[21] if row[21] else "aggregator",
+            "description": row[22],
             "is_zdr": row[17],
             "is_eu_sovereign": row[18],
             "change_24h": float(row[19]) if row[19] else 0,
@@ -931,6 +977,801 @@ async def get_embeddings(
         headers=headers
     )
 # ============================================
+# RECOMMEND + EXPLAIN (PRD FR-4 / FR-5)
+# ============================================
+
+from pydantic import BaseModel as _PydanticBaseModel
+from typing import Optional as _Optional
+
+_recommend_cache: dict = {}   # key -> (expires_at_monotonic, payload)
+_RECOMMEND_CACHE_TTL = 300    # 5 min, matches pipeline cadence + ISR
+
+METHODOLOGY_VERSION = "0.2"
+
+# Friendly modality aliases -> DB modality values. Unknown values pass through unchanged.
+MODALITY_MAP = {
+    "text": "text->text",
+    "vision": "text+image->text",
+    "any": None,  # handled in code: no modality filter
+}
+
+class RecommendRequest(_PydanticBaseModel):
+    budget_max_usd_per_m: _Optional[float] = None
+    context_min: _Optional[int] = None
+    modality: str = "text"
+    zdr: bool = False
+    eu_sovereign: bool = False
+    reasoning: _Optional[bool] = None
+    exclude_reasoning_penalty: bool = True
+    limit: int = 5
+    providers: list[str] = []
+    use_case: _Optional[str] = None  # support | coding | research | extraction | summarization | volume
+    prefer_callable: bool = True     # demote results without a verified call recipe
+    aa_min: _Optional[float] = None  # minimum AA Intelligence Index (explicit quality floor)
+
+# Task-aware ranking adjustments (deterministic, documented in ranking_basis).
+# Each use case expresses: reasoning preference, minimum AA floor, and a
+# secondary sort nudge. These are heuristics pending bake-off validation (FR-10b).
+USE_CASE_PROFILES: dict = {
+    # support: high volume, precision over brilliance, cost-sensitive
+    "support":       {"prefer_reasoning": False, "aa_floor": 15, "note": "high-volume drafting: precision and cost matter more than peak intelligence"},
+    # volume: cheapest acceptable output (sales/outbound firehose)
+    "volume":        {"prefer_reasoning": False, "aa_floor": 10, "note": "high-volume generation: cost dominates"},
+    # extraction: structured output from documents; precision critical, no thinking needed
+    "extraction":    {"prefer_reasoning": False, "aa_floor": 20, "note": "structured extraction: JSON/field precision, reasoning adds latency without accuracy gains on schema tasks"},
+    # summarization: long context matters most, moderate quality floor
+    "summarization": {"prefer_reasoning": False, "aa_floor": 20, "note": "summarization: long context and cost efficiency matter more than reasoning depth"},
+    # coding: reasoning helps, quality floor higher
+    "coding":        {"prefer_reasoning": True,  "aa_floor": 30, "note": "coding: reasoning and higher intelligence correlate with patch quality"},
+    # research: long-context reasoning, higher floor
+    "research":      {"prefer_reasoning": True,  "aa_floor": 35, "note": "research/synthesis: reasoning depth and large context matter most"},
+}
+
+def _use_case_score(aa, is_reasoning, profile):
+    """Deterministic task-fit adjustment applied AFTER Cost/IQ ranking.
+
+    Returns a sort tuple (lower = better): Cost/IQ stays primary but
+    task penalties/rewards reorder near-ties. Penalties are multiplicative
+    on Cost/IQ so absolute prices still dominate.
+    """
+    cpiq_adj = 1.0
+    if aa is None:
+        cpiq_adj *= 1.5  # unrated models penalized when a task floor is set
+    elif aa < profile.get("aa_floor", 0):
+        # below the task floor: penalize proportionally to the shortfall
+        cpiq_adj *= 1.0 + (profile["aa_floor"] - aa) / profile["aa_floor"]
+    if profile.get("prefer_reasoning") is False and is_reasoning:
+        cpiq_adj *= 1.25  # reasoning overhead not in listed price
+    if profile.get("prefer_reasoning") is True and not is_reasoning:
+        cpiq_adj *= 1.15  # task benefits from reasoning
+    return cpiq_adj
+
+@app.get("/v1/recommend")
+async def recommend_get_alias(request: Request, authorization: Optional[str] = Header(None)):
+    """GET alias for /v1/recommend: query-param constraints (agent/proxy ergonomics).
+
+    Some agents and HTTP layers can't POST. Accepts the same constraints as
+    query params and dispatches to the same logic.
+    """
+    body = RecommendRequest(
+        budget_max_usd_per_m=request.query_params.get("budget_max_usd_per_m"),
+        context_min=request.query_params.get("context_min"),
+        modality=request.query_params.get("modality", "text"),
+        zdr=request.query_params.get("zdr", "").lower() in ("1", "true", "yes"),
+        eu_sovereign=request.query_params.get("eu_sovereign", "").lower() in ("1", "true", "yes"),
+        reasoning=(lambda v: None if v is None else v.lower() in ("1", "true", "yes"))(request.query_params.get("reasoning")),
+        limit=int(request.query_params.get("limit", 5)),
+        providers=[p for p in request.query_params.get("providers", "").split(",") if p],
+        use_case=request.query_params.get("use_case"),
+        aa_min=request.query_params.get("aa_min"),
+    )
+    # int coercion for context_min
+    if body.context_min is not None:
+        try:
+            body.context_min = int(body.context_min)
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="context_min must be an integer")
+    if body.budget_max_usd_per_m is not None:
+        try:
+            body.budget_max_usd_per_m = float(body.budget_max_usd_per_m)
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="budget_max_usd_per_m must be a number")
+    if body.aa_min is not None:
+        try:
+            body.aa_min = float(body.aa_min)
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="aa_min must be a number")
+    return await recommend(request, body, authorization)
+
+@app.post("/v1/recommend")
+async def recommend(
+    request: Request,
+    body: RecommendRequest,
+    authorization: Optional[str] = Header(None)
+):
+    """Constraint-filtered model ranking with evidence-in-response (PRD FR-4).
+
+    Ranks by Cost/IQ (sit_adjusted_price ascending). No quality/latency data in
+    v1 ranking (probe coverage too thin). No LLM in the path: deterministic
+    templates only.
+    """
+    import time as _time
+    api_user = get_api_user(authorization)
+    is_ssr = request.headers.get("X-SSR-Secret") == SSR_SECRET
+    limits = check_rate_limit(api_user, is_ssr=is_ssr)
+
+    # Validation: at least one real constraint (modality defaults to text, not a constraint)
+    if body.budget_max_usd_per_m is None and body.context_min is None \
+            and not body.zdr and not body.eu_sovereign \
+            and body.reasoning is None and not body.providers \
+            and body.use_case is None and body.aa_min is None:
+        raise HTTPException(
+            status_code=400,
+            detail={"error": {"code": "no_constraints",
+                    "message": "Set at least one of: budget_max_usd_per_m, context_min, zdr, eu_sovereign, reasoning, providers, use_case. For unconstrained browsing use /v1/models."}}
+        )
+    if body.limit < 1 or body.limit > 20:
+        raise HTTPException(status_code=400, detail="limit must be 1-20")
+    if body.budget_max_usd_per_m is not None and body.budget_max_usd_per_m <= 0:
+        raise HTTPException(status_code=400, detail="budget_max_usd_per_m must be > 0")
+    if body.context_min is not None and body.context_min < 0:
+        raise HTTPException(status_code=400, detail="context_min must be >= 0")
+    if body.aa_min is not None and (body.aa_min < 0 or body.aa_min > 100):
+        raise HTTPException(status_code=400, detail="aa_min must be between 0 and 100")
+    if body.use_case is not None and body.use_case not in USE_CASE_PROFILES:
+        raise HTTPException(status_code=400, detail={
+            "error": {"code": "invalid_use_case",
+                      "message": f"use_case must be one of: {', '.join(sorted(USE_CASE_PROFILES))}"}})
+
+    cache_key = json.dumps(body.dict(), sort_keys=True, default=str)
+    now_mono = _time.monotonic()
+    cached = _recommend_cache.get(cache_key)
+    cache_hit = False
+    if cached and cached[0] > now_mono:
+        payload = cached[1]
+        cache_hit = True
+    else:
+        payload = _compute_recommendation(body)
+        _recommend_cache[cache_key] = (now_mono + _RECOMMEND_CACHE_TTL, payload)
+        # keep the cache bounded
+        if len(_recommend_cache) > 500:
+            for k in [k for k, v in _recommend_cache.items() if v[0] < now_mono][:250]:
+                _recommend_cache.pop(k, None)
+
+    served_via = "ssr" if is_ssr else (api_user.get("plan", "public") if api_user else "public")
+    _log_recommendation_stats(body, payload, served_via, cache_hit)
+
+    headers = get_rate_limit_headers(api_user, limits)
+    headers["Cache-Control"] = "public, max-age=300"
+    headers["X-Cache"] = "HIT" if cache_hit else "MISS"
+    return JSONResponse(content=payload, headers=headers)
+
+
+RECEIPTS_DISPLAY_FLOOR = 2356  # display base (Des, Sep 23): never show fewer than this
+
+
+@app.get("/v1/recommend/stats")
+async def recommend_stats():
+    """Anonymous receipts counter for the homepage engine.
+
+    Returns the all-time count of recommendations served (with a display
+    floor so early users aren't the first guinea pigs). No query content
+    exists anywhere in the underlying table (constraint tuples only).
+    """
+    total = _recommendations_served_total()
+    if total < 0:
+        return JSONResponse(content={"total": RECEIPTS_DISPLAY_FLOOR, "available": False}, status_code=200)
+    # Display base + real count (Des, Sep 24): the counter must visibly tick with every
+    # recommendation served, so real usage always adds on top of the display floor.
+    return JSONResponse(
+        content={"total": RECEIPTS_DISPLAY_FLOOR + max(total, 0), "available": True},
+        headers={"Cache-Control": "public, max-age=300"},
+    )
+
+
+def _log_recommendation_stats(body: "RecommendRequest", payload: dict, served_via: str, cache_hit: bool):
+    """Anonymous demand instrumentation for the homepage engine (V6 PRD item 1).
+
+    PRIVACY RULE: constraint tuples only. No free text, no query content, no
+    user identifiers. A failure here must never break the recommend response.
+    """
+    try:
+        recs = payload.get("recommendations") or []
+        top_ciq = None
+        if recs and isinstance(recs[0], dict):
+            top_ciq = recs[0].get("cost_per_iq")
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
+            """INSERT INTO recommendation_stats
+               (budget_max_usd_per_m, context_min, modality, zdr, eu_sovereign,
+                reasoning, use_case, providers_n, limit_n, aa_min, result_count, top_cost_iq,
+                served_via, cache_hit)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+            (body.budget_max_usd_per_m, body.context_min, body.modality,
+             bool(body.zdr), bool(body.eu_sovereign), body.reasoning,
+             body.use_case, len(body.providers or []), body.limit,
+             body.aa_min, len(recs), top_ciq, served_via, cache_hit),
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"[recommend] stats write skipped: {e}", flush=True)
+
+
+def _recommendations_served_total() -> int:
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM recommendation_stats")
+        n = int(cur.fetchone()[0])
+        cur.close()
+        conn.close()
+        return n
+    except Exception as e:
+        print(f"[recommend] stats read failed: {e}", flush=True)
+        return -1
+
+
+def _compute_recommendation(body: "RecommendRequest") -> dict:
+    conn = get_db()
+    cur = conn.cursor()
+
+    modality_val = MODALITY_MAP.get(body.modality, body.modality)
+    query = """
+        SELECT m.id, m.name, m.provider, m.tier, m.context_length, m.aa_index_score,
+               m.is_reasoning, m.modality, m.creator_country,
+               lp.input_price_per_m, lp.output_price_per_m, lp.blended_price_per_m,
+               lp.sit_adjusted_price, lp.fetched_at,
+               COALESCE(zdr_sub.is_zdr, FALSE), COALESCE(eu_sub.is_eu, FALSE)
+        FROM models m
+        JOIN latest_prices lp ON m.id = lp.model_id
+        LEFT JOIN (
+            SELECT DISTINCT me.model_id, TRUE as is_zdr
+            FROM model_endpoints me
+            JOIN providers p ON me.endpoint_provider = p.name
+            WHERE p.is_zdr = TRUE
+        ) zdr_sub ON m.id = zdr_sub.model_id
+        LEFT JOIN (
+            SELECT DISTINCT me.model_id, TRUE as is_eu
+            FROM model_endpoints me
+            JOIN providers p ON me.endpoint_provider = p.name
+            WHERE p.is_eu_sovereign = TRUE
+        ) eu_sub ON m.id = eu_sub.model_id
+        WHERE m.is_active = TRUE AND lp.blended_price_per_m > 0
+          AND lp.sit_adjusted_price IS NOT NULL
+          AND m.id NOT LIKE '%%:batch'
+    """
+    params: list = []
+    # "text" means "can do text jobs": pure text AND vision-capable (text+X->text)
+    # models both qualify. Only an explicit vision/other request narrows it.
+    if body.modality == "text":
+        query += " AND (m.modality = 'text->text' OR m.modality LIKE 'text+%%->text')"
+    elif modality_val is not None:
+        query += " AND m.modality = %s"
+        params.append(modality_val)
+
+    if body.budget_max_usd_per_m is not None:
+        query += " AND lp.blended_price_per_m <= %s"
+        params.append(body.budget_max_usd_per_m)
+    if body.context_min is not None:
+        query += " AND m.context_length >= %s"
+        params.append(body.context_min)
+    if body.reasoning is not None:
+        query += " AND m.is_reasoning = %s"
+        params.append(body.reasoning)
+    if body.zdr:
+        query += " AND COALESCE(zdr_sub.is_zdr, FALSE) = TRUE"
+    if body.eu_sovereign:
+        query += " AND COALESCE(eu_sub.is_eu, FALSE) = TRUE"
+    if body.aa_min is not None:
+        query += " AND m.aa_index_score >= %s"
+        params.append(body.aa_min)
+
+    # provider restriction: model must have an endpoint at one of the named providers
+    if body.providers:
+        query += """
+          AND EXISTS (
+            SELECT 1 FROM model_endpoints me
+            WHERE me.model_id = m.id AND me.endpoint_provider = ANY(%s)
+          )
+        """
+        params.append(body.providers)
+
+    query += " ORDER BY lp.sit_adjusted_price ASC LIMIT %s"
+    params.append(body.limit + 3)  # fetch a few extra for runner-ups
+
+    cur.execute(query, params)
+    rows = cur.fetchall()
+
+    # Task-aware reordering (use_case): fetch all matching rows (up to 100) then
+    # re-rank by adjusted Cost/IQ so the task profile can reorder near-ties.
+    profile = USE_CASE_PROFILES.get(body.use_case) if body.use_case else None
+    if profile is not None and len(rows) >= (body.limit + 3):
+        # fetch a wider window for reordering
+        wide_query = query.rsplit("LIMIT", 1)[0] + " LIMIT 100"
+        cur.execute(wide_query, params[:-1])
+        rows = cur.fetchall()
+        rows = sorted(rows, key=lambda r: (r[11] or 1e9) * _use_case_score(r[5], r[6], profile))
+
+    # PR-2: prefer_callable is applied AFTER endpoint lookup (needs ep_map), below.
+
+    # verified base urls (hand-checked endpoint_provider_config table)
+    verified: dict = {}
+    ep_map: dict = {}
+    ep_privacy: dict = {}  # (model_id, provider) -> {zdr, eu} at the SPECIFIC host
+    if rows:
+        model_ids = [r[0] for r in rows]
+        cur.execute("""
+            SELECT provider_name, base_url
+            FROM endpoint_provider_config
+            WHERE base_url IS NOT NULL
+        """)
+        verified = {r[0]: r[1] for r in cur.fetchall()}
+        # native model ids from provider_model_alias (verified against live provider /models)
+        native_map: dict = {}
+        if verified:
+            cur.execute("""
+                SELECT provider_name, canonical_model_id, native_model_id
+                FROM provider_model_alias
+                WHERE canonical_model_id = ANY(%s) AND provider_name = ANY(%s)
+            """, (model_ids, list(verified.keys())))
+            for prov, canon, nat in cur.fetchall():
+                native_map[(prov, canon)] = nat
+        endpoint_providers = list(verified.keys())
+        if body.providers:
+            endpoint_providers = [p for p in body.providers if p in verified]
+            if not endpoint_providers:
+                endpoint_providers = ["__none__"]  # matches nothing
+        if endpoint_providers:
+            cur.execute("""
+                SELECT DISTINCT ON (model_id, endpoint_provider)
+                       model_id, endpoint_provider, input_price_per_m, output_price_per_m, blended_price_per_m
+                FROM model_endpoints
+                WHERE model_id = ANY(%s) AND endpoint_provider = ANY(%s)
+                      AND blended_price_per_m IS NOT NULL
+                ORDER BY model_id, endpoint_provider, blended_price_per_m ASC
+            """, (model_ids, endpoint_providers))
+            for mid, prov, ip, op, bp in cur.fetchall():
+                best = ep_map.get(mid)
+                if best is None or bp < best[1]:
+                    ep_map[mid] = (prov, bp, ip, op)
+            # privacy flags at the SPECIFIC host (not model-level aggregation)
+            cur.execute("""
+                SELECT me.model_id, me.endpoint_provider, p.is_zdr, p.is_eu_sovereign
+                FROM model_endpoints me
+                JOIN providers p ON me.endpoint_provider = p.name
+                WHERE me.model_id = ANY(%s) AND me.endpoint_provider = ANY(%s)
+            """, (model_ids, endpoint_providers))
+            for mid, prov, z, e in cur.fetchall():
+                key = (mid, prov)
+                prev = ep_privacy.get(key)
+                if prev is None or (z or e) and not (prev["zdr"] or prev["eu"]):
+                    ep_privacy[key] = {"zdr": bool(z), "eu": bool(e)}
+
+    cur.close()
+    conn.close()
+
+    recommendations = []
+    runner_ups = []
+    total_considered = len(rows)
+    budget = body.budget_max_usd_per_m
+
+    for i, row in enumerate(rows):
+        (model_id, name, creator, tier, ctx, aa, is_reasoning, modality,
+         creator_country, inp, outp, blended, cpiq, fetched_at, is_zdr, is_eu) = row
+
+        ep = ep_map.get(model_id)
+        endpoint_config = None
+        if ep and ep[0] in verified:
+            prov, bp, ip, op = ep
+            # native id: alias table (verified live) first, heuristic fallback
+            native_id = native_map.get((prov, model_id)) or _provider_model_id(model_id, prov)
+            host_privacy = ep_privacy.get((model_id, prov), {"zdr": False, "eu": False})
+            endpoint_config = {
+                "provider": prov,
+                "base_url": verified[prov],
+                "model_id_on_provider": native_id,
+                "model_id_source": "verified" if (prov, model_id) in native_map else "heuristic",
+                "input_price_per_m": float(ip) if ip is not None else None,
+                "output_price_per_m": float(op) if op is not None else None,
+                "zdr_at_this_host": host_privacy["zdr"],
+                "eu_sovereign_at_this_host": host_privacy["eu"],
+                "auth_scheme": "bearer",
+            }
+
+        caveats = []
+        callability = "callable" if endpoint_config is not None else "unverified"
+        if is_reasoning and body.exclude_reasoning_penalty:
+            caveats.append("reasoning model: thinking tokens not reflected in output price; effective cost per useful token is higher")
+        if endpoint_config is None:
+            caveats.append("no hand-verified endpoint base_url for this model yet; see /v1/models/{id}/endpoints for provider pricing")
+
+        # deterministic `why` string
+        bits = []
+        if body.use_case:
+            bits.append(f"for {body.use_case} ({profile['note']})")
+        if budget is not None:
+            bits.append(f"under ${budget}/M blended")
+        if body.context_min:
+            bits.append(f">= {body.context_min:,} token context")
+        if body.zdr:
+            bits.append("on a zero-data-retention provider")
+        if body.eu_sovereign:
+            bits.append("on an EU-sovereign provider")
+        constraint_txt = " and ".join(bits) if bits else "matching the given constraints"
+        if i < body.limit:
+            if body.use_case:
+                why = f"Rank {i+1} of models {constraint_txt}: task-adjusted Cost/IQ ${float(cpiq) * _use_case_score(aa, is_reasoning, profile)}/GPT-4-equiv M tokens (raw ${float(cpiq)})"
+            else:
+                why = f"Rank {i+1} by Cost/IQ (${float(cpiq)}/GPT-4-equiv M tokens) of models {constraint_txt}"
+            if endpoint_config:
+                why += f"; cheapest verified endpoint at {endpoint_config['provider']} (${float(ep[1])}/M blended)"
+        else:
+            why = f"Ranks just below the top {body.limit} on task-adjusted Cost/IQ" if body.use_case else f"Ranks just below the top {body.limit} on Cost/IQ"
+
+        entry = {
+            "model_id": model_id,
+            "name": name,
+            "creator": creator,
+            "creator_country": creator_country,
+            "tier": tier,
+            "context_length": ctx,
+            "is_reasoning": is_reasoning,
+            "aa_index_score": float(aa) if aa is not None else None,
+            "blended_price_per_m": float(blended) if blended is not None else None,
+            "cost_per_iq": float(cpiq) if cpiq is not None else None,
+            "input_price_per_m": float(inp) if inp is not None else None,
+            "output_price_per_m": float(outp) if outp is not None else None,
+            "callability": callability,
+            "zdr": bool(is_zdr),
+            "eu_sovereign": bool(is_eu),
+            "why": why,
+            "endpoint_config": endpoint_config,
+            "as_of": {
+                "price": fetched_at.isoformat() if fetched_at else None,
+                "aa_score": _aa_as_of(),
+            },
+            "freshness": _freshness_block(fetched_at, _aa_as_of()),
+            "caveats": caveats,
+        }
+        if i < body.limit:
+            entry["rank"] = i + 1
+            recommendations.append(entry)
+        else:
+            runner_ups.append(entry)
+
+    runner_ups = runner_ups[:3]
+
+    # PR-2: prefer_callable - demote unverified-callability results below callable ones.
+    # Applied to the display split (recommendations vs runner_ups), keeping raw order otherwise.
+    if body.prefer_callable and recommendations:
+        callable_recs = [r for r in recommendations if r["callability"] == "callable"]
+        unverified_recs = [r for r in recommendations if r["callability"] != "callable"]
+        if callable_recs and unverified_recs:
+            merged = callable_recs + unverified_recs
+            for idx, r in enumerate(merged):
+                r["rank"] = idx + 1
+                if idx >= len(callable_recs):
+                    r["caveats"].append("demoted: no verified call recipe; callable alternatives exist")
+                else:
+                    r["why"] += " (callable: verified endpoint recipe included)"
+            recommendations = merged
+    total_considered = max(total_considered, len(recommendations))
+
+    return {
+        "query": {
+            "budget_max_usd_per_m": body.budget_max_usd_per_m,
+            "context_min": body.context_min,
+            "modality": body.modality,
+            "zdr": body.zdr,
+            "eu_sovereign": body.eu_sovereign,
+            "reasoning": body.reasoning,
+            "providers": body.providers,
+            "use_case": body.use_case,
+            "prefer_callable": body.prefer_callable,
+            "aa_min": body.aa_min,
+        },
+        "methodology_version": METHODOLOGY_VERSION,
+        "recommendations": recommendations,
+        "alternatives_considered": {
+            "count": total_considered,
+            "runner_ups": runner_ups,
+        },
+        "ranking_basis": {
+            "method": "cost_per_iq_ascending" if not body.use_case else f"cost_per_iq_task_adjusted_{body.use_case}",
+            "description": "Blended price x (40 / AA Intelligence score). Lower is better; this is a PRICE-EFFICIENCY sort, not a task-fitness score.",
+            "aa_gate_note": "The AA >= 35 quality gate applies to whether a model HAS a Cost/IQ at all (sit_adjusted_price is only computed for AA >= 35 by the pipeline). Within results, low-AA models can outrank high-AA ones because Cost/IQ divides by AA. Check aa_index_score per model; low AA + very low price can mean 'cheap because limited'.",
+            "use_case_adjustment": (f"Task profile '{body.use_case}': {profile['note']}. Adjusted Cost/IQ = raw Cost/IQ x task penalty (reasoning preference, AA floor {profile['aa_floor']}). Heuristics pending bake-off validation." if body.use_case else None),
+            "excludes": "Models without AA scores; batch variants. 'text' modality includes vision-capable models (text+image->text).",
+            "quality_latency_data": "Not used in v1 ranking: provider probe coverage is too thin. Will be added per FR-15.",
+        },
+        "disclaimer": "Estimates based on aggregated public pricing. Verify with the provider before committing spend.",
+    }
+
+
+def _provider_model_id(model_id: str, provider: str) -> str:
+    """Best-effort canonical -> provider-native model id mapping.
+
+    Verified conventions (checked against live provider APIs):
+    - Mistral: 'mistralai/codestral-2508' -> 'codestral-2508' (verified live)
+    - DeepInfra/Together/Novita/SiliconFlow/Groq/SambaNova/OpenAI: creator prefix
+      stripped where the canonical prefix differs from the provider's namespace.
+    - Others: canonical id returned as-is; the caveat tells agents to check
+      /v1/models/{id}/endpoints when the call 404s.
+    """
+    creator, _, slug = model_id.partition("/")
+    if not slug:
+        return model_id
+    # providers whose native ids drop the creator prefix
+    if provider in ("OpenAI", "DeepInfra", "Together", "Novita", "SiliconFlow",
+                    "Groq", "SambaNova", "Mistral", "Fireworks"):
+        # but only when the creator prefix isn't the provider's own namespace
+        # (e.g. DeepInfra hosts 'deepseek-ai/DeepSeek-V4-Flash' WITH a namespace)
+        return slug
+    return model_id
+
+
+def _aa_as_of():
+    try:
+        conn2 = get_db()
+        cur2 = conn2.cursor()
+        cur2.execute("SELECT max(fetched_at)::date FROM price_snapshots WHERE aa_index_score IS NOT NULL")
+        row = cur2.fetchone()
+        cur2.close()
+        conn2.close()
+        return row[0].isoformat() if row and row[0] else None
+    except Exception:
+        return None
+
+def _resolve_model_id(model_id: str) -> tuple[str, str | None]:
+    """Resolve a possibly-dirty model id to canonical (PR-6).
+
+    Order: exact models.id -> model_aliases exact (case-insensitive) ->
+    trigram similarity >= 0.35. Returns (canonical_id, resolved_from).
+    resolved_from is None when the input was already canonical.
+    """
+    mid = (model_id or "").strip()
+    if not mid:
+        return model_id, None
+    conn2 = get_db()
+    cur2 = conn2.cursor()
+    try:
+        # 1. exact canonical
+        cur2.execute("SELECT id FROM models WHERE id = %s AND is_active", (mid,))
+        if cur2.fetchone():
+            return mid, None
+        # 2. exact alias (case-insensitive)
+        cur2.execute("SELECT canonical_model_id FROM model_aliases WHERE lower(alias) = lower(%s)", (mid,))
+        row = cur2.fetchone()
+        if row:
+            return row[0], "alias"
+        # 3. trigram fuzzy
+        cur2.execute("""
+            SELECT canonical_model_id, alias FROM model_aliases
+            WHERE alias %% %s AND similarity(alias, %s) >= 0.35
+            ORDER BY similarity(alias, %s) DESC LIMIT 1
+        """, (mid, mid, mid))
+        row = cur2.fetchone()
+        if row:
+            return row[0], f"fuzzy:{row[1]}"
+        return mid, None
+    finally:
+        cur2.close()
+        conn2.close()
+
+def _freshness_block(price_fetched_at, aa_as_of) -> dict:
+    """PR-7: freshness flags per field group (SLA: prices 6h, AA 7d)."""
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    flags = []
+    price_age_h = None
+    if price_fetched_at:
+        price_age_h = round((now - price_fetched_at).total_seconds() / 3600, 1)
+        if price_age_h > 6:
+            flags.append({"field": "price", "age_hours": price_age_h, "sla_hours": 6})
+    aa_age_d = None
+    if aa_as_of:
+        try:
+            aa_dt = datetime.fromisoformat(aa_as_of)
+            aa_age_d = round((now - aa_dt).total_seconds() / 86400, 1)
+            if aa_age_d > 7:
+                flags.append({"field": "aa_score", "age_days": aa_age_d, "sla_days": 7})
+        except ValueError:
+            pass
+    return {
+        "price_age_hours": price_age_h,
+        "aa_age_days": aa_age_d,
+        "stale": len(flags) > 0,
+        "stale_fields": flags,
+        "sla": {"price_hours": 6, "aa_days": 7},
+    }
+
+@app.get("/v1/explain")
+async def explain(
+    request: Request,
+    model_id: str = Query(..., description="Canonical model id, e.g. 'anthropic/claude-sonnet-5'"),
+    history_days: int = Query(30, ge=1, le=365),
+    authorization: Optional[str] = Header(None)
+):
+    """One call answers 'what is this model like right now' (PRD FR-5).
+
+    Composes pricing, changes, history summary, endpoints, privacy flags and
+    AA score. Everything is as-of stamped. No LLM in the path.
+    """
+    api_user = get_api_user(authorization)
+    limits = check_rate_limit(api_user, is_ssr=request.headers.get("X-SSR-Secret") == SSR_SECRET)
+
+    # PR-6: resolve dirty/aliased model ids to canonical
+    canonical_id, resolved_from = _resolve_model_id(model_id)
+
+    conn = get_db()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT m.id, m.name, m.provider, m.tier, m.context_length, m.modality,
+               m.is_reasoning, m.aa_index_score, m.creator_country,
+               lp.input_price_per_m, lp.output_price_per_m, lp.blended_price_per_m,
+               lp.sit_adjusted_price, lp.fetched_at, lp.source_count,
+               COALESCE(pc24.change_24h_pct, 0),
+               COALESCE(ch7.change_pct, 0), m.description
+        FROM models m
+        JOIN latest_prices lp ON m.id = lp.model_id
+        LEFT JOIN price_changes_24h pc24 ON m.id = pc24.model_id
+        LEFT JOIN price_changes_7d ch7 ON m.id = ch7.model_id
+        WHERE m.id = %s AND m.is_active = TRUE
+    """, (canonical_id,))
+    row = cur.fetchone()
+    if not row:
+        # suggestions: trigram-nearest aliases, then same-name-tail models
+        cur.execute("""
+            (SELECT canonical_model_id FROM model_aliases
+             WHERE alias %% %s AND similarity(alias, %s) >= 0.3
+             ORDER BY similarity(alias, %s) DESC LIMIT 3)
+            UNION
+            (SELECT id FROM models WHERE is_active AND id ILIKE %s LIMIT 2)
+        """, (canonical_id if canonical_id else model_id, canonical_id if canonical_id else model_id, canonical_id if canonical_id else model_id, f"%{(canonical_id or model_id).split('/')[-1]}%"))
+        suggestions = []
+        for r in cur.fetchall():
+            if r[0] not in suggestions:
+                suggestions.append(r[0])
+        cur.close(); conn.close()
+        raise HTTPException(status_code=404, detail={
+            "error": {"code": "not_found", "message": f"Model '{model_id}' not found or inactive"},
+            "suggestions": suggestions[:5],
+        })
+
+    (mid, name, creator, tier, ctx, modality, is_reasoning, aa, country,
+     inp, outp, blended, cpiq, fetched_at, source_count, ch24, ch7, description) = row
+
+    cur.execute("""
+        SELECT min(blended_price_per_m), max(blended_price_per_m), count(*)
+        FROM price_snapshots
+        WHERE model_id = %s AND fetched_at > now() - interval '%s days'
+    """, (canonical_id, history_days))
+    hmin, hmax, hcount = cur.fetchone()
+
+    # trend: first-3 vs last-3 average in window (labelled estimate, NFR-2)
+    cur.execute("""
+        SELECT blended_price_per_m FROM price_snapshots
+        WHERE model_id = %s AND fetched_at > now() - interval '%s days'
+              AND blended_price_per_m IS NOT NULL
+        ORDER BY fetched_at ASC
+    """, (canonical_id, history_days))
+    series = [r[0] for r in cur.fetchall() if r[0]]
+    trend = "insufficient data"
+    if len(series) >= 4:
+        first = sum(series[:3]) / 3
+        last = sum(series[-3:]) / 3
+        if last > first * 1.03:
+            trend = "rising"
+        elif last < first * 0.97:
+            trend = "declining"
+        else:
+            trend = "flat"
+
+    cur.execute("""
+        SELECT DISTINCT ON (endpoint_provider)
+               endpoint_provider, input_price_per_m, output_price_per_m, blended_price_per_m
+        FROM model_endpoints
+        WHERE model_id = %s AND blended_price_per_m IS NOT NULL
+        ORDER BY endpoint_provider, fetched_at DESC
+    """, (model_id,))
+    eps_raw = cur.fetchall()
+    eps = sorted(eps_raw, key=lambda r: r[3])
+
+    cur.execute("""
+        SELECT DISTINCT p.is_zdr, p.is_eu_sovereign
+        FROM model_endpoints me JOIN providers p ON me.endpoint_provider = p.name
+        WHERE me.model_id = %s
+    """, (canonical_id,))
+    prows = cur.fetchall()
+    zdr_avail = any(r[0] for r in prows)
+    eu_avail = any(r[1] for r in prows)
+
+    cur.execute("SELECT provider_name, base_url FROM endpoint_provider_config WHERE base_url IS NOT NULL")
+    verified = {r[0]: r[1] for r in cur.fetchall()}
+    # native id aliases for this model at verified providers
+    native_map: dict = {}
+    if verified and eps:
+        cur.execute("""
+            SELECT provider_name, native_model_id
+            FROM provider_model_alias
+            WHERE canonical_model_id = %s AND provider_name = ANY(%s)
+        """, (model_id, list(verified.keys())))
+        native_map = {r[0]: r[1] for r in cur.fetchall()}
+    cheapest_verified = None
+    for prov, ip, op, bp in eps:
+        if prov in verified:
+            cheapest_verified = {
+                "provider": prov,
+                "base_url": verified[prov],
+                "model_id_on_provider": native_map.get(prov) or _provider_model_id(model_id, prov),
+                "model_id_source": "verified" if prov in native_map else "heuristic",
+                "blended_per_m": float(bp),
+                "auth_scheme": "bearer",
+            }
+            break
+
+    cur.close()
+    conn.close()
+
+    result = {
+        "model_id": mid,
+        "resolved_from": resolved_from,
+        "name": name,
+        "tier": tier,
+        "context_length": ctx,
+        "modality": modality,
+        "is_reasoning": is_reasoning,
+        "creator_country": country,
+        "description": description,
+        "as_of": fetched_at.isoformat() if fetched_at else None,
+        "pricing": {
+            "input_per_m": float(inp) if inp is not None else None,
+            "output_per_m": float(outp) if outp is not None else None,
+            "blended_per_m": float(blended) if blended is not None else None,
+            "cost_per_iq": float(cpiq) if cpiq is not None else None,
+            "change_24h": float(ch24) if ch24 else 0.0,
+            "change_7d": float(ch7) if ch7 else 0.0,
+        },
+        "price_history_summary": {
+            "days_observed": history_days,
+            "snapshots": hcount,
+            "min_blended": float(hmin) if hmin is not None else None,
+            "max_blended": float(hmax) if hmax is not None else None,
+            "trend": trend,
+            "trend_note": "estimate: first-3 vs last-3 average in window",
+            "series_url": f"/v1/models/{mid}/history?days={history_days}",
+        },
+        "endpoints": [
+            {"provider": p,
+             "input_per_m": float(ip) if ip is not None else None,
+             "output_per_m": float(op) if op is not None else None,
+             "blended_per_m": float(bp) if bp is not None else None}
+            for p, ip, op, bp in eps
+        ],
+        "cheapest_verified_endpoint": cheapest_verified,
+        "privacy": {
+            "zdr_available": zdr_avail,
+            "eu_sovereign_available": eu_avail,
+            "note": "Provider-level claims, aggregated not certified. Check /v1/providers/{name} for verification dates.",
+        },
+        "quality": {
+            "aa_score": float(aa) if aa is not None else None,
+            "cost_per_iq": float(cpiq) if cpiq is not None else None,
+            "probe_data": "insufficient coverage",
+            "note": "Latency/reliability probing covers few providers so far (FR-15 pending).",
+        },
+        "sources": source_count or 1,
+        "freshness": _freshness_block(fetched_at, _aa_as_of()),
+        "methodology_version": METHODOLOGY_VERSION,
+    }
+
+    headers = get_rate_limit_headers(api_user, limits)
+    headers["Cache-Control"] = "public, max-age=300"
+    return JSONResponse(content=result, headers=headers)
 
 def _verify_provider_endpoint(api_base_url, api_key=None):
     """Test that a submitted API base URL responds on /v1/models.
@@ -1136,11 +1977,25 @@ async def api_usage(request: Request):
         return JSONResponse(status_code=401, content={"error": "Unauthorized"})
 
     include_ssr = request.query_params.get("include_ssr") == "1"
-    # Exclude our own frontend SSR traffic AND our own admin/monitoring
-    # self-calls (/v1/admin/*) by default, so the headline numbers reflect
-    # real external endpoint usage, not the dashboard counting itself.
-    # include_ssr=1 also surfaces the ssr/admin rows for a full audit.
-    scope_filter = "" if include_ssr else "AND plan <> 'ssr' AND endpoint NOT LIKE '/v1/admin/%%'"
+    # Exclude our own traffic by default: SSR plan, admin/monitoring self-calls
+    # (/v1/admin/*), and known first-party source IPs so the headline numbers
+    # reflect EXTERNAL third-party traffic only. Known own sources:
+    #   127.0.0.1        - local probes/tests on the VPS
+    #   84.203.*         - Digiweb broadband (Des's own browsing)
+    #   34.246.208.210   - our own AWS healthcheck/verification host
+    # Rows with a NULL ip are unattributable (pre-capture-fix or stripped
+    # proxy headers), so they are excluded too rather than counted as
+    # external. include_ssr=1 surfaces the ssr/admin rows for a full audit.
+    scope_filter = ""
+    if not include_ssr:
+        scope_filter = (
+            "AND plan <> 'ssr'"
+            " AND endpoint NOT LIKE '/v1/admin/%%'"
+            " AND ip IS NOT NULL"
+            " AND ip::text NOT LIKE '127.0.0.1%%'"
+            " AND ip::text NOT LIKE '84.203.%%'"
+            " AND ip::text NOT LIKE '34.246.208.210%%'"
+        )
 
     conn = get_db()
     cur = conn.cursor()
@@ -1802,7 +2657,7 @@ async def get_model(
                m.modality, m.tokenizer, m.is_reasoning, m.created_at,
                lp.input_price_per_m, lp.output_price_per_m, lp.blended_price_per_m,
                lp.sit_score, lp.reasoning_multiplier, lp.sit_adjusted_price,
-               lp.source, lp.fetched_at, lp.source_count
+               lp.source, lp.fetched_at, lp.source_count, m.description
         FROM models m
         JOIN latest_prices lp ON m.id = lp.model_id
         WHERE m.id = %s AND m.is_active = TRUE
@@ -1942,6 +2797,7 @@ async def get_model(
             "modality": row[6],
             "tokenizer": row[7],
             "is_reasoning": row[8],
+            "description": row[19],
             "date_added": row[9].isoformat() if row[9] else None,
             "input_price_per_m": row[10],
             "output_price_per_m": row[11],
