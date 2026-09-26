@@ -58,8 +58,15 @@ const rubricItem: React.CSSProperties = {
   paddingLeft: 16,
 };
 
-const copySlot: React.CSSProperties = {
-  color: "#C4A038",
+const jumpBtn: React.CSSProperties = {
+  display: "inline-block",
+  padding: "8px 18px",
+  border: "1px solid #2a2a2a",
+  borderRadius: 6,
+  background: "#16161a",
+  color: "#c9c9c9",
+  fontSize: 13.5,
+  textDecoration: "none",
 };
 
 export default function HarnessesPage() {
@@ -71,10 +78,9 @@ export default function HarnessesPage() {
       <Header activePage="harnesses" />
       <main style={{ flex: 1, maxWidth: 1320, width: "100%", margin: "0 auto", padding: "40px 28px 60px" }}>
         <h1 style={{ fontSize: 30, fontWeight: 700, color: "#f2f2f2", marginBottom: 10, letterSpacing: "-0.01em" }}>
-          <span style={copySlot}>[COPY: H1 placeholder]</span> Agent harnesses, ranked by category
+          Agent harnesses, ranked by category
         </h1>
         <p style={{ ...p, maxWidth: 780, marginBottom: 14 }}>
-          <span style={copySlot}>[COPY: sub-line placeholder]</span>{" "}
           Ranked from the best-of-Agent-Harnesses list ({sm.project_count} harnesses, rescored weekly). Stars
           and licenses are facts; fit-by-category is our rubric, not a verified benchmark. Pick the harness and
           the model as a pair.{" "}
@@ -82,13 +88,19 @@ export default function HarnessesPage() {
             We price the model side.
           </Link>
         </p>
-        <p style={{ ...muted, marginBottom: 34 }}>
+        <p style={{ ...muted, marginBottom: 18 }}>
           Last refreshed {data.generated_at} · {researchedNote}
         </p>
 
-        <HarnessTable data={data.tables.personal} />
-        <HarnessTable data={data.tables.enterprise} extraColumn="sandbox" />
-        <HarnessTable data={data.tables.small_business} extraColumn="buy" />
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 34 }}>
+          <a href="#personal-agents" style={jumpBtn}>Personal agents</a>
+          <a href="#enterprise-harnesses" style={jumpBtn}>Enterprise harnesses</a>
+          <a href="#small-business-harnesses" style={jumpBtn}>Small business harnesses</a>
+        </div>
+
+        <HarnessTable data={data.tables.personal} anchorId="personal-agents" />
+        <HarnessTable data={data.tables.enterprise} extraColumn="sandbox" anchorId="enterprise-harnesses" />
+        <HarnessTable data={data.tables.small_business} extraColumn="buy" anchorId="small-business-harnesses" />
 
         <details
           style={{

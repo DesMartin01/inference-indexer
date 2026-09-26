@@ -64,9 +64,11 @@ function licenseColor(signal: string | null): string {
 export default function HarnessTable({
   data,
   extraColumn,
+  anchorId,
 }: {
   data: HarnessTableData;
   extraColumn?: "sandbox" | "buy";
+  anchorId?: string;
 }) {
   const columns = extraColumn === "sandbox"
     ? ["Harness", "What it is", "Stars", "Tier", "Autonomy", "Recovery", "Sandboxing", "License"]
@@ -76,6 +78,7 @@ export default function HarnessTable({
 
   return (
     <div
+      id={anchorId}
       style={{
         background: "#16161a",
         border: "1px solid #2a2a2a",
@@ -119,16 +122,7 @@ export default function HarnessTable({
           {data.rows.map((r) => (
             <tr key={r.name}>
               <td style={{ ...td, color: "#e5e5e5", fontWeight: 500, whiteSpace: "nowrap" }}>
-                {r.page_url ? (
-                  <a
-                    href={r.page_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ color: "#e5e5e5", textDecoration: "none" }}
-                  >
-                    {r.name}
-                  </a>
-                ) : r.url ? (
+                {r.url ? (
                   <a
                     href={r.url}
                     target="_blank"
