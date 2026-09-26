@@ -44,7 +44,20 @@ VERCEL_PROVIDER_MAP = {
     "spacexai": "xai",
     "kimi": "moonshotai",
     "bfl": "blackforestlabs",
-    "qwen": "alibaba",
+    "qwen": "qwen",
+    "alibaba": "qwen",
+}
+
+# Explicit slug remaps for Vercel naming drift (verified against the canonical
+# catalogue 2026-09-26). Applied after provider mapping, before suffix stripping.
+VERCEL_SLUG_MAP = {
+    "qwen3.5-flash": "qwen3.5-flash-02-23",
+    "qwen3.5-plus": "qwen3.5-plus-02-15",
+    "qwen3-max": "qwen3-max",
+    "qwen3-max-preview": "qwen3-max",
+    "gpt-5-codex": "gpt-5.1-codex",
+    "nemotron-nano-12b-v2-vl": "nemotron-nano-12b-v2-vl",
+    "hy4-preview": "hy4-preview",
 }
 
 # Serving-mode suffixes Vercel splits into separate ids. Strip longest-first.
@@ -71,6 +84,7 @@ def _remap_id(vid: str, canonical: set, norm_map: dict) -> tuple[str, str | None
     if len(parts) == 2:
         vp, vslug = parts
         cp = VERCEL_PROVIDER_MAP.get(vp, vp)
+        vslug = VERCEL_SLUG_MAP.get(vslug, vslug)
 
         # 2. provider remap, both raw and normalized
         for cand in (f"{cp}/{vslug}",):
