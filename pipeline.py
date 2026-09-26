@@ -29,6 +29,7 @@ from provider_scrapers import (
     fetch_together_pricing as _fetch_together_pricing,
 )
 from tensorx_pricing import fetch_tensorx_pricing as _fetch_tensorx_pricing
+from vercel_pricing import fetch_vercel_pricing as _fetch_vercel_pricing
 from openrelay_pricing import fetch_openrelay_pricing as _fetch_openrelay_pricing
 from sarvam_pricing import fetch_sarvam_pricing as _fetch_sarvam_pricing
 from direct_scrapers import (
@@ -1867,6 +1868,23 @@ def fetch_sarvam_direct():
 
 
 # ============================================
+# VERCEL AI GATEWAY DIRECT PRICING (public JSON API)
+# ============================================
+
+def fetch_vercel_direct():
+    """Fetch Vercel AI Gateway per-model token pricing.
+
+    Vercel's public, no-auth /v1/models catalog includes per-token USD pricing
+    for ~260 language models across 20+ underlying providers. Delegates to
+    vercel_pricing.py (per-token -> $/M conversion, canonical id remapping).
+    Doubles as an independent second source to cross-check OpenRouter prices.
+
+    Returns (endpoints, new_models).
+    """
+    return _fetch_vercel_pricing()
+
+
+# ============================================
 # REPLICATE DIRECT CONNECTOR
 # ============================================
 
@@ -3531,6 +3549,12 @@ def main():
         endpoint_data.extend(sarvam_endpoints)
         print(f"  Sarvam direct: {len(sarvam_endpoints)} endpoints added")
 
+    # Vercel AI Gateway direct (public JSON API, per-token USD pricing)
+    vercel_endpoints, vercel_new_models = fetch_vercel_direct()
+    if vercel_endpoints:
+        endpoint_data.extend(vercel_endpoints)
+        print(f"  Vercel direct: {len(vercel_endpoints)} endpoints added")
+
     # Z.AI (Zhipu) direct (markdown pricing page, no API key)
     zai_endpoints, zai_new_models = _fetch_zai_pricing()
     if zai_endpoints:
@@ -3643,6 +3667,8 @@ def main():
             upsert_venice_models(conn, openrelay_new_models, priced)
         if sarvam_new_models:
             upsert_venice_models(conn, sarvam_new_models, priced)
+        if vercel_new_models:
+            upsert_venice_models(conn, vercel_new_models, priced)
         if zai_new_models:
             upsert_venice_models(conn, zai_new_models, priced)
         if alibaba_new_models:
