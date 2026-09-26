@@ -186,6 +186,18 @@ export function Header({ activePage = "" }: { activePage?: string }) {
           </Link>
           {isMobile ? null : (
           <Link
+            href="/harnesses"
+            style={{
+              fontSize: "12.5px",
+              color: activePage === "harnesses" ? "#C4A038" : "#8a8a8a",
+              textDecoration: "none",
+            }}
+          >
+            Harnesses
+          </Link>
+          )}
+          {isMobile ? null : (
+          <Link
             href="/methodology"
             style={{
               fontSize: "12.5px",
@@ -280,6 +292,9 @@ export function Footer({ models, providers, updatedAt = "" }: { models?: number;
           </Link>
           <Link href="/for-agents" style={{ fontSize: "12px", color: "#7a7a7a", textDecoration: "none" }}>
             For Agents
+          </Link>
+          <Link href="/harnesses" style={{ fontSize: "12px", color: "#7a7a7a", textDecoration: "none" }}>
+            Harnesses
           </Link>
           <Link href="/data-quality" style={{ fontSize: "12px", color: "#7a7a7a", textDecoration: "none" }}>
             Data Quality

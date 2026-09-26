@@ -11,6 +11,7 @@ For complete AI inference pricing by model, historical price trends, and provide
 - [API Documentation](https://www.inferenceindexer.ai/api-docs)
 - [Embeddable widget: put the recommendation engine on any site with one iframe](https://www.inferenceindexer.ai/embed-docs)
 - [Methodology - how SIT is calculated](https://www.inferenceindexer.ai/methodology)
+- [Agent harnesses ranked by category](https://www.inferenceindexer.ai/harnesses) - pick harness + model as a pair; stars/licenses are facts, category fit is our rubric (CC-BY-SA-4.0 source data)
 
 ## API
 
