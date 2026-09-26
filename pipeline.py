@@ -644,7 +644,10 @@ def upsert_venice_models(conn, new_models, existing_priced):
         cur.execute("""
             INSERT INTO models (id, name, provider, tier, context_length, is_reasoning, modality, is_active)
             VALUES (%s, %s, %s, %s, %s, %s, %s, TRUE)
-            ON CONFLICT (id) DO NOTHING
+            ON CONFLICT (id) DO UPDATE SET
+                is_active = TRUE,
+                context_length = COALESCE(EXCLUDED.context_length, models.context_length),
+                updated_at = NOW()
         """, (
             m["model_id"],
             m["name"],
@@ -3734,11 +3737,12 @@ def main():
             rcur.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY latest_prices")
             rcur.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY price_changes_24h")
             rcur.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY price_changes_7d")
+            rcur.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY provider_stats")
             rcur.close()
         finally:
             refresh_conn.close()
         conn.commit()
-        print(f"  Refreshed materialized views (latest_prices, price_changes_24h, price_changes_7d)")
+        print(f"  Refreshed materialized views (latest_prices, price_changes_24h, price_changes_7d, provider_stats)")
         
         print(f"\n✓ Pipeline complete at {datetime.now(timezone.utc).isoformat()}")
     except Exception as e:
