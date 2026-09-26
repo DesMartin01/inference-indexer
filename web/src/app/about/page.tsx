@@ -46,6 +46,7 @@ const goldLink: CSSProperties = {
 };
 
 const tocItems = [
+  { id: "what-is-inference", label: "What is AI inference?" },
   { id: "mission", label: "Mission" },
   { id: "collaboration", label: "The Collaboration" },
   { id: "team", label: "The Team" },
@@ -94,6 +95,118 @@ export default async function AboutPage() {
             unreliable. II is the independent party that verifies them: subscribed to by the teams that cannot
             afford to be blindsided, and trusted because it takes no money from the parties it scores.
           </p>
+
+          {/* What is AI inference (primer + stack graphic) */}
+          <div id="what-is-inference" style={{ marginBottom: 40 }}>
+            <h2 style={sectionHeading}>What is AI inference?</h2>
+            <p style={{ ...bodyText, maxWidth: 720 }}>
+              When you use an AI product, your question travels down a stack of four layers before
+              an answer comes back. The step where a trained model turns your input into that answer
+              is called <strong style={{ color: "#e5e5e5" }}>inference</strong>, and it is what you
+              are paying for every time you use an AI service.
+            </p>
+            <div
+              style={{
+                background: "#16161a",
+                border: "1px solid #2a2a2a",
+                borderRadius: 8,
+                padding: "28px 24px 24px",
+                marginBottom: 16,
+                display: "grid",
+                gridTemplateColumns: "1fr 150px",
+                gap: 24,
+              }}
+            >
+              {/* Layers 1-4 */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {[
+                  { n: 1, name: "User interface", desc: "the app you type into", cls: "plain" },
+                  { n: 2, name: "Harness", desc: "tools, memory, orchestration", cls: "future" },
+                  { n: 3, name: "Models", desc: "the trained intelligence itself", cls: "covered" },
+                  { n: 4, name: "GPUs", desc: "the hardware it runs on", cls: "covered" },
+                ].map((l) => (
+                  <div
+                    key={l.n}
+                    style={{
+                      border: l.cls === "future" ? "1px dashed #4a4430" : "1px solid #333",
+                      background: l.cls === "covered" ? "rgba(196, 160, 56, 0.06)" : "transparent",
+                      borderRadius: 6,
+                      padding: "12px 16px",
+                      display: "flex",
+                      alignItems: "baseline",
+                      gap: 10,
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: 11,
+                        color: l.cls === "covered" ? "#C4A038" : "#5f5f5f",
+                        fontVariantNumeric: "tabular-nums",
+                        flexShrink: 0,
+                        width: 14,
+                      }}
+                    >
+                      {l.n}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 14,
+                        fontWeight: 600,
+                        color: l.cls === "future" ? "#8a8a8a" : "#e5e5e5",
+                      }}
+                    >
+                      {l.name}
+                    </span>
+                    <span style={{ fontSize: 12, color: "#8a8a8a", marginLeft: "auto", textAlign: "right" }}>
+                      {l.desc}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              {/* II bracket over layers 3-4 */}
+              <div style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
+                <div
+                  style={{
+                    borderLeft: "2px solid #C4A038",
+                    borderTop: "2px solid #C4A038",
+                    borderBottom: "2px solid #C4A038",
+                    borderRadius: 2,
+                    padding: "12px 0 12px 12px",
+                    display: "flex",
+                    alignItems: "center",
+                  }}
+                >
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#C4A038", lineHeight: 1.5, letterSpacing: "0.02em" }}>
+                    What InferenceIndexer indexes
+                    <span style={{ display: "block", fontWeight: 500, fontSize: 11, color: "#a08840" }}>
+                      price &amp; quality, layers 3&ndash;4
+                    </span>
+                  </div>
+                </div>
+                <div
+                  style={{
+                    marginTop: 14,
+                    fontSize: 11,
+                    color: "#5f5f5f",
+                    lineHeight: 1.5,
+                    borderTop: "1px dashed #333",
+                    paddingTop: 10,
+                  }}
+                >
+                  Dashed layer 2: harness recommendations are on the roadmap.
+                </div>
+              </div>
+            </div>
+            <p style={{ ...bodyText, fontSize: 12, color: "#5f5f5f", lineHeight: 1.6 }}>
+              <strong style={{ color: "#8a8a8a", fontWeight: 600 }}>Why the split matters:</strong>{" "}
+              the same model on different hardware and hosting is a different product, at a different
+              price. That is why one model can cost three different amounts from three providers, and
+              it is exactly the variation InferenceIndexer tracks. See the current{" "}
+              <a href="/models" style={{ color: "#C4A038", textDecoration: "none" }}>model rankings</a>{" "}
+              or read how we score price and quality in the{" "}
+              <a href="/methodology" style={{ color: "#C4A038", textDecoration: "none" }}>methodology</a>.
+            </p>
+          </div>
 
           {/* Mission */}
           <div id="mission" style={{ marginBottom: 40 }}>
