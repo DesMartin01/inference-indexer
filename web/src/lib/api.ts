@@ -159,6 +159,24 @@ export async function getModels(tier?: string, sort?: string, limit?: number, _r
 }
 
 /**
+ * Fetch the COMPLETE model catalogue by paginating /v1/models (API caps a
+ * page at 500). Used by server-rendered link indexes where a silently
+ * truncated list would drop real models from the crawl graph.
+ */
+export async function getAllModels(): Promise<ModelSummary[]> {
+  const PAGE = 500;
+  const out: ModelSummary[] = [];
+  for (let offset = 0; ; offset += PAGE) {
+    const page = await fetchWithCache<ModelList>(`/v1/models?limit=${PAGE}&offset=${offset}`);
+    const models = page?.models ?? [];
+    out.push(...models);
+    if (models.length < PAGE) break;
+    if (offset > 5_000) break; // hard stop: catalogue can't be this big
+  }
+  return out;
+}
+
+/**
  * Lightweight model count for headers/footers/SEO. Hits /v1/models?limit=1
  * and reads the `count` field so it stays in sync with the table without
  * pulling every model row. Single source of truth for "how many models".
