@@ -3556,10 +3556,19 @@ def main():
         print(f"  Sarvam direct: {len(sarvam_endpoints)} endpoints added")
 
     # Vercel AI Gateway direct (public JSON API, per-token USD pricing)
-    vercel_endpoints, vercel_new_models = fetch_vercel_direct()
-    if vercel_endpoints:
-        endpoint_data.extend(vercel_endpoints)
-        print(f"  Vercel direct: {len(vercel_endpoints)} endpoints added")
+    # DISABLED 2026-09-26 (Des decision): Vercel is a gateway/reseller, not an
+    # inference provider. Rule: gateways are excluded from the providers table
+    # unless they host models unavailable elsewhere. Audit confirmed all 248
+    # Vercel endpoint rows shadow models already priced via OpenRouter (60
+    # active Vercel-only models all have fresh hourly prices; 14 inactive).
+    # Keep this block so the connector can be re-enabled quickly.
+    if False:  # GATEWAY_EXCLUDED
+        vercel_endpoints, vercel_new_models = fetch_vercel_direct()
+        if vercel_endpoints:
+            endpoint_data.extend(vercel_endpoints)
+            print(f"  Vercel direct: {len(vercel_endpoints)} endpoints added")
+    else:
+        vercel_endpoints, vercel_new_models = [], []
 
     # Z.AI (Zhipu) direct (markdown pricing page, no API key)
     zai_endpoints, zai_new_models = _fetch_zai_pricing()
