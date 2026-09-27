@@ -11,7 +11,9 @@ import ModelDirectory from "@/components/ModelDirectory";
 import { SITEMAP_EXCLUDED_MODEL_IDS } from "@/lib/sitemap-exclusions";
 import { CURRENT_MODEL_COUNT, CURRENT_PROVIDER_COUNT } from "@/lib/counts";
 
-export const revalidate = 60;
+// Data updates hourly; 60s revalidate only multiplied ISR writes and origin
+// load with zero freshness benefit. 10 min is plenty for an hourly pipeline.
+export const revalidate = 600;
 
 export async function generateMetadata(): Promise<Metadata> {
   const count = (await getModelCount().catch(() => 0)) || CURRENT_MODEL_COUNT;

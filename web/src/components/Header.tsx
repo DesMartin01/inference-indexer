@@ -259,7 +259,11 @@ export function Footer({ models, providers, updatedAt = "" }: { models?: number;
   // `providers` prop is only a fallback override (so pages can't drift the
   // number); the API's registered count is the source of truth.
   const liveProviders = useProviderCount(providers ?? CURRENT_PROVIDER_COUNT);
-  const updated = updatedAt || new Date().toISOString().slice(0, 16).replace("T", " ") + " UTC";
+  // Updated timestamp must be data-driven and stable. A render-time new Date()
+  // here made every ISR regeneration produce different HTML, which Vercel
+  // charges as an ISR Write even when no data changed. Pages without an
+  // explicit updatedAt simply omit the "Last updated" segment.
+  const updated = updatedAt;
   return (
     <footer style={{ borderTop: "1px solid #1a1a1a", background: "#0a0a0a", marginTop: "auto" }}>
       <div
@@ -328,7 +332,7 @@ export function Footer({ models, providers, updatedAt = "" }: { models?: number;
             fontVariantNumeric: "tabular-nums",
           }}
         >
-          {liveModels} models · {liveProviders} providers · Last updated: {updated}
+          {liveModels} models · {liveProviders} providers{updated ? ` · Last updated: ${updated}` : ""}
         </div>
       </div>
     </footer>

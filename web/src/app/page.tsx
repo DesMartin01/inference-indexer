@@ -17,7 +17,9 @@ import ModelTable from "@/components/ModelTable";
 import EnginePanel from "@/components/EnginePanel";
 import { CURRENT_MODEL_COUNT, CURRENT_PROVIDER_COUNT } from "@/lib/counts";
 
-export const revalidate = 60;
+// Pricing data updates hourly. 5 min matches the upstream data-cadence
+// (ISR_REVALIDATE in lib/api.ts); writes only occur when output changes.
+export const revalidate = 300;
 
 // Creator country flag emojis (subset, mirrors ModelTable's map)
 const PREVIEW_FLAG_EMOJI: Record<string, string> = {
@@ -138,9 +140,10 @@ export default async function Home() {
     color: pctColor(n),
   });
 
-  const lastUpdated = latest?.date
-    ? latest.date + " 06:00 UTC"
-    : new Date().toISOString().slice(0, 16).replace("T", " ") + " UTC";
+  // Stable fallback only: never render wall-clock time into cached output.
+  // A new Date() here made every ISR regeneration differ from the last, which
+  // Vercel bills as ISR Writes even when no data changed.
+  const lastUpdated = latest?.date ? latest.date + " 06:00 UTC" : "";
 
   // Catalogue preview: top 3 Frontier models by Cost/IQ (Des, Sep 23: do not
   // mix tiers in the preview - a global Cost/IQ top-3 is always micro models,

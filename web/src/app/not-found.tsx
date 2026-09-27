@@ -47,7 +47,7 @@ export default function NotFound() {
           ← Back to the index
         </Link>
       </div>
-      <Footer providers={71} updatedAt="" />
+      <Footer providers={71} />
     </main>
   );
 }

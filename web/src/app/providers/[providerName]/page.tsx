@@ -301,7 +301,7 @@ export default async function ProviderPage({ params }: { params: Promise<{ provi
         </h2>
         <ProviderModelTable models={provider.models} providerName={provider.name} />
       </main>
-      <Footer providers={71} updatedAt="" />
+      <Footer providers={71} />
     </div>
   );
 }

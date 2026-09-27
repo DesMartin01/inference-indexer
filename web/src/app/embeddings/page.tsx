@@ -4,7 +4,9 @@ import { getEmbeddings, type EmbeddingModel } from "@/lib/api";
 import { Header, Footer } from "@/components/Header";
 import EmbeddingTable from "@/components/EmbeddingTable";
 
-export const revalidate = 60;
+// Data updates hourly; 60s revalidate only multiplied ISR writes and origin
+// load with zero freshness benefit. 10 min is plenty for an hourly pipeline.
+export const revalidate = 600;
 
 export const metadata: Metadata = {
   title: "Embedding Model Pricing - Live API Costs | InferenceIndexer.ai",

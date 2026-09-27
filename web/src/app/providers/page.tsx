@@ -72,7 +72,7 @@ export default async function ProvidersPage() {
           </Link>
         </div>
       </main>
-      <Footer providers={71} updatedAt="" />
+      <Footer providers={71} />
     </div>
   );
 }

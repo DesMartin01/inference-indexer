@@ -37,7 +37,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   for (const page of staticPages) {
     entries.push({
       url: `${BASE_URL}${page.url}`,
-      lastModified: new Date(),
       changeFrequency: page.changeFrequency,
       priority: page.priority,
     });
@@ -87,7 +86,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       for (const p of providers) {
         entries.push({
           url: `${BASE_URL}/providers/${encodeURIComponent(p.name)}`,
-          lastModified: new Date(),
+          // No wall-clock lastModified: a render-time timestamp made the
+          // sitemap differ on every regeneration (paid ISR writes with no
+          // data change). lastModified omitted is valid sitemap syntax.
           changeFrequency: "daily",
           priority: 0.6,
         });
