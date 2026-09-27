@@ -44,3 +44,9 @@ These have `sit_score: null`, don't participate in SIT properly, but pull up tie
 
 ## Related Fix (Done)
 Fixed single-model detail endpoint missing `is_active = TRUE` filter. Commit `a72d3c4`. Deployed to prod.
+
+## Ticket: endpoint-name case consolidation (opened 2026-09-27)
+- Symptom: client-side prefetch 404 on /providers/Inclusionai (DB endpoint rows say "inclusionAI", router slug "Inclusionai" miss-matches canonical name casing).
+- Same disease: "BaseTen" vs "Baseten" both appear as endpoint providers.
+- Fix: consolidate endpoint_provider casing to canonical `providers.name` values (like migrate_consolidate_case_dups.py did for model IDs), then re-check provider table duplicates.
+- Also noted: "Alibaba" (58) vs "Alibaba Cloud" (57) — likely distinct hosts (OpenRouter vs DashScope), Des to decide whether to merge.
