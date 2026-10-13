@@ -1773,29 +1773,124 @@ async def explain(
     headers["Cache-Control"] = "public, max-age=300"
     return JSONResponse(content=result, headers=headers)
 
-def _verify_provider_endpoint(api_base_url, api_key=None):
-    """Test that a submitted API base URL responds on /v1/models.
+import ipaddress
+import json
+import socket
+import ssl
+import urllib.parse
+import urllib.request
+from http.client import HTTPSConnection
 
-    Used to pre-validate a submission before it's approved. Returns
-    (ok, model_count, detail). Never crashes - a failed probe just
-    marks the submission invalid.
-    """
-    url = api_base_url.rstrip("/") + "/v1/models"
-    headers = {"Accept": "application/json"}
-    if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
-    import urllib.request
-    req = urllib.request.Request(url, headers=headers)
+
+class _PinnedHTTPSConnection(HTTPSConnection):
+    """HTTPSConnection pinned to a pre-validated IP. TLS SNI and certificate
+    verification still use the real hostname, so certs verify correctly even
+    though we dial the validated IP directly (DNS rebinding is dead)."""
+
+    def __init__(self, real_host, pinned_ip, timeout=None, context=None):
+        super().__init__(pinned_ip, timeout=timeout, context=context)
+        self._real_host = real_host
+
+    def connect(self):
+        sock = socket.create_connection((self.host, self.port), self.timeout)
+        self.sock = self._context.wrap_socket(sock, server_hostname=self._real_host)
+
+
+def _is_blocked_ip(ip_str):
+    addr = ipaddress.ip_address(ip_str)
+    blocked_ranges = [
+        ipaddress.ip_network("0.0.0.0/8"),
+        ipaddress.ip_network("10.0.0.0/8"),
+        ipaddress.ip_network("100.64.0.0/10"),
+        ipaddress.ip_network("127.0.0.0/8"),
+        ipaddress.ip_network("169.254.0.0/16"),
+        ipaddress.ip_network("172.16.0.0/12"),
+        ipaddress.ip_network("192.0.0.0/24"),
+        ipaddress.ip_network("192.0.2.0/24"),
+        ipaddress.ip_network("192.168.0.0/16"),
+        ipaddress.ip_network("198.18.0.0/15"),
+        ipaddress.ip_network("198.51.100.0/24"),
+        ipaddress.ip_network("203.0.113.0/24"),
+        ipaddress.ip_network("224.0.0.0/4"),
+        ipaddress.ip_network("240.0.0.0/4"),
+        ipaddress.ip_network("::1/128"),
+        ipaddress.ip_network("fe80::/10"),
+        ipaddress.ip_network("fc00::/7"),
+    ]
+    return any(addr in net for net in blocked_ranges)
+
+
+def _resolve_public_ips(hostname):
+    """Resolve hostname to public unicast IPs. Raises ValueError if any
+    resolution lands in a blocked range, or nothing public resolves."""
+    public_ips = []
     try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            if resp.status >= 400:
-                return False, 0, f"HTTP {resp.status}"
-            raw = resp.read().decode("utf-8", "replace")
-        data = json.loads(raw)
-        models = data.get("data", []) if isinstance(data, dict) else []
-        return True, len(models), f"{len(models)} models reachable"
-    except Exception as e:
-        return False, 0, f"Could not reach endpoint: {type(e).__name__}"
+        # IPv4 only: IPv6 literals break HTTPSConnection host:port parsing,
+        # and every real inference API is reachable over v4.
+        infos = socket.getaddrinfo(hostname, 443, family=socket.AF_INET, type=socket.SOCK_STREAM)
+    except socket.gaierror:
+        raise ValueError("hostname does not resolve")
+    for _fam, _type, _proto, _canonname, sockaddr in infos:
+        ip_str = sockaddr[0]
+        if _is_blocked_ip(ip_str):
+            raise ValueError("hostname resolves to a private or blocked address")
+        public_ips.append(ip_str)
+    if not public_ips:
+        raise ValueError("no public addresses resolved")
+    return public_ips
+
+
+def _verify_provider_endpoint(api_base_url, api_key=None, return_reason=False):
+    """SSRF-hardened probe of a candidate provider's /v1/models endpoint.
+
+    Returns (ok, model_count, detail). detail is a safe, non-leaking string.
+    Never crashes: a failed probe just marks the submission invalid.
+    """
+    reasons = []
+    try:
+        parsed = urllib.parse.urlparse(api_base_url)
+        if parsed.scheme != "https":
+            return False, 0, "endpoint must use https"
+        if not parsed.hostname:
+            return False, 0, "no hostname in url"
+        if parsed.username or parsed.password:
+            return False, 0, "credentials in url not allowed"
+
+        # Resolve and reject private/blocked IPs before any socket opens.
+        public_ips = _resolve_public_ips(parsed.hostname)
+
+        probe_url = parsed._replace(path=(parsed.path or "").rstrip("/") + "/v1/models",
+                                    params="", query="", fragment="").geturl()
+        headers = {"Accept": "application/json"}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+
+        # Pin each connection to a pre-validated IP so DNS rebinding
+        # (validate on hostname, connect to swapped IP) is dead.
+        last_err = None
+        for ip in public_ips:
+            try:
+                ctx = ssl.create_default_context()
+                conn = _PinnedHTTPSConnection(parsed.hostname, ip, timeout=15, context=ctx)
+                conn.request("GET", probe_url, headers=headers)
+                resp = conn.getresponse()
+                if resp.status >= 400:
+                    last_err = f"HTTP {resp.status}"
+                    conn.close()
+                    continue
+                raw = resp.read(1_000_000)
+                conn.close()
+                data = json.loads(raw.decode("utf-8", "replace"))
+                models = data.get("data", []) if isinstance(data, dict) else []
+                detail = f"{len(models)} models reachable"
+                return (True, len(models), detail) if return_reason else (True, len(models), detail)
+            except Exception as e:
+                last_err = type(e).__name__
+                continue
+        return (False, 0, last_err or "unreachable") if return_reason else (False, 0, last_err or "unreachable")
+    except ValueError as e:
+        return (False, 0, str(e)) if return_reason else (False, 0, "unreachable")
+
 
 
 @app.post("/v1/providers/submit")
@@ -1815,8 +1910,15 @@ async def submit_provider(submission: dict):
     provider_name = submission["provider_name"].strip()
     api_base_url = submission["api_base_url"].strip()
 
-    # Pre-validate the endpoint
-    ok, model_count, detail = _verify_provider_endpoint(api_base_url, submission.get("api_key"))
+    # Pre-validate the endpoint. Policy violations (non-https, private/blocked
+    # IPs, credentials in URL) are refused outright; a merely unreachable or
+    # auth-gated endpoint is stored as pending for human review.
+    ok, model_count, detail = _verify_provider_endpoint(
+        api_base_url, submission.get("api_key"), return_reason=True
+    )
+    _POLICY_DETAIL = ("must use https", "private or blocked", "credentials in url", "no hostname in url")
+    if not ok and any(k in detail for k in _POLICY_DETAIL):
+        return JSONResponse(status_code=400, content={"error": f"Rejected: {detail}"})
 
     conn = get_db()
     cur = conn.cursor()
