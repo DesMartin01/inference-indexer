@@ -615,8 +615,8 @@ function RateLimitsSection() {
             </tr>
           </thead>
           <tbody>
-            <RateRow plan="Public (no key)" day="100" min="10" history="7 days" />
-            <RateRow plan="Free (email)" day="1,000" min="30" history="30 days" />
+            <RateRow plan="Public (no key)" day="1,000" min="10" history="7 days" />
+            <RateRow plan="Free (API key)" day="10,000" min="30" history="30 days" />
             <RateRow plan="Paid (future)" day="50,000" min="100" history="365 days" />
           </tbody>
         </table>
