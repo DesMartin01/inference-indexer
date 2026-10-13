@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 export default function SignupPage() {
@@ -9,6 +9,19 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [source, setSource] = useState<string | null>(null);
+
+  // Capture acquisition source (?src=clawhub / ?src=hermes / etc.) for
+  // per-channel attribution. Stored in Supabase user metadata at signup.
+  useEffect(() => {
+    const src = new URLSearchParams(window.location.search).get("src");
+    if (src) {
+      setSource(src);
+      try { window.localStorage.setItem("ii_acquisition_source", src); } catch {}
+    } else {
+      try { setSource(window.localStorage.getItem("ii_acquisition_source")); } catch {}
+    }
+  }, []);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,6 +41,7 @@ export default function SignupPage() {
       password,
       options: {
         emailRedirectTo: `${window.location.origin}/auth/callback`,
+        data: source ? { acquisition_source: source } : undefined,
       },
     });
 

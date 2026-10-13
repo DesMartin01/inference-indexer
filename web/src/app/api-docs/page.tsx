@@ -63,7 +63,7 @@ export default function ApiDocsPage() {
             API Documentation
           </h1>
           <p style={{ fontSize: 14, color: "#8a8a8a", margin: "0 0 20px" }}>
-            Recommendations, pricing, and verification data. 1,000 requests/day with a free API key.
+            Recommendations, pricing, and verification data. 1,000 requests/day public, 10,000/day with a free API key.
           </p>
           <Link
             href="/#signup"

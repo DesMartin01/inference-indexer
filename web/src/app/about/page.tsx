@@ -68,7 +68,7 @@ const commitments = [
   },
   {
     title: "Accessibility",
-    body: "The index is free to view. The API is free for 1,000 requests per day. Historical data is accessible with a free API key.",
+    body: "The index is free to view. The API allows 1,000 requests per day publicly, and 10,000 per day with a free API key (instant, no email required). Historical data is accessible with a free API key.",
   },
   {
     title: "Open methodology",

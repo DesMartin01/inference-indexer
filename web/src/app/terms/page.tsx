@@ -93,7 +93,7 @@ export default function TermsPage() {
         <p style={p}>The API is available in the following tiers:</p>
         <ul style={{ listStyle: "disc", padding: 0, marginBottom: 16 }}>
           <li style={li}><strong style={{ color: "#e5e5e5" }}>Public:</strong> 1,000 requests/day, no API key required</li>
-          <li style={li}><strong style={{ color: "#e5e5e5" }}>Free:</strong> 10,000 requests/day, requires email signup</li>
+          <li style={li}><strong style={{ color: "#e5e5e5" }}>Free:</strong> 10,000 requests/day, free API key (instant, no email required)</li>
           <li style={li}><strong style={{ color: "#e5e5e5" }}>Paid:</strong> 50,000 requests/day, for commercial use</li>
         </ul>
         <p style={p}>
