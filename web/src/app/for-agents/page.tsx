@@ -323,6 +323,25 @@ export default async function ForAgentsPage() {
               </p>
             </div>
 
+            <div style={cardBase}>
+              <p style={{ fontSize: 14, color: "#c9c9c9", lineHeight: 1.7, margin: "0 0 12px" }}>
+                <strong style={{ color: "#f2f2f2" }}>Hermes Agent</strong>{" "}
+                (hosted HTTP transport, no local install):
+              </p>
+              <div style={{ ...codeStyle, margin: "0 0 12px" }}>
+{`# ~/.hermes/config.yaml
+mcp_servers:
+  inferenceindexer:
+    url: "https://api.inferenceindexer.ai/mcp"`}
+              </div>
+              <p style={{ fontSize: 13, color: "#8a8a8a", lineHeight: 1.6, margin: 0 }}>
+                Then restart Hermes and ask it to recommend a model. The hosted
+                server is public and read-only; no API key required for the
+                pricing data. The <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace" }}>inference-indexer</span> skill
+                (skills.sh / ClawHub) teaches the agent when to call which tool.
+              </p>
+            </div>
+
             <p style={{ fontSize: 13, color: "#8a8a8a", lineHeight: 1.7, margin: "16px 0 0" }}>
               Tools exposed:{" "}
               <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace" }}>
