@@ -97,6 +97,22 @@ Call these tools natively from agent frameworks (Claude, Cursor, OpenAI Agents):
 ## OpenAPI spec
 Machine-readable: `https://api.inferenceindexer.ai/openapi.json`. Interactive: https://www.inferenceindexer.ai/api-docs
 
+## Install as a skill (recommended)
+
+A SKILL.md (agentskills.io format, MIT-0) teaches agents when to call which tool, with worked examples. Install paths per harness:
+
+- **Hermes Agent**: `hermes skills install desmartin01/inference-indexer-skill`, or add the hosted MCP server to `~/.hermes/config.yaml`:
+  ```yaml
+  mcp_servers:
+    inferenceindexer:
+      url: "https://api.inferenceindexer.ai/mcp"
+  ```
+- **OpenClaw**: `clawhub install inference-indexer` - listing: https://clawhub.ai/desmartin01/inference-indexer
+- **Claude Code / Codex / any SKILL.md harness**: `npx skills add desmartin01/inference-indexer-skill` - listing: https://www.skills.sh/DesMartin01/inference-indexer-skill
+- **Skill source**: https://github.com/DesMartin01/inference-indexer-skill
+
+The skill covers: when to price-check before choosing a model, reading Cost/IQ-ranked results, applying the hot-swap endpoint_config to switch providers, and getting a free anonymous key (`POST /v1/auth/anonymous`, 10k req/day, no email). Tagged links (`?src=`) attribute keys to the channel that created them.
+
 ## Contact / ownership
 Built by Des Martin (Wicklow, Ireland) and Frank Drebin (VPS, Dublin). Independent — not owned by any inference provider or aggregator. X: @inferenceindex
 

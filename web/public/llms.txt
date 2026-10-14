@@ -44,3 +44,19 @@ For complete AI inference pricing by model, historical price trends, and provide
 - **MCP server**: call these tools natively from agent frameworks (Claude, Cursor, OpenAI Agents). Run `uvx inferenceindexer-mcp --transport stdio` and it exposes `recommend_models`, `explain_model`, `search_models`, `get_model_history`, `compare_providers`, `get_composite_latest`, `list_providers`, and more. Or connect directly: `https://api.inferenceindexer.ai/mcp` (streamable-http). See https://www.inferenceindexer.ai/for-agents
 - **MCP auto-discovery**: https://www.inferenceindexer.ai/.well-known/mcp-config.json
 - **MCP source**: https://github.com/DesMartin01/inferenceindexer-mcp
+
+## Install as a skill (recommended)
+
+Teach your agent when to call which tool, with worked examples. Available for every major harness:
+
+- Hermes Agent: `hermes skills install desmartin01/inference-indexer-skill` or add the hosted MCP server to `~/.hermes/config.yaml`:
+  ```
+  mcp_servers:
+    inferenceindexer:
+      url: "https://api.inferenceindexer.ai/mcp"
+  ```
+- OpenClaw: `clawhub install inference-indexer` (listing: https://clawhub.ai/desmartin01/inference-indexer)
+- Claude Code / Codex / any SKILL.md harness: `npx skills add desmartin01/inference-indexer-skill`
+- Skill source: https://github.com/DesMartin01/inference-indexer-skill
+
+The skill covers: when to price-check before choosing a model, reading Cost/IQ results, applying the hot-swap endpoint_config, and getting a free anonymous key (`POST /v1/auth/anonymous`, 10k req/day, no email).

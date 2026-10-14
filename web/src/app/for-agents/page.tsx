@@ -342,6 +342,42 @@ mcp_servers:
               </p>
             </div>
 
+            <div style={cardBase}>
+              <p style={{ fontSize: 14, color: "#c9c9c9", lineHeight: 1.7, margin: "0 0 12px" }}>
+                <strong style={{ color: "#f2f2f2" }}>OpenClaw</strong>{" "}
+                (skill via ClawHub):
+              </p>
+              <div style={{ ...codeStyle, margin: "0 0 12px" }}>
+{`clawhub install inference-indexer`}
+              </div>
+              <p style={{ fontSize: 13, color: "#8a8a8a", lineHeight: 1.6, margin: 0 }}>
+                Installs the skill that teaches your OpenClaw agent when to
+                price-check and recommend models. Listing:{" "}
+                <a href="https://clawhub.ai/desmartin01/inference-indexer" style={{ color: "#9cc3e0" }}>
+                  clawhub.ai/desmartin01/inference-indexer
+                </a>.
+              </p>
+            </div>
+
+            <div style={cardBase}>
+              <p style={{ fontSize: 14, color: "#c9c9c9", lineHeight: 1.7, margin: "0 0 12px" }}>
+                <strong style={{ color: "#f2f2f2" }}>Claude Code, Codex and other SKILL.md harnesses</strong>{" "}
+                (one command, no API key needed to start):
+              </p>
+              <div style={{ ...codeStyle, margin: "0 0 12px" }}>
+{`npx skills add desmartin01/inference-indexer-skill`}
+              </div>
+              <p style={{ fontSize: 13, color: "#8a8a8a", lineHeight: 1.6, margin: 0 }}>
+                Works anywhere SKILL.md skills are read. Listing:{" "}
+                <a href="https://www.skills.sh/DesMartin01/inference-indexer-skill" style={{ color: "#9cc3e0" }}>
+                  skills.sh/DesMartin01/inference-indexer-skill
+                </a>. Source:{" "}
+                <a href="https://github.com/DesMartin01/inference-indexer-skill" style={{ color: "#9cc3e0" }}>
+                  github.com/DesMartin01/inference-indexer-skill
+                </a>.
+              </p>
+            </div>
+
             <p style={{ fontSize: 13, color: "#8a8a8a", lineHeight: 1.7, margin: "16px 0 0" }}>
               Tools exposed:{" "}
               <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace" }}>
