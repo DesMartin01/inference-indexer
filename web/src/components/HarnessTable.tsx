@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { iiInstallFor, type IiInstall } from "@/lib/iiInstall";
 
 export interface HarnessRow {
   name: string;
@@ -50,6 +51,40 @@ const tdNum: React.CSSProperties = {
   whiteSpace: "nowrap",
 };
 
+const iiLink: React.CSSProperties = {
+  color: "#9cc3e0",
+  textDecoration: "none",
+  whiteSpace: "nowrap",
+  fontSize: 12.5,
+};
+
+const iiCmd: React.CSSProperties = {
+  fontFamily: "var(--font-jetbrains-mono), monospace",
+  fontSize: 11.5,
+  color: "#8a8a8a",
+  display: "block",
+  marginTop: 2,
+};
+
+function IiCell({ name }: { name: string }) {
+  const installs = iiInstallFor(name);
+  if (installs.length === 0) {
+    return <span style={{ color: "#555" }}>-</span>;
+  }
+  return (
+    <>
+      {installs.map((inst: IiInstall) => (
+        <span key={inst.label} style={{ display: "block", marginBottom: 2 }}>
+          <Link href={inst.href} style={iiLink}>
+            {inst.label}
+          </Link>
+          <span style={iiCmd}>{inst.command}</span>
+        </span>
+      ))}
+    </>
+  );
+}
+
 function licenseBadge(signal: string | null): string {
   if (signal === "open-source") return "open";
   if (signal && signal.startsWith("restricted")) return "restricted";
@@ -71,10 +106,10 @@ export default function HarnessTable({
   anchorId?: string;
 }) {
   const columns = extraColumn === "sandbox"
-    ? ["Harness", "What it is", "Stars", "Tier", "Autonomy", "Recovery", "Sandboxing", "License"]
+    ? ["Harness", "What it is", "Stars", "Tier", "Autonomy", "Recovery", "Sandboxing", "License", "II"]
     : extraColumn === "buy"
-      ? ["Harness", "What it is", "Stars", "Tier", "Autonomy", "Recovery", "Build vs buy", "License"]
-      : ["Harness", "What it is", "Stars", "Tier", "Autonomy", "Recovery", "License"];
+      ? ["Harness", "What it is", "Stars", "Tier", "Autonomy", "Recovery", "Build vs buy", "License", "II"]
+      : ["Harness", "What it is", "Stars", "Tier", "Autonomy", "Recovery", "License", "II"];
 
   return (
     <div
@@ -163,6 +198,9 @@ export default function HarnessTable({
               {extraColumn === "buy" && <td style={td}>{r.buy}</td>}
               <td style={{ ...td, color: licenseColor(r.license) }}>
                 {licenseBadge(r.license)}
+              </td>
+              <td style={{ ...td, minWidth: 150 }}>
+                <IiCell name={r.name} />
               </td>
             </tr>
           ))}
