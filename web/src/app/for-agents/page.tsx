@@ -353,7 +353,7 @@ mcp_servers:
               <p style={{ fontSize: 13, color: "#8a8a8a", lineHeight: 1.6, margin: 0 }}>
                 Installs the skill that teaches your OpenClaw agent when to
                 price-check and recommend models. Listing:{" "}
-                <a href="https://clawhub.ai/desmartin01/inference-indexer" style={{ color: "#9cc3e0" }}>
+                <a href="https://clawhub.ai/desmartin01/skills/inference-indexer" style={{ color: "#9cc3e0" }}>
                   clawhub.ai/desmartin01/inference-indexer
                 </a>.
               </p>

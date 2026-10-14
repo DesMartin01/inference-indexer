@@ -107,7 +107,7 @@ A SKILL.md (agentskills.io format, MIT-0) teaches agents when to call which tool
     inferenceindexer:
       url: "https://api.inferenceindexer.ai/mcp"
   ```
-- **OpenClaw**: `clawhub install inference-indexer` - listing: https://clawhub.ai/desmartin01/inference-indexer
+- **OpenClaw**: `clawhub install inference-indexer` - listing: https://clawhub.ai/desmartin01/skills/inference-indexer
 - **Claude Code / Codex / any SKILL.md harness**: `npx skills add desmartin01/inference-indexer-skill` - listing: https://www.skills.sh/DesMartin01/inference-indexer-skill
 - **Skill source**: https://github.com/DesMartin01/inference-indexer-skill
 

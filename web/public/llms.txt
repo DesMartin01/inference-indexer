@@ -55,7 +55,7 @@ Teach your agent when to call which tool, with worked examples. Available for ev
     inferenceindexer:
       url: "https://api.inferenceindexer.ai/mcp"
   ```
-- OpenClaw: `clawhub install inference-indexer` (listing: https://clawhub.ai/desmartin01/inference-indexer)
+- OpenClaw: `clawhub install inference-indexer` (listing: https://clawhub.ai/desmartin01/skills/inference-indexer)
 - Claude Code / Codex / any SKILL.md harness: `npx skills add desmartin01/inference-indexer-skill`
 - Skill source: https://github.com/DesMartin01/inference-indexer-skill
 
