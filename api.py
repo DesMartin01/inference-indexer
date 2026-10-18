@@ -757,6 +757,7 @@ async def get_models(
     request: Request,
     tier: Optional[str] = Query(None, regex="^(frontier|standard|budget|micro)$"),
     provider: Optional[str] = Query(None),
+    search: Optional[str] = Query(None, max_length=120, description="Text search on model id and name"),
     sort: str = Query("sit_adjusted_price", regex="^(blended|input|output|sit_score|sit_adjusted_price)$"),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
@@ -817,6 +818,11 @@ async def get_models(
         query += " AND m.provider ILIKE %s"
         params.append(f"%{provider}%")
     
+    if search:
+        query += " AND (m.id ILIKE %s OR m.name ILIKE %s)"
+        params.append(f"%{search}%")
+        params.append(f"%{search}%")
+    
     # Sort
     sort_map = {
         "blended": "lp.blended_price_per_m ASC",
@@ -843,6 +849,10 @@ async def get_models(
     if provider:
         count_query += " AND m.provider ILIKE %s"
         count_params.append(f"%{provider}%")
+    if search:
+        count_query += " AND (m.id ILIKE %s OR m.name ILIKE %s)"
+        count_params.append(f"%{search}%")
+        count_params.append(f"%{search}%")
     
     cur.execute(count_query, count_params)
     total = cur.fetchone()[0]
@@ -1538,6 +1548,20 @@ def _resolve_model_id(model_id: str) -> tuple[str, str | None]:
     conn2 = get_db()
     cur2 = conn2.cursor()
     try:
+        # 0. dot/hyphen consolidation guard: if two active ids differ only by
+        # '.' vs '-' in the version segment, prefer the one with more sources.
+        # (Duplicate-ID pairs like claude-haiku-4.5 / claude-haiku-4-5 must not
+        # resolve to the 1-source orphan when the 8-source row exists.)
+        cur2.execute("""
+            SELECT lp.model_id, lp.source_count
+            FROM latest_prices lp
+            WHERE replace(lp.model_id, '.', '-') = replace(%s, '.', '-')
+              AND lp.model_id IN (SELECT id FROM models WHERE is_active)
+            ORDER BY lp.source_count DESC NULLS LAST
+        """, (mid,))
+        twins = cur2.fetchall()
+        if twins and twins[0][0] != mid:
+            return twins[0][0], f"dedup:{mid}"
         # 1. exact canonical
         cur2.execute("SELECT id FROM models WHERE id = %s AND is_active", (mid,))
         if cur2.fetchone():
@@ -1546,7 +1570,19 @@ def _resolve_model_id(model_id: str) -> tuple[str, str | None]:
         cur2.execute("SELECT canonical_model_id FROM model_aliases WHERE lower(alias) = lower(%s)", (mid,))
         row = cur2.fetchone()
         if row:
-            return row[0], "alias"
+            canonical = row[0]
+            # same consolidation guard on the alias target
+            cur2.execute("""
+                SELECT lp.model_id, lp.source_count
+                FROM latest_prices lp
+                WHERE replace(lp.model_id, '.', '-') = replace(%s, '.', '-')
+                  AND lp.model_id IN (SELECT id FROM models WHERE is_active)
+                ORDER BY lp.source_count DESC NULLS LAST
+            """, (canonical,))
+            twins = cur2.fetchall()
+            if twins and twins[0][0] != canonical:
+                return twins[0][0], f"alias+dedup:{canonical}"
+            return canonical, "alias"
         # 3. trigram fuzzy
         cur2.execute("""
             SELECT canonical_model_id, alias FROM model_aliases
@@ -1677,7 +1713,7 @@ async def explain(
         FROM model_endpoints
         WHERE model_id = %s AND blended_price_per_m IS NOT NULL
         ORDER BY endpoint_provider, fetched_at DESC
-    """, (model_id,))
+    """, (canonical_id,))
     eps_raw = cur.fetchall()
     eps = sorted(eps_raw, key=lambda r: r[3])
 
@@ -1699,7 +1735,7 @@ async def explain(
             SELECT provider_name, native_model_id
             FROM provider_model_alias
             WHERE canonical_model_id = %s AND provider_name = ANY(%s)
-        """, (model_id, list(verified.keys())))
+        """, (canonical_id, list(verified.keys())))
         native_map = {r[0]: r[1] for r in cur.fetchall()}
     cheapest_verified = None
     for prov, ip, op, bp in eps:
@@ -1707,7 +1743,7 @@ async def explain(
             cheapest_verified = {
                 "provider": prov,
                 "base_url": verified[prov],
-                "model_id_on_provider": native_map.get(prov) or _provider_model_id(model_id, prov),
+                "model_id_on_provider": native_map.get(prov) or _provider_model_id(canonical_id, prov),
                 "model_id_source": "verified" if prov in native_map else "heuristic",
                 "blended_per_m": float(bp),
                 "auth_scheme": "bearer",
@@ -3521,8 +3557,29 @@ async def admin_price_compare(
 
 
 # ============================================
-# MAIN
+# OPENAPI: hide internal/admin endpoints from the public spec
 # ============================================
 
-if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+_original_openapi = app.openapi
+
+def _public_openapi():
+    """Strip admin/internal paths from the served OpenAPI spec.
+
+    The routes stay live (SSR-secret gated); they just don't advertise
+    themselves to anyone reading /openapi.json. The regex is anchored so
+    /v1/providers/submissions (public) is never caught. Delegates to the
+    original bound method so FastAPI's schema caching stays intact.
+    """
+    import re as _re
+    spec = _original_openapi()
+    paths = spec.get("paths", {})
+    removed = [p for p in paths if _re.match(r"^/v1/admin(/|$)", p)]
+    if removed:
+        spec = dict(spec)
+        spec["paths"] = {p: v for p, v in paths.items() if p not in removed}
+    return spec
+
+app.openapi = _public_openapi
+
+
+

@@ -591,6 +591,23 @@ def upsert_venice_models(conn, new_models, existing_priced):
     for m in existing_priced:
         existing_ids.add(m["model_id"])
     
+    # Dot/hyphen dedup guard (2026-10-18): canonical IDs use dotted version
+    # style (claude-haiku-4.5); DeepInfra's catalog emits hyphenated twins
+    # (claude-haiku-4-5). If an all-dots variant of the model slug is already
+    # an active model, remap the new row onto it instead of duplicating.
+    remapped = 0
+    for m in new_models:
+        mid = m["model_id"]
+        if "/" in mid:
+            prov, _, slug = mid.partition("/")
+            if "-" in slug:
+                dotted = prov + "/" + slug.replace("-", ".")
+                if dotted != mid and dotted in existing_ids and mid not in existing_ids:
+                    m["model_id"] = dotted
+                    remapped += 1
+    if remapped:
+        print(f"  upsert_venice_models: remapped {remapped} hyphen ids onto active dotted twins")
+    
     count = 0
     for m in new_models:
         if m["model_id"] in existing_ids:
@@ -2968,6 +2985,35 @@ def rescore_all_active(conn, aa_scores, aa_version, pct_thresholds=None):
     return fixed
 
 
+def retier_all_scored(conn, pct_thresholds):
+    """Retier EVERY active scored model against the current percentile cutoffs.
+
+    Cutoffs move as new models enter the scored population, but the rescore
+    passes above only rewrite a model's tier when its SCORE changes, so a
+    model whose score is stable can drift onto the wrong side of a moved
+    boundary (proof: qwen/qwen3.8-max and its twin qwen3.8-max-0902 shared an
+    identical score but sat in different tiers for days). This pass is
+    idempotent: with unchanged cutoffs it is a no-op.
+    """
+    if not pct_thresholds:
+        return 0
+    cur = conn.cursor()
+    cur.execute("SELECT id, aa_index_score, tier FROM models WHERE is_active AND aa_index_score IS NOT NULL")
+    rows = cur.fetchall()
+    fixed = 0
+    for model_id, score, old_tier in rows:
+        new_tier = assign_tier_percentile(score, pct_thresholds) or assign_tier(score)
+        if new_tier and new_tier != old_tier:
+            cur.execute("""
+                UPDATE models SET tier = %s, updated_at = NOW() WHERE id = %s
+            """, (new_tier, model_id))
+            fixed += 1
+    conn.commit()
+    cur.close()
+    print(f"  Retier pass: {fixed} models moved to match current percentile cutoffs")
+    return fixed
+
+
 def upsert_models(conn, models):
     """Insert or update models in the database."""
     cur = conn.cursor()
@@ -3632,6 +3678,11 @@ def main():
             # the live scrape, catches wrong-match bugs the version stamp
             # cannot see (Sep 2026 variant bug: 78 models on wrong records).
             rescore_all_active(conn, aa_scores, aa_version, pct_thresholds if aa_scores else None)
+            # Retier pass (Sep 28 2026): cutoffs move as new models enter the
+            # scored population even when no individual score changes. Rewrite
+            # every active scored model's tier against today's cutoffs so
+            # stable-score models can't drift across a moved boundary.
+            retier_all_scored(conn, pct_thresholds)
         
         # Always upsert provider-discovered models
         if venice_endpoints:
@@ -3692,6 +3743,29 @@ def main():
             upsert_venice_models(conn, moonshot_new_models, priced)
         
         if endpoint_data:
+            # Dot/hyphen endpoint remap (2026-10-18): connectors like DeepInfra
+            # emit hyphenated ids (claude-haiku-4-5) while canonical rows are
+            # dotted (claude-haiku-4.5). Rewrite endpoint model_ids onto the
+            # active dotted twin so endpoint rows attach to the real model
+            # instead of accumulating on orphan hyphen rows (was 181 rows each).
+            hyphen_ids = sorted({e["model_id"] for e in endpoint_data
+                                 if "/" in e["model_id"] and "-" in e["model_id"].split("/", 1)[1]})
+            remap = {}
+            for hid in hyphen_ids:
+                prov, _, slug = hid.partition("/")
+                dotted = prov + "/" + slug.replace("-", ".")
+                if dotted == hid:
+                    continue
+                cur2 = conn.cursor()
+                cur2.execute("SELECT 1 FROM models WHERE id = %s AND is_active", (dotted,))
+                if cur2.fetchone():
+                    remap[hid] = dotted
+                cur2.close()
+            if remap:
+                for e in endpoint_data:
+                    if e["model_id"] in remap:
+                        e["model_id"] = remap[e["model_id"]]
+                print(f"  endpoint remap: {len(remap)} hyphen ids -> dotted twins")
             insert_endpoints(conn, endpoint_data)
         insert_price_snapshots(conn, priced)
 

@@ -205,7 +205,7 @@ function AuthSection() {
   return (
     <Section id="authentication" title="Authentication">
       <p style={pStyle}>
-        API keys are required for all requests. For agents, get one instantly with no email or account:
+        No API key is needed to try the API: unauthenticated requests get the public tier (1,000 requests/day, 7 days of history, 60 requests/minute). For higher limits, get a free key instantly with no email or account:
       </p>
 
       <CodeBlock>
@@ -353,7 +353,7 @@ function EndpointsSection() {
         desc="One call answers 'what is this model like right now': current pricing with 24h/7d changes, price history summary with trend, all endpoints across providers, the cheapest hand-verified endpoint (with native model id for hot-swapping), privacy flags (ZDR/EU), and the AA intelligence score. Everything as-of stamped."
         params={[
           { name: "model_id", type: "string", required: true, desc: "Canonical model id, e.g. anthropic/claude-sonnet-5" },
-          { name: "history_days", type: "integer", required: false, desc: "History window (default 30, max 365)" },
+          { name: "history_days", type: "integer", required: false, desc: "History window (default 30; capped by plan: public 7, free 30, paid 365)" },
         ]}
         request={`$ curl -H "Authorization: Bearer ***" \\\\
      "https://api.inferenceindexer.ai/v1/explain?model_id=deepseek/deepseek-v4-flash"`}
@@ -470,7 +470,7 @@ function EndpointsSection() {
         desc="Returns historical price data for a single model."
         params={[
           { name: "model_id", type: "string", required: true, desc: "The model ID" },
-          { name: "days", type: "integer", required: false, desc: "Days of history (default: 30, max: 365 on free tier)" },
+          { name: "days", type: "integer", required: false, desc: "Days of history (default: 30; capped by plan: public 7, free 30, paid 365)" },
         ]}
         request={`$ curl -H "Authorization: Bearer YOUR_API_KEY" \\\n     "https://api.inferenceindexer.ai/v1/models/openai/gpt-5.6/history?days=90"`}
         response={`{
@@ -615,8 +615,8 @@ function RateLimitsSection() {
             </tr>
           </thead>
           <tbody>
-            <RateRow plan="Public (no key)" day="1,000" min="10" history="7 days" />
-            <RateRow plan="Free (API key)" day="10,000" min="30" history="30 days" />
+            <RateRow plan="Public (no key)" day="1,000" min="60" history="7 days" />
+            <RateRow plan="Free (API key)" day="10,000" min="100" history="30 days" />
             <RateRow plan="Paid (future)" day="50,000" min="100" history="365 days" />
           </tbody>
         </table>

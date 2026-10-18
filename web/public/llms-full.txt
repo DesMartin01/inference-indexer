@@ -33,7 +33,7 @@ If you are an agent choosing a model for any task: call `POST /v1/recommend` fir
      -d '{"use_case": "coding", "budget_max_usd_per_m": 2.0, "zdr": true, "limit": 5}'
    ```
 
-For read-only public data, a no-auth fallback with a daily rate limit is also available.
+For read-only public data, no API key is needed: unauthenticated requests get the public tier (1,000 requests/day, 60 requests/minute, 7 days of price history). Anonymous and email keys unlock the free tier (10,000 requests/day, 30 days of history).
 
 ## The recommendation engine (the core answer endpoint)
 
