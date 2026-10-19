@@ -26,14 +26,12 @@ export default async function EmbeddingsPage() {
   let models: EmbeddingModel[] = [];
   let totalCount = 0;
 
-  try {
-    const data = await getEmbeddings("input");
-    models = data.models;
-    totalCount = data.count;
-  } catch {
-    models = [];
-    totalCount = 0;
-  }
+  // Throw on API failure: ISR keeps the last good page instead of caching
+  // "Unable to load embedding model data" as HTTP 200 (Oct 2026 outage).
+  const data = await getEmbeddings("input");
+  models = data.models;
+  totalCount = data.count;
+  if (models.length === 0) throw new Error("API returned no embedding models");
 
   return (
     <div style={{ minHeight: "100vh", background: "#0a0a0a", color: "#e5e5e5", display: "flex", flexDirection: "column" }}>

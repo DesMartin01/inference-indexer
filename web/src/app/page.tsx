@@ -74,7 +74,11 @@ export default async function Home() {
   const [latest, history, modelsData, apiModelCount, apiProviderCount] = await Promise.all([
     getCompositeLatest(60).catch(() => null),
     getCompositeHistory(30, 60).catch(() => null),
-    getModels(undefined, undefined, 500).catch(() => null),
+    // Catalogue fetch is load-bearing: during the Oct 2026 API outage its
+    // catch-to-null produced "Models indexed 0" cached as HTTP 200 for hours.
+    // It must throw (ISR keeps the last good page). Card-level data stays
+    // fault-tolerant below.
+    getModels(undefined, undefined, 500),
     getModelCount().catch(() => null),
     getProviderCount().catch(() => null),
   ]);

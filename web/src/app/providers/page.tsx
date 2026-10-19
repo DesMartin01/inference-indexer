@@ -18,13 +18,11 @@ export const metadata: Metadata = {
 };
 
 export default async function ProvidersPage() {
-  let providers: ProviderSummary[] = [];
-  try {
-    const data = await getProviders();
-    providers = data.providers;
-  } catch {
-    providers = [];
-  }
+  // Throw on API failure: ISR keeps the last good page instead of caching
+  // "0 providers tracked across 0 models" as HTTP 200 (Oct 2026 outage).
+  const data = await getProviders();
+  const providers: ProviderSummary[] = data.providers;
+  if (providers.length === 0) throw new Error("API returned no providers");
 
   return (
     <div style={{ minHeight: "100vh", background: "#0a0a0a", color: "#e5e5e5" }}>

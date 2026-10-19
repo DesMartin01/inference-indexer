@@ -40,7 +40,7 @@ RATE_LIMITS = {
     "public": {"daily": 1000, "per_minute": 60, "history_days": 7},
     "free": {"daily": 10000, "per_minute": 100, "history_days": 30},
     "paid": {"daily": 50000, "per_minute": 200, "history_days": 365},
-    "ssr": {"daily": 100000, "per_minute": 500, "history_days": 365},  # For Next.js SSR
+    "ssr": {"daily": 100000, "per_minute": 2000, "history_days": 365},  # For Next.js SSR (build prerenders 600+ pages in a burst)
 }
 
 # Secret header for SSR requests to bypass public rate limits

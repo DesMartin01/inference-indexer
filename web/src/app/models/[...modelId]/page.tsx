@@ -5,7 +5,7 @@ export const fetchCache = 'force-cache';
 
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getModel, getModelHistory, getModelEndpoints, providerFaviconUrl, getModels } from "@/lib/api";
+import { getModel, getModelHistory, getModelEndpoints, providerFaviconUrl, getModels, ModelNotFoundError } from "@/lib/api";
 import { Sparkline } from "@/components/Sparkline";
 import { Header } from "@/components/Header";
 import { ProviderComparisonTable } from "@/components/ProviderComparisonTable";
@@ -13,14 +13,12 @@ import type { Metadata } from "next";
 
 // Pre-render all model pages at build time, ISR handles updates
 export async function generateStaticParams() {
-  try {
-    const data = await getModels(undefined, undefined, 500, 3600);
-    return data.models.map((m) => ({
-      modelId: m.model_id.split("/"),
-    }));
-  } catch {
-    return [];
-  }
+  // Throw on API failure: an empty params list at build time would generate
+  // a site with no model pages; dynamicParams covers runtime misses.
+  const data = await getModels(undefined, undefined, 500, 3600);
+  return data.models.map((m) => ({
+    modelId: m.model_id.split("/"),
+  }));
 }
 
 const GREEN = "#22c55e";
@@ -49,6 +47,21 @@ function money(n: number) {
   return "$" + n.toFixed(2);
 }
 
+// Relative age of a data timestamp, computed at RENDER time from fetched_at.
+// Never hardcode "2 min ago" - during ISR reuse the label was misleading
+// (Oct 2026: outage shells claimed data was 2 minutes old).
+function fetchedAgoLabel(fetchedAt: string | null | undefined): string {
+  if (!fetchedAt) return "N/A";
+  const then = new Date(fetchedAt).getTime();
+  if (Number.isNaN(then)) return "N/A";
+  const mins = Math.max(1, Math.round((Date.now() - then) / 60000));
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours} hr ago`;
+  const days = Math.round(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
 // Clean model name: "OpenAI: GPT-5.6 Luna" -> "GPT-5.6 Luna"
 function cleanModelName(raw: string): string {
   return raw.replace(/^[^:]+:\s*/, "");
@@ -62,11 +75,12 @@ export async function generateMetadata({ params }: { params: Promise<{ modelId: 
   let model;
   try {
     model = await getModel(modelId);
-  } catch {
-    // Metadata failure used to return a title with a rendered page (soft 404,
-    // HTTP 200 + noindex — Google's "Excluded by noindex" bucket). Throw so
-    // Next.js serves the real not-found route instead.
-    notFound();
+  } catch (err) {
+    // Only a real API 404 is a not-found. An upstream failure (network,
+    // timeout, 5xx) must THROW so Next.js keeps the last-good cached page
+    // instead of rendering a soft-404/empty shell during an API outage.
+    if (err instanceof ModelNotFoundError) notFound();
+    throw err;
   }
 
   const name = cleanModelName(model.name);
@@ -173,8 +187,11 @@ export default async function ModelDetailPage({
   let model;
   try {
     model = await getModel(modelId);
-  } catch {
-    notFound();
+  } catch (err) {
+    // 404 = genuinely unknown model -> real 404 page. Any other failure =
+    // API outage -> throw, so ISR keeps serving the last good page.
+    if (err instanceof ModelNotFoundError) notFound();
+    throw err;
   }
 
   // Fetch history and endpoints in parallel (not sequential)
@@ -253,7 +270,7 @@ export default async function ModelDetailPage({
             <StatRow label="MODALITY" value={model.modality || "N/A"} />
             <StatRow label="OPENNESS" value={model.tokenizer ? "Proprietary" : "N/A"} />
             <StatRow label="ADDED" value={model.date_added ? new Date(model.date_added).toLocaleDateString("en-US", { month: "short", year: "numeric" }) : "N/A"} />
-            <StatRow label="LAST PRICED" value={model.fetched_at ? "2 min ago" : "N/A"} />
+            <StatRow label="LAST PRICED" value={fetchedAgoLabel(model.fetched_at)} />
           </div>
         </div>
 

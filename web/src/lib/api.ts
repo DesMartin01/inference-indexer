@@ -9,11 +9,37 @@ const SSR_SECRET = "inferenceindexer-ssr-2026";
 // request.
 const ISR_REVALIDATE = 300; // seconds (5 min - pricing data updates hourly anyway)
 
-async function fetchWithCache<T>(endpoint: string): Promise<T> {
-  const res = await fetch(`${API_URL}${endpoint}`, {
-    next: { revalidate: ISR_REVALIDATE },
-    headers: { "X-SSR-Secret": SSR_SECRET },
-  });
+// Upstream-failure policy (2026-10-18 outage lesson): fetchers THROW on any
+// failure (network, timeout, non-200, unusable payload). Pages must NOT catch
+// these into empty states - a thrown error during ISR regeneration makes
+// Next.js keep serving the previous good cached page instead of caching a
+// "0 models" / "Loading model..." shell as HTTP 200.
+const FETCH_TIMEOUT_MS = 30_000;
+
+async function fetchWithCache<T>(endpoint: string, _retries = 3): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}${endpoint}`, {
+      next: { revalidate: ISR_REVALIDATE },
+      headers: { "X-SSR-Secret": SSR_SECRET },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+  } catch (err) {
+    // Network error / timeout: retry, then rethrow (THROW is required for the
+    // ISR last-good policy - never convert an upstream failure to empty data).
+    if (_retries > 0) {
+      await new Promise((r) => setTimeout(r, 2000));
+      return fetchWithCache<T>(endpoint, _retries - 1);
+    }
+    throw err;
+  }
+  // 429 = rate limiter, not data. Back off and retry (build prerenders 600+
+  // pages in a burst); a hard fail here must remain a THROW for the ISR
+  // last-good policy, but only after retries are exhausted.
+  if (res.status === 429 && _retries > 0) {
+    await new Promise((r) => setTimeout(r, 1500 * (4 - _retries)));
+    return fetchWithCache<T>(endpoint, _retries - 1);
+  }
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   const data = await res.json();
   return data as T;
@@ -204,20 +230,42 @@ export async function getProviderCount(): Promise<number> {
 
 const SSR_HEADERS = { "X-SSR-Secret": SSR_SECRET };
 
-export async function getModel(modelId: string): Promise<ModelDetail> {
-  const res = await fetch(`${API_URL}/v1/models/${modelId}`, { next: { revalidate: ISR_REVALIDATE }, headers: SSR_HEADERS });
-  if (!res.ok) throw new Error(`Model not found: ${res.status}`);
+export class ModelNotFoundError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
+export async function getModel(modelId: string, _retries = 3): Promise<ModelDetail> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}/v1/models/${modelId}`, { next: { revalidate: ISR_REVALIDATE }, headers: SSR_HEADERS, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+  } catch (err) {
+    if (_retries > 0) {
+      await new Promise((r) => setTimeout(r, 2000));
+      return getModel(modelId, _retries - 1);
+    }
+    throw err;
+  }
+  if (res.status === 404) throw new ModelNotFoundError(`Model not found: ${modelId}`, 404);
+  if (res.status === 429 && _retries > 0) {
+    await new Promise((r) => setTimeout(r, 1500 * (4 - _retries)));
+    return getModel(modelId, _retries - 1);
+  }
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json();
 }
 
 export async function getModelHistory(modelId: string, days: number = 30): Promise<ModelHistory> {
-  const res = await fetch(`${API_URL}/v1/models/${modelId}/history?days=${days}`, { next: { revalidate: ISR_REVALIDATE }, headers: SSR_HEADERS });
+  const res = await fetch(`${API_URL}/v1/models/${modelId}/history?days=${days}`, { next: { revalidate: ISR_REVALIDATE }, headers: SSR_HEADERS, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
   if (!res.ok) throw new Error(`History not found: ${res.status}`);
   return res.json();
 }
 
 export async function getModelEndpoints(modelId: string): Promise<ModelEndpoints> {
-  const res = await fetch(`${API_URL}/v1/models/${modelId}/endpoints`, { next: { revalidate: ISR_REVALIDATE }, headers: SSR_HEADERS });
+  const res = await fetch(`${API_URL}/v1/models/${modelId}/endpoints`, { next: { revalidate: ISR_REVALIDATE }, headers: SSR_HEADERS, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
   if (!res.ok) throw new Error(`Endpoints not found: ${res.status}`);
   return res.json();
 }

@@ -27,11 +27,16 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function ModelsPage() {
   // Full catalogue (paginated past the API's 500-row cap) so the
   // server-rendered directory covers every live model, not just page 1.
+  // Upstream-failure policy: DO NOT swallow API errors into an empty list.
+  // During the Oct 2026 API outage this page cached "across 0 models" as
+  // HTTP 200. Throwing lets Next.js ISR keep the last good page. The count
+  // fallback to CURRENT_MODEL_COUNT only applies when the API answered.
   const [allModels, apiModelCount] = await Promise.all([
-    getAllModels().catch(() => [] as Awaited<ReturnType<typeof getModels>>["models"]),
+    getAllModels(),
     getModelCount().catch(() => null),
   ]);
   const models = allModels.filter((m) => !SITEMAP_EXCLUDED_MODEL_IDS.has(m.model_id));
+  if (models.length === 0) throw new Error("API returned an empty model catalogue");
   const totalCount =
     apiModelCount ?? models.length ?? CURRENT_MODEL_COUNT;
 
