@@ -218,7 +218,17 @@ def fetch_fireworks_pricing(api_key: str, timeout: int = 30):
         mid = m.get("id", "")
         if not mid:
             continue
+        # ROUTER entries are Fireworks pseudo-models (e.g. id 'auto', the
+        # model-router endpoint): not real models, no pricing, must never
+        # become DB rows (Oct 20: 'auto' kept resurrecting as a bare-id row).
+        if m.get("kind") == "ROUTER":
+            continue
         canonical_id = _canonical_fireworks_native(mid)
+        # Bare canonical ids (no '/') would create provider-less shadow rows -
+        # same rule as the engy guard: skip loudly, never emit.
+        if "/" not in canonical_id:
+            print(f"  WARN: fireworks model '{mid}' maps to bare id - skipped (extend FIREWORKS_MODEL_MAP)")
+            continue
 
         # Catalog model row always recorded (upsert will no-op if it exists).
         if canonical_id not in seen:

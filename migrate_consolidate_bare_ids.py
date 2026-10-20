@@ -52,6 +52,9 @@ CANONICAL_OVERRIDES = {
 }
 # KEEP: real models that legitimately lack a provider prefix in our scheme
 # (ming-image-* are genuine Novita image models, no prefixed twin exists).
+# NB 'auto' (Fireworks ROUTER pseudo-model) resurrected once via upsert_venice_models
+# before the fireworks connector learned to skip kind=ROUTER (deployed Oct 20);
+# the bare-id defense in upsert_venice_models now blocks resurrection too.
 KEEP_BARE = {"ming-image-0.1-design", "ming-image-0.1-design-layer"}
 
 

@@ -631,6 +631,15 @@ def upsert_venice_models(conn, new_models, existing_priced):
         else:
             tier = "micro"
         
+        # Bare-id defense (Oct 20): a provider-less id must never be
+        # (re)activated. These rows are connector bugs (engy, Fireworks
+        # ROUTER 'auto'), they 404 on the site and leak into sitemap.xml.
+        # Ming-image-* are the one legitimate exception (real Novita
+        # image models); they are handled upstream in their connector.
+        if "/" not in m["model_id"]:
+            print(f"  WARN: upsert_venice_models refusing bare id '{m['model_id']}' (provider-less rows are shadow records)")
+            continue
+
         # Clean up provider name
         provider = m["provider"]
         provider = provider.replace("-", " ").replace("_", " ").title()
