@@ -272,10 +272,10 @@ export default async function ForAgentsPage() {
             <h2 style={sectionHeading}>Native MCP tools (Claude / Cursor / OpenAI Agents)</h2>
             <p style={bodyText}>
               The InferenceIndexer MCP server exposes the same data as callable tools your agent can invoke natively -
-              without it assembling a pipeline itself. It is published on{" "}
-              <a href="https://pypi.org/project/inferenceindexer-mcp/" style={{ color: "#C4A038", textDecoration: "underline" }}>
-                PyPI
-              </a>{" "}
+              without it assembling a pipeline itself. The hosted server (recommended, no install) is at{" "}
+              <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace" }}>
+                https://api.inferenceindexer.ai/mcp
+              </span>{" "}
               and auto-discoverable via{" "}
               <span style={{ fontFamily: "var(--font-jetbrains-mono), monospace" }}>
                 /well-known/mcp-config.json
@@ -292,10 +292,10 @@ export default async function ForAgentsPage() {
               }}
             >
               <p style={{ fontSize: 14, color: "#e5e5e5", lineHeight: 1.7, margin: 0 }}>
-                <strong style={{ color: "#f2f2f2" }}>Run it</strong> - installs globally from PyPI in one command:
+                <strong style={{ color: "#f2f2f2" }}>Connect (recommended)</strong> - hosted server, no install:
               </p>
               <div style={{ ...codeStyle, margin: "12px 0 0" }}>
-                uvx inferenceindexer-mcp
+                https://api.inferenceindexer.ai/mcp
               </div>
             </div>
 
@@ -308,8 +308,7 @@ export default async function ForAgentsPage() {
 {`{
   "mcpServers": {
     "inferenceindexer": {
-      "command": "uvx",
-      "args": ["inferenceindexer-mcp"]
+      "url": "https://api.inferenceindexer.ai/mcp"
     }
   }
 }`}

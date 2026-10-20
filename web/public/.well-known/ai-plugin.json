@@ -48,8 +48,8 @@
       ]
     },
     "mcp": {
-      "transport": "stdio",
-      "install": "uvx inferenceindexer-mcp",
+      "transport": "http",
+      "url": "https://api.inferenceindexer.ai/mcp",
       "config_url": "https://www.inferenceindexer.ai/.well-known/mcp-config.json"
     }
   },

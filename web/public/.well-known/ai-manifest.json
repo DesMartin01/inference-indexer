@@ -17,7 +17,7 @@
     "rate_limit": "10,000 requests/day (free tier)"
   },
   "mcp": {
-    "install": "uvx inferenceindexer-mcp",
+    "url": "https://api.inferenceindexer.ai/mcp",
     "config": "https://www.inferenceindexer.ai/.well-known/mcp-config.json",
     "source": "https://github.com/DesMartin01/inferenceindexer-mcp"
   }

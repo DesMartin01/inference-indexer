@@ -94,7 +94,7 @@ Historical index values / trends over time. `?days=90` for longer trend data whe
 
 ## MCP server
 
-Call these tools natively from agent frameworks (Claude, Cursor, OpenAI Agents): `uvx inferenceindexer-mcp --transport stdio` exposes `recommend_models`, `explain_model`, `search_models`, `get_model_history`, `compare_providers`, `get_composite_latest`, `list_providers`, and more. Streamable HTTP: `https://api.inferenceindexer.ai/mcp`. Auto-discovery: https://www.inferenceindexer.ai/.well-known/mcp-config.json. Source: https://github.com/DesMartin01/inferenceindexer-mcp
+Connect your agent framework (Claude, Cursor, OpenAI Agents) to the hosted server: `https://api.inferenceindexer.ai/mcp` (streamable-http, recommended - no install). Tools: `recommend_models` (constraints: budget/context/aa_min/use_case/zdr/eu/reasoning/prefer_callable), `explain_model`, `search_models`, `get_model`, `get_model_history`, `list_providers`, `get_provider`, `get_composite_latest`, `get_composite_history`, `compare_providers`. Auto-discovery: https://www.inferenceindexer.ai/.well-known/mcp-config.json. Source: https://github.com/DesMartin01/inferenceindexer-mcp
 
 ## OpenAPI spec
 Machine-readable: `https://api.inferenceindexer.ai/openapi.json`. Interactive: https://www.inferenceindexer.ai/api-docs

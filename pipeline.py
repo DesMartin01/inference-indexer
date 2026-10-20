@@ -1779,16 +1779,27 @@ def fetch_engy_direct():
         return [], []
 
     # engy hosts models from multiple owners. Map flat IDs to canonical
-    # provider/model IDs so they merge with existing DB rows.
+    # provider/model IDs so they merge with existing DB rows. The bare
+    # engy IDs (no provider prefix) MUST NEVER reach the DB: engy is a
+    # reseller host, not a model creator, and a bare id upserted by
+    # upsert_venice_models() creates a shadow model row with a fake
+    # single-source price (Oct 2026: bare deepseek-v4.1-flash* rows fed
+    # the sitemap 404s and a $0.064 phantom price).
     ENGY_MODEL_MAP = {
         "deepseek-v4-flash-0731": "deepseek/deepseek-v4-flash-0731",
+        "deepseek-v4.1-flash": "deepseek/deepseek-v4.1-flash",
+        "deepseek-v4.1-flash-1017": "deepseek/deepseek-v4.1-flash-1017",
         "glm-5.2": "z-ai/glm-5.2",
+        "glm-5.3": "z-ai/glm-5.3",
+        "glm-5.3-flash": "z-ai/glm-5.3-flash",
         "kimi-k3": "moonshotai/kimi-k3",
         "qwen3.6-35b-a3b": "qwen/qwen3.6-35b-a3b",
+        "qwen3.8-27b": "qwen/qwen3.8-27b",
     }
 
     endpoints = []
     new_models = []
+    skipped_unmapped = 0
 
     for m in models:
         raw_id = m.get("id", "")
@@ -1809,7 +1820,14 @@ def fetch_engy_direct():
         output_price = round(float(completion_price) * 1_000_000, 6)
         blended = round((BLENDED_INPUT_WEIGHT * input_price) + (BLENDED_OUTPUT_WEIGHT * output_price), 6)
 
-        canonical_id = ENGY_MODEL_MAP.get(raw_id, canonical_model_id(raw_id))
+        # Unknown engy model: do NOT emit a bare provider-less id. Skip the
+        # endpoint loudly so the map gets extended (0 is an incident); a
+        # silent fallback here is what created the shadow rows.
+        canonical_id = ENGY_MODEL_MAP.get(raw_id)
+        if canonical_id is None:
+            print(f"  WARN: engy model '{raw_id}' missing from ENGY_MODEL_MAP - endpoint skipped (extend the map)")
+            skipped_unmapped += 1
+            continue
 
         endpoints.append({
             "endpoint_provider": "Engy",
@@ -1835,7 +1853,8 @@ def fetch_engy_direct():
             "modality": "text",
         })
 
-    print(f"  engy: {len(endpoints)} priced endpoints")
+    print(f"  engy: {len(endpoints)} priced endpoints"
+          + (f", {skipped_unmapped} UNMAPPED skipped (extend ENGY_MODEL_MAP)" if skipped_unmapped else ""))
     return endpoints, new_models
 
 

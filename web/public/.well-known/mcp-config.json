@@ -1,9 +1,7 @@
 {
   "mcpServers": {
     "inferenceindexer": {
-      "command": "uvx",
-      "args": ["inferenceindexer-mcp"],
-      "env": {}
+      "url": "https://api.inferenceindexer.ai/mcp"
     }
   }
 }

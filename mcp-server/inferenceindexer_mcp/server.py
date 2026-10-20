@@ -75,6 +75,9 @@ def recommend_models(
     zdr: bool = False,
     eu_sovereign: bool = False,
     reasoning: bool | None = None,
+    aa_min: float | None = None,
+    use_case: str | None = None,
+    prefer_callable: bool = False,
     limit: int = 5,
 ) -> dict[str, Any]:
     """Recommend the best-value AI models for given constraints, ranked with receipts.
@@ -91,6 +94,9 @@ def recommend_models(
         zdr: Require zero-data-retention providers (optional).
         eu_sovereign: Require EU-sovereign providers (optional).
         reasoning: Filter reasoning models (null = any, true/false).
+        aa_min: Hard floor on the AA Intelligence Index score (quality gate).
+        use_case: Task profile: support | volume | extraction | summarization | coding | research.
+        prefer_callable: Demote models without a verified call recipe below callable ones.
         limit: Max recommendations (1-20, default 5).
     Returns: ranked recommendations with endpoint_config and ranking evidence.
     """
@@ -106,6 +112,12 @@ def recommend_models(
         payload["context_min"] = context_min
     if reasoning is not None:
         payload["reasoning"] = reasoning
+    if aa_min is not None:
+        payload["aa_min"] = aa_min
+    if use_case is not None:
+        payload["use_case"] = use_case
+    if prefer_callable:
+        payload["prefer_callable"] = True
     return _post("/v1/recommend", payload)
 
 
@@ -141,9 +153,9 @@ def search_models(
 
     Args:
         query: Text search on model id/name (optional).
-        tier: Filter by tier: frontier | standard | budget | micro | zdr | eu (optional).
+        tier: Filter by tier: frontier | standard | budget | micro (optional).
         limit: Max results (1-100, default 25).
-        sort: Sort key, e.g. 'blended' (price), 'sit' (SIT score) (optional).
+        sort: Sort key: blended | input | output | sit_score | sit_adjusted_price (default sit_adjusted_price).
     Returns: models with input/output/blended $/M pricing, provider, tier.
     """
     params: dict[str, Any] = {"limit": min(100, max(1, limit))}

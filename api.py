@@ -20,6 +20,7 @@ import time
 import json
 import csv
 import io
+import re
 import secrets
 from datetime import datetime, timezone, date, timedelta
 from collections import defaultdict
@@ -1037,6 +1038,18 @@ USE_CASE_PROFILES: dict = {
     "research":      {"prefer_reasoning": True,  "aa_floor": 35, "note": "research/synthesis: reasoning depth and large context matter most"},
 }
 
+def _renumber_rank(why: str, new_rank: int) -> str:
+    """Rewrite the leading 'Rank N' claim inside a why-string.
+
+    The why-string is rendered before prefer_callable reordering, so a
+    re-ranked entry must have its stale rank text replaced (the 'rank' field
+    and the prose must agree or agents reading the endpoint see a lie).
+    Only the leading token is touched; appended clauses like '(callable:
+    verified endpoint recipe included)' pass through untouched.
+    """
+    return re.sub(r"^Rank \d+\b", f"Rank {new_rank}", why, count=1)
+
+
 def _use_case_score(aa, is_reasoning, profile):
     """Deterministic task-fit adjustment applied AFTER Cost/IQ ranking.
 
@@ -1303,7 +1316,10 @@ def _compute_recommendation(body: "RecommendRequest") -> dict:
         wide_query = query.rsplit("LIMIT", 1)[0] + " LIMIT 100"
         cur.execute(wide_query, params[:-1])
         rows = cur.fetchall()
-        rows = sorted(rows, key=lambda r: (r[11] or 1e9) * _use_case_score(r[5], r[6], profile))
+        # Sort on the SAME metric the why-string displays: cost_per_iq x score.
+        # (Was blended x score: two different orderings made the "Rank N" text
+        # contradict the displayed Cost/IQ ordering.)
+        rows = sorted(rows, key=lambda r: (r[12] or 1e9) * _use_case_score(r[5], r[6], profile))
 
     # PR-2: prefer_callable is applied AFTER endpoint lookup (needs ep_map), below.
 
@@ -1456,14 +1472,19 @@ def _compute_recommendation(body: "RecommendRequest") -> dict:
 
     # PR-2: prefer_callable - demote unverified-callability results below callable ones.
     # Applied to the display split (recommendations vs runner_ups), keeping raw order otherwise.
+    # Ranks and the "Rank N" text inside `why` are BOTH rewritten here: the
+    # why-string is rendered earlier, so patching only entry["rank"] left
+    # stale "Rank N" claims that contradicted the emitted order.
     if body.prefer_callable and recommendations:
         callable_recs = [r for r in recommendations if r["callability"] == "callable"]
         unverified_recs = [r for r in recommendations if r["callability"] != "callable"]
         if callable_recs and unverified_recs:
             merged = callable_recs + unverified_recs
+            n_callable = len(callable_recs)
             for idx, r in enumerate(merged):
                 r["rank"] = idx + 1
-                if idx >= len(callable_recs):
+                r["why"] = _renumber_rank(r["why"], idx + 1)
+                if idx >= n_callable:
                     r["caveats"].append("demoted: no verified call recipe; callable alternatives exist")
                 else:
                     r["why"] += " (callable: verified endpoint recipe included)"
