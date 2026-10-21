@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 // Server-side admin API client. The backend admin endpoints are gated by the
 // SSR secret, which this sends via header. This module only runs server-side.
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-const SSR_SECRET = "inferenceindexer-ssr-2026";
+const SSR_SECRET = process.env.II_SSR_SECRET || "";  // server env only (N1)
 
 export interface FeedSource {
   source: string;

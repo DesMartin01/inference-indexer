@@ -1,5 +1,10 @@
-import { type NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
+
+// Server-side secret for API calls the middleware itself makes (N1, Oct 21).
+// Vercel injects II_SSR_SECRET as a server env var; middleware runs on the
+// server, so this never reaches a client bundle. No literal, no fallback.
+const SSR_SECRET = process.env.II_SSR_SECRET || "";
 
 // ---------------------------------------------------------------------------
 // Lean dead-slug guard
@@ -55,7 +60,7 @@ async function fetchLiveSlugs(): Promise<LiveSlugs | null> {
     for (let offset = 0; ; offset += PAGE) {
       const res = await fetch(`${API_URL}/v1/models?limit=${PAGE}&offset=${offset}`, {
         cache: "no-store",
-        headers: { "X-SSR-Secret": "inferenceindexer-ssr-2026" },
+        headers: { "X-SSR-Secret": SSR_SECRET },
         signal: controller.signal,
       });
       if (!res.ok) {
@@ -74,7 +79,7 @@ async function fetchLiveSlugs(): Promise<LiveSlugs | null> {
 
     const providersRes = await fetch(`${API_URL}/v1/providers`, {
       cache: "no-store",
-      headers: { "X-SSR-Secret": "inferenceindexer-ssr-2026" },
+      headers: { "X-SSR-Secret": SSR_SECRET },
       signal: controller.signal,
     });
     if (!modelsOk || !providersRes.ok) return null;

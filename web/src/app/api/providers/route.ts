@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 // SSR proxy for GET /v1/providers (provider list answer type).
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-const SSR_SECRET = "inferenceindexer-ssr-2026";
+const SSR_SECRET = process.env.II_SSR_SECRET || "";  // server env only (N1)
 
 export async function GET(_req: NextRequest) {
   try {

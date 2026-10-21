@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 // needed (fuzzy aliases handled server-side by the API).
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-const SSR_SECRET = "inferenceindexer-ssr-2026";
+const SSR_SECRET = process.env.II_SSR_SECRET || "";  // server env only (N1)
 
 const SSR_HEADERS = { "X-SSR-Secret": SSR_SECRET };
 

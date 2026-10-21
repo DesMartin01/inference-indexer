@@ -14,8 +14,12 @@ import json
 import requests
 
 JENTIC_URL = "http://127.0.0.1:8001"
-JENTIC_EMAIL = "frank@desmartin.io"
-JENTIC_PASSWORD = "JenticOne2026!"
+# N2 (Oct 21): credentials moved to env vars - never hardcode literals here.
+# Des rotates the Jentic password; the new value lives in ~/.hermes/.env as
+# JENTIC_EMAIL / JENTIC_PASSWORD and is loaded below.
+import os
+JENTIC_EMAIL = os.environ.get("JENTIC_EMAIL", "")
+JENTIC_PASSWORD = os.environ.get("JENTIC_PASSWORD", "")
 
 # Token cache file
 TOKEN_FILE = "/tmp/.jentic_token"

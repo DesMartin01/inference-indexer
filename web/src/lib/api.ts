@@ -1,7 +1,10 @@
 import { NextRequest } from "next/server";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-const SSR_SECRET = "inferenceindexer-ssr-2026";
+// Server-only secret (N1, Oct 21): env var, no literal. On Vercel this is set
+// as a server env var, so it exists in server-side bundles only - never in
+// client chunks (a literal here shipped the secret to every visitor's browser).
+const SSR_SECRET = process.env.II_SSR_SECRET || "";
 
 // Next.js fetch with ISR revalidation. Using next: { revalidate } instead of
 // cache: "no-store" allows Vercel to serve cached pages at the edge and
