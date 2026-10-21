@@ -1370,6 +1370,7 @@ def _compute_recommendation(body: "RecommendRequest") -> dict:
                 FROM model_endpoints
                 WHERE model_id = ANY(%s) AND endpoint_provider = ANY(%s)
                       AND blended_price_per_m IS NOT NULL
+                      AND COALESCE(raw_data->>'service_tier','') NOT IN ('flex','priority','ultrafast')
                 ORDER BY model_id, endpoint_provider, blended_price_per_m ASC
             """, (model_ids, endpoint_providers))
             for mid, prov, ip, op, bp in cur.fetchall():
@@ -1746,7 +1747,8 @@ async def explain(
                endpoint_provider, input_price_per_m, output_price_per_m, blended_price_per_m
         FROM model_endpoints
         WHERE model_id = %s AND blended_price_per_m IS NOT NULL
-        ORDER BY endpoint_provider, fetched_at DESC
+          AND COALESCE(raw_data->>'service_tier','') NOT IN ('flex','priority','ultrafast')
+        ORDER BY endpoint_provider, fetched_at DESC, blended_price_per_m ASC
     """, (canonical_id,))
     eps_raw = cur.fetchall()
     eps = sorted(eps_raw, key=lambda r: r[3])
@@ -2423,7 +2425,8 @@ async def get_provider_detail(
               AND m.is_active = TRUE
               AND me.blended_price_per_m > 0
               AND m.id NOT LIKE '%%:batch'
-            ORDER BY me.model_id, quant_key, me.fetched_at DESC
+              AND COALESCE(me.raw_data->>'service_tier','') NOT IN ('flex','priority','ultrafast')
+            ORDER BY me.model_id, quant_key, me.fetched_at DESC, me.blended_price_per_m ASC
         ),
         owned AS (
             SELECT DISTINCT ON (me.model_id, quant_key)
@@ -2445,7 +2448,8 @@ async def get_provider_detail(
               AND me.blended_price_per_m > 0
               AND m.id NOT LIKE '%%:batch'
               AND me.endpoint_provider != %s
-            ORDER BY me.model_id, quant_key, me.fetched_at DESC
+              AND COALESCE(me.raw_data->>'service_tier','') NOT IN ('flex','priority','ultrafast')
+            ORDER BY me.model_id, quant_key, me.fetched_at DESC, me.blended_price_per_m ASC
         )
         SELECT DISTINCT ON (model_id, quant_key)
             model_id, name, model_owner, tier, context_length,
@@ -2457,7 +2461,7 @@ async def get_provider_detail(
             UNION ALL
             SELECT * FROM owned
         ) combined
-        ORDER BY model_id, quant_key, fetched_at DESC
+        ORDER BY model_id, quant_key, fetched_at DESC, blended_price_per_m ASC
     """, (provider_name, provider_name, provider_name))
 
     models = []
@@ -2635,7 +2639,8 @@ async def get_model_endpoints(
             fetched_at
         FROM model_endpoints
         WHERE model_id = %s AND fetched_at >= NOW() - INTERVAL '24 hours'
-        ORDER BY endpoint_provider, fetched_at DESC
+          AND COALESCE(raw_data->>'service_tier','') NOT IN ('flex','priority','ultrafast')
+        ORDER BY endpoint_provider, fetched_at DESC, blended_price_per_m ASC
     """, (model_id,))
     
     rows = cur.fetchall()

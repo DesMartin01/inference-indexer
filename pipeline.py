@@ -84,6 +84,23 @@ MOONSHOT_DIRECT_API = "https://api.moonshot.cn/v1/models"
 # SambaNova prices are per-token (like OpenRouter). Multiply by 1M for $/M.
 # Jina prices are per-token. Multiply by 1M for $/M.
 BLENDED_INPUT_WEIGHT = 0.4
+
+# First-party host names (N7/N14 fix, 2026-10-21): when the model creator
+# serves the model itself, its Standard (service_tier IS NULL) endpoint row is
+# the authoritative headline price. Keys are the lowercase model_id prefix;
+# values are the exact endpoint_provider names as stored by the ingest.
+FIRST_PARTY_HOSTS = {
+    "openai": "OpenAI",
+    "anthropic": "Anthropic",
+    "google": "Google",
+    "xai": "xAI",
+    "deepseek": "DeepSeek",
+    "mistralai": "Mistral",
+    "moonshotai": "Moonshot AI",
+    "z-ai": "Z.AI",
+    "qwen": "Alibaba Cloud",
+    "meta-llama": "Meta",
+}
 BLENDED_OUTPUT_WEIGHT = 0.6
 
 # AA Index tier thresholds
@@ -2067,16 +2084,25 @@ def apply_median_pricing(models, fetch_endpoints=False):
                         endpoint_provider, input_price_per_m, output_price_per_m, blended_price_per_m, source
                     FROM model_endpoints
                     WHERE model_id = %s AND fetched_at >= NOW() - INTERVAL '24 hours'
-                    ORDER BY endpoint_provider, fetched_at DESC
+                      AND COALESCE(raw_data->>'service_tier','') NOT IN ('flex','priority','ultrafast')
+                    ORDER BY endpoint_provider, fetched_at DESC, blended_price_per_m ASC
                 """, (m["model_id"],))
                 rows = cur.fetchall()
-                # Apply endpoint pricing whenever there is AT LEAST ONE priced
-                # endpoint, not just for multi-provider models. The old
-                # `len(rows) > 1` guard left single-endpoint models unpriced
-                # even when their sole provider served+published a price
-                # (e.g. claude-haiku-4-5 only on DeepInfra). Fix: median over
-                # whatever priced endpoints exist.
-                if rows:
+                # 1P-first (N7 fix, 2026-10-21): when the model creator hosts
+                # it themselves, the headline price is the creator's Standard
+                # rate, not a median across resellers/aggregators.
+                fp = FIRST_PARTY_HOSTS.get(m["model_id"].split("/")[0].lower())
+                fp_row = next((r for r in rows if r[0] == fp and r[3] and r[3] > 0), None) if fp else None
+                if fp_row:
+                    m["blended_price_per_m"] = fp_row[3]
+                    m["input_price_per_m"] = fp_row[1] if fp_row[1] else m["input_price_per_m"]
+                    m["output_price_per_m"] = fp_row[2] if fp_row[2] else m["output_price_per_m"]
+                    m["source_count"] = 1
+                    m["source_label"] = "direct"
+                    m["sit_adjusted_price"] = calculate_sit_adjusted_price(
+                        m["blended_price_per_m"], m.get("reasoning_multiplier", 1.0), m.get("aa_index_score")
+                    )
+                elif rows:
                     blended_prices = [r[3] for r in rows if r[3] and r[3] > 0]
                     input_prices = [r[1] for r in rows if r[1] and r[1] > 0]
                     output_prices = [r[2] for r in rows if r[2] and r[2] > 0]
@@ -2125,13 +2151,37 @@ def apply_median_pricing(models, fetch_endpoints=False):
         
         raw_endpoints = fetch_model_endpoints(m["model_id"])
         normalized_eps = normalize_endpoints(m["model_id"], raw_endpoints)
-        
-        if len(normalized_eps) > 1:
+
+        # 1P-first (N7/N14): creator's Standard endpoint beats any median.
+        # Prefer the creator's Standard (non-flex/priority/ultrafast) row;
+        # Batch/Fast variants of the 1P endpoint must never become the headline.
+        fp = FIRST_PARTY_HOSTS.get(m["model_id"].split("/")[0].lower())
+        _fp_rows = [ep for ep in normalized_eps
+                    if fp and ep["endpoint_provider"] == fp and ep["blended_price_per_m"] > 0]
+        fp_ep = next((ep for ep in _fp_rows
+                      if (ep.get("raw_data") or {}).get("service_tier") not in ("flex", "priority", "ultrafast")),
+                     None)
+        if fp_ep is None and _fp_rows:
+            fp_ep = _fp_rows[0]
+            m["blended_price_per_m"] = fp_ep["blended_price_per_m"]
+            m["input_price_per_m"] = fp_ep["input_price_per_m"]
+            m["output_price_per_m"] = fp_ep["output_price_per_m"]
+            m["source_count"] = 1
+            m["source_label"] = "direct"
+            m["sit_adjusted_price"] = calculate_sit_adjusted_price(
+                m["blended_price_per_m"], m.get("reasoning_multiplier", 1.0), m.get("aa_index_score")
+            )
+        elif len(normalized_eps) > 1:
             multi_provider_count += 1
-            blended_prices = [ep["blended_price_per_m"] for ep in normalized_eps if ep["blended_price_per_m"] > 0]
-            input_prices = [ep["input_price_per_m"] for ep in normalized_eps if ep["input_price_per_m"] > 0]
-            output_prices = [ep["output_price_per_m"] for ep in normalized_eps if ep["output_price_per_m"] > 0]
-            
+            # Standard-only median: exclude flex/priority/ultrafast service
+            # tiers (Batch/Fast/Priority) before computing the headline.
+            std_eps = [ep for ep in normalized_eps
+                       if (ep.get("raw_data") or {}).get("service_tier") not in ("flex", "priority", "ultrafast")]
+            use_eps = std_eps or normalized_eps
+            blended_prices = [ep["blended_price_per_m"] for ep in use_eps if ep["blended_price_per_m"] > 0]
+            input_prices = [ep["input_price_per_m"] for ep in use_eps if ep["input_price_per_m"] > 0]
+            output_prices = [ep["output_price_per_m"] for ep in use_eps if ep["output_price_per_m"] > 0]
+
             m["blended_price_per_m"] = compute_median(blended_prices)
             m["input_price_per_m"] = compute_median(input_prices)
             m["output_price_per_m"] = compute_median(output_prices)
@@ -3169,7 +3219,8 @@ def build_orphan_snapshots(conn, priced_models):
         WHERE model_id = ANY(%s)
           AND blended_price_per_m > 0
           AND fetched_at >= NOW() - INTERVAL '24 hours'
-        ORDER BY model_id, endpoint_provider, fetched_at DESC
+          AND COALESCE(raw_data->>'service_tier','') NOT IN ('flex','priority','ultrafast')
+        ORDER BY model_id, endpoint_provider, fetched_at DESC, blended_price_per_m ASC
     """, (list(orphan_ids),))
 
     # Group endpoints by model
