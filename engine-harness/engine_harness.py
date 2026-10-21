@@ -25,7 +25,11 @@ import urllib.error
 from pathlib import Path
 
 BASE = "https://api.inferenceindexer.ai"
-SSR = {"X-SSR-Secret": "inferenceindexer-ssr-2026"}
+import os as _os
+_ssr = _os.environ.get("II_SSR_SECRET", "")
+if not _ssr:
+    raise RuntimeError("II_SSR_SECRET env var not set; required for engine_harness.py")
+SSR = {"X-SSR-Secret": _ssr}
 
 # ---------------------------------------------------------------------------
 # Deterministic parser — mirrors EnginePanel.parseConstraints() (keep in sync)

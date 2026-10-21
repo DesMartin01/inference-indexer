@@ -27,7 +27,9 @@ from datetime import date, datetime, timezone
 
 # ---------------------------------------------------------------- config ----
 API_BASE = "https://api.inferenceindexer.ai"
-SSR_SECRET = os.environ.get("INFERENCEINDEXER_SSR_SECRET", "inferenceindexer-ssr-2026")
+SSR_SECRET = os.environ.get("II_SSR_SECRET", "")
+if not SSR_SECRET:
+    raise RuntimeError("II_SSR_SECRET env var not set; required for generate_movers.py")
 
 # Brand
 GOLD = (196, 160, 56)        # #C4A038

@@ -14,6 +14,7 @@ Auth: Bearer token (API key) for some endpoints, public for others.
 Rate limits: Public 100/day, Free 1000/day, Paid 50000/day
 """
 
+import hmac
 import os
 import sys
 import time
@@ -44,8 +45,16 @@ RATE_LIMITS = {
     "ssr": {"daily": 100000, "per_minute": 2000, "history_days": 365},  # For Next.js SSR (build prerenders 600+ pages in a burst)
 }
 
-# Secret header for SSR requests to bypass public rate limits
-SSR_SECRET = "inferenceindexer-ssr-2026"
+# Secrets are environment-only: no defaults, no fallbacks. Fail fast if missing.
+# II_SSR_SECRET  -> rate-limit bypass for the website's own server-side calls
+# II_ADMIN_TOKEN -> gates /v1/admin/* and the provider-submission review routes
+SSR_SECRET = os.environ.get("II_SSR_SECRET", "")
+ADMIN_TOKEN = os.environ.get("II_ADMIN_TOKEN", "")
+if not SSR_SECRET or not ADMIN_TOKEN:
+    raise RuntimeError(
+        "Missing required env vars II_SSR_SECRET and II_ADMIN_TOKEN. "
+        "Set both before starting the API. (Old hard-coded secret retired 2026-10-21.)"
+    )
 
 BASE_DATE = date(2026, 8, 3)
 BASE_VALUE = 1000.0
@@ -271,8 +280,12 @@ def _classify_request(request: Request) -> tuple[str, str | None]:
     - no key / "public"  -> ('public', None)
     """
     auth = request.headers.get("authorization", "")
-    if request.headers.get("X-SSR-Secret") == SSR_SECRET:
+    if request.headers.get("X-SSR-Secret") and hmac.compare_digest(request.headers.get("X-SSR-Secret"), SSR_SECRET):
         return "ssr", None
+def _is_ssr_request(request: Request) -> bool:
+    v = request.headers.get("X-SSR-Secret")
+    return bool(v) and hmac.compare_digest(v, SSR_SECRET)
+
     if auth.startswith("Bearer "):
         token = auth[len("Bearer "):].strip()
         if not token or token == "public":
@@ -452,7 +465,7 @@ async def get_sit_latest(request: Request, authorization: Optional[str] = Header
     endpoint reads from sit_index_values (method: tpi_equal_weight_provider_capped).
     """
     api_user = get_api_user(authorization)
-    limits = check_rate_limit(api_user, is_ssr=request.headers.get("X-SSR-Secret") == SSR_SECRET)
+    limits = check_rate_limit(api_user, is_ssr=_is_ssr_request(request))
     
     conn = get_db()
     cur = conn.cursor()
@@ -696,7 +709,7 @@ async def get_sit_history(
 ):
     """Returns historical SIT-Composite values."""
     api_user = get_api_user(authorization)
-    limits = check_rate_limit(api_user, is_ssr=request.headers.get("X-SSR-Secret") == SSR_SECRET)
+    limits = check_rate_limit(api_user, is_ssr=_is_ssr_request(request))
     
     # Limit history based on plan
     max_days = limits["history_days"]
@@ -766,7 +779,7 @@ async def get_models(
 ):
     """Returns all tracked models with current pricing."""
     api_user = get_api_user(authorization)
-    limits = check_rate_limit(api_user, is_ssr=request.headers.get("X-SSR-Secret") == SSR_SECRET)
+    limits = check_rate_limit(api_user, is_ssr=_is_ssr_request(request))
     
     conn = get_db()
     cur = conn.cursor()
@@ -913,7 +926,7 @@ async def get_embeddings(
 ):
     """Returns all tracked embedding models with current pricing."""
     api_user = get_api_user(authorization)
-    limits = check_rate_limit(api_user, is_ssr=request.headers.get("X-SSR-Secret") == SSR_SECRET)
+    limits = check_rate_limit(api_user, is_ssr=_is_ssr_request(request))
 
     conn = get_db()
     cur = conn.cursor()
@@ -1120,7 +1133,7 @@ async def recommend(
     """
     import time as _time
     api_user = get_api_user(authorization)
-    is_ssr = request.headers.get("X-SSR-Secret") == SSR_SECRET
+    is_ssr = _is_ssr_request(request)
     limits = check_rate_limit(api_user, is_ssr=is_ssr)
 
     # Validation: at least one real constraint (modality defaults to text, not a constraint)
@@ -1658,7 +1671,7 @@ async def explain(
     AA score. Everything is as-of stamped. No LLM in the path.
     """
     api_user = get_api_user(authorization)
-    limits = check_rate_limit(api_user, is_ssr=request.headers.get("X-SSR-Secret") == SSR_SECRET)
+    limits = check_rate_limit(api_user, is_ssr=_is_ssr_request(request))
 
     # PR-6: resolve dirty/aliased model ids to canonical
     canonical_id, resolved_from = _resolve_model_id(model_id)
@@ -2021,13 +2034,13 @@ async def submit_provider(submission: dict):
     }
 
 
-@app.get("/v1/providers/submissions")
+@app.get("/v1/providers/submissions", include_in_schema=False)
 async def list_submissions(request: Request):
     """List provider submissions. Review queue for the site owner.
 
     Protected by the SSR secret header - not public.
     """
-    if request.headers.get("X-SSR-Secret") != SSR_SECRET:
+    if not request.headers.get("X-Admin-Token") or not hmac.compare_digest(request.headers.get("X-Admin-Token"), ADMIN_TOKEN):
         return JSONResponse(status_code=401, content={"error": "Unauthorized"})
 
     where = ""
@@ -2069,10 +2082,10 @@ async def list_submissions(request: Request):
         conn.close()
 
 
-@app.post("/v1/providers/submissions/{submission_id}/review")
+@app.post("/v1/providers/submissions/{submission_id}/review", include_in_schema=False)
 async def review_submission(submission_id: int, decision: dict, request: Request):
     """Approve or reject a submitted provider. Owner-only (SSR secret)."""
-    if request.headers.get("X-SSR-Secret") != SSR_SECRET:
+    if not request.headers.get("X-Admin-Token") or not hmac.compare_digest(request.headers.get("X-Admin-Token"), ADMIN_TOKEN):
         return JSONResponse(status_code=401, content={"error": "Unauthorized"})
 
     new_status = decision.get("status")
@@ -2132,7 +2145,7 @@ async def api_usage(request: Request):
     Excludes our own SSR (frontend) traffic by default so the numbers show
     external people/agent usage; set ?include_ssr=1 to include it.
     """
-    if request.headers.get("X-SSR-Secret") != SSR_SECRET:
+    if not request.headers.get("X-Admin-Token") or not hmac.compare_digest(request.headers.get("X-Admin-Token"), ADMIN_TOKEN):
         return JSONResponse(status_code=401, content={"error": "Unauthorized"})
 
     include_ssr = request.query_params.get("include_ssr") == "1"
@@ -2309,7 +2322,7 @@ async def get_providers(
 ):
     """Returns all providers with model counts and price stats."""
     api_user = get_api_user(authorization)
-    limits = check_rate_limit(api_user, is_ssr=request.headers.get("X-SSR-Secret") == SSR_SECRET)
+    limits = check_rate_limit(api_user, is_ssr=_is_ssr_request(request))
     conn = get_db()
     cur = conn.cursor()
 
@@ -2370,7 +2383,7 @@ async def get_provider_detail(
 ):
     """Returns detailed stats for a single provider, including hosted endpoints."""
     api_user = get_api_user(authorization)
-    limits = check_rate_limit(api_user, is_ssr=request.headers.get("X-SSR-Secret") == SSR_SECRET)
+    limits = check_rate_limit(api_user, is_ssr=_is_ssr_request(request))
     conn = get_db()
     cur = conn.cursor()
 
@@ -2593,7 +2606,7 @@ async def get_model_endpoints(
         model_id = model_id[:-10]
     
     api_user = get_api_user(authorization)
-    limits = check_rate_limit(api_user, is_ssr=request.headers.get("X-SSR-Secret") == SSR_SECRET)
+    limits = check_rate_limit(api_user, is_ssr=_is_ssr_request(request))
     
     conn = get_db()
     cur = conn.cursor()
@@ -2673,7 +2686,7 @@ async def get_model_history(
         model_id = model_id[:-8]
     
     api_user = get_api_user(authorization)
-    limits = check_rate_limit(api_user, is_ssr=request.headers.get("X-SSR-Secret") == SSR_SECRET)
+    limits = check_rate_limit(api_user, is_ssr=_is_ssr_request(request))
     
     # Limit history based on plan
     max_days = limits["history_days"]
@@ -2758,7 +2771,7 @@ async def get_model(
             }
         })
     api_user = get_api_user(authorization)
-    limits = check_rate_limit(api_user, is_ssr=request.headers.get("X-SSR-Secret") == SSR_SECRET)
+    limits = check_rate_limit(api_user, is_ssr=_is_ssr_request(request))
     
     conn = get_db()
     cur = conn.cursor()
@@ -2956,7 +2969,7 @@ async def export_snapshots(
     - Hard-capped at 10,000 rows per request for safety.
     """
     api_user = get_api_user(authorization)
-    limits = check_rate_limit(api_user, is_ssr=request.headers.get("X-SSR-Secret") == SSR_SECRET)
+    limits = check_rate_limit(api_user, is_ssr=_is_ssr_request(request))
 
     # Parse date range (default: last 7 days)
     today = date.today()
@@ -3394,9 +3407,9 @@ async def public_health_sources():
 # ADMIN: FEED STATUS & PRICING COMPARISON
 # ============================================
 
-def _require_admin(x_ssr_secret: Optional[str]):
-    """Gate admin endpoints behind the SSR secret. Admin-only internal tooling."""
-    if x_ssr_secret != SSR_SECRET:
+def _require_admin(x_admin_token: Optional[str]):
+    """Gate admin endpoints behind the admin token. Admin-only internal tooling."""
+    if not x_admin_token or not hmac.compare_digest(x_admin_token, ADMIN_TOKEN):
         return JSONResponse(
             status_code=401,
             content={"error": "Unauthorized"},
@@ -3406,7 +3419,7 @@ def _require_admin(x_ssr_secret: Optional[str]):
 
 
 @app.get("/v1/admin/feeds")
-async def admin_feeds(x_ssr_secret: Optional[str] = Header(None)):
+async def admin_feeds(x_admin_token: Optional[str] = Header(None, alias="X-Admin-Token")):
     """Feed status for all data sources: is data flowing, complete, fresh.
 
     For each source in model_endpoints reports:
@@ -3416,7 +3429,7 @@ async def admin_feeds(x_ssr_secret: Optional[str] = Header(None)):
       - expected_cadence                  (daily vs hourly, so staleness is judged right)
     Returns per-source status plus a derived overall health summary.
     """
-    deny = _require_admin(x_ssr_secret)
+    deny = _require_admin(x_admin_token)
     if deny:
         return deny
     conn = get_db()
@@ -3489,7 +3502,7 @@ async def admin_feeds(x_ssr_secret: Optional[str] = Header(None)):
 
 @app.get("/v1/admin/price-compare")
 async def admin_price_compare(
-    x_ssr_secret: Optional[str] = Header(None),
+    x_admin_token: Optional[str] = Header(None, alias="X-Admin-Token"),
     sort: str = Query("abs_diff", description="Sort key: abs_diff, direct, openrouter, model, provider, pct_diff"),
     order: str = Query("desc", description="asc or desc"),
     min_diff: float = Query(0.0, description="Minimum absolute % difference to include"),
@@ -3499,7 +3512,7 @@ async def admin_price_compare(
     provider+model. Highlights discrepancies in the pricing we pull vs what
     OpenRouter reports for the same host.
     """
-    deny = _require_admin(x_ssr_secret)
+    deny = _require_admin(x_admin_token)
     if deny:
         return deny
     conn = get_db()
