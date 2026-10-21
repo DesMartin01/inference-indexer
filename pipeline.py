@@ -13,6 +13,7 @@ Requirements:
 """
 
 import os
+import re
 import sys
 import json
 import time
@@ -601,7 +602,12 @@ def upsert_venice_models(conn, new_models, existing_priced):
         if "/" in mid:
             prov, _, slug = mid.partition("/")
             if "-" in slug:
-                dotted = prov + "/" + slug.replace("-", ".")
+                # Dot ONLY digit-hyphen-digit version boundaries (4-8 -> 4.8).
+                # Dotting ALL hyphens (the 2026-10-18 version) produced
+                # claude.haiku.4.5, which never matches the real twin
+                # claude-haiku-4.5, so the guard was a silent no-op and
+                # DeepInfra's hyphen twins kept being created hourly.
+                dotted = prov + "/" + re.sub(r"(\d)-(\d)", lambda x: x.group(1) + "." + x.group(2), slug)
                 if dotted != mid and dotted in existing_ids and mid not in existing_ids:
                     m["model_id"] = dotted
                     remapped += 1
@@ -3781,7 +3787,9 @@ def main():
             remap = {}
             for hid in hyphen_ids:
                 prov, _, slug = hid.partition("/")
-                dotted = prov + "/" + slug.replace("-", ".")
+                # Dot ONLY digit-hyphen-digit version boundaries (4-8 -> 4.8).
+                # Dotting ALL hyphens made the guard a silent no-op (Oct 18-21).
+                dotted = prov + "/" + re.sub(r"(\d)-(\d)", lambda x: x.group(1) + "." + x.group(2), slug)
                 if dotted == hid:
                     continue
                 cur2 = conn.cursor()
