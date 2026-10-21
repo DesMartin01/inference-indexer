@@ -20,6 +20,7 @@ import os
 from typing import Any
 
 import httpx
+import json
 from mcp.server.fastmcp import FastMCP
 
 # Configurable API base, optional API key, and SSR secret (first-party tier).
@@ -51,19 +52,37 @@ def _headers() -> dict[str, str]:
 from .calllog import CallLogWrapper  # noqa: E402
 
 
+def _api_error(resp: "httpx.Response") -> dict[str, Any]:
+    """Clean error dict for an upstream API error (N17, Oct 21).
+
+    Never include the internal URL (http://127.0.0.1:8000/...): agents on
+    the public MCP endpoint must not learn internal topology, and httpx's
+    default message buries the useful part (the status + detail) behind it.
+    """
+    try:
+        detail = resp.json().get("error", {})
+        message = detail.get("message") or f"API returned {resp.status_code}"
+    except Exception:
+        message = f"API returned {resp.status_code}"
+    return {"error": {"code": detail.get("code", f"http_{resp.status_code}") if isinstance(detail, dict) else f"http_{resp.status_code}",
+                        "status": resp.status_code, "message": message}}
+
+
 def _get(path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
     """GET the InferenceIndexer API, return parsed JSON. Raises on non-2xx."""
     with httpx.Client(timeout=30) as client:
         resp = client.get(f"{API_BASE}{path}", params=params, headers=_headers())
-        resp.raise_for_status()
+        if resp.status_code >= 400:
+            raise LookupError(json.dumps(_api_error(resp)))
         return resp.json()
 
 
 def _post(path: str, payload: dict[str, Any]) -> dict[str, Any]:
-    """POST to the InferenceIndexer API, return parsed JSON. Raises on non-2xx."""
+    """POST the InferenceIndexer API, return parsed JSON. Raises on non-2xx."""
     with httpx.Client(timeout=30) as client:
         resp = client.post(f"{API_BASE}{path}", json=payload, headers=_headers())
-        resp.raise_for_status()
+        if resp.status_code >= 400:
+            raise LookupError(json.dumps(_api_error(resp)))
         return resp.json()
 
 
