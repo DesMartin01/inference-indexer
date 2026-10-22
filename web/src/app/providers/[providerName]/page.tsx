@@ -5,7 +5,14 @@ export const fetchCache = 'force-cache';
 
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getProviderDetail, providerFaviconUrl, providerInitials, getProviders } from "@/lib/api";
+import {
+  providerFaviconUrl,
+  providerInitials,
+} from "@/lib/format";
+import type {
+  getProviderDetail,
+  getProviders,
+} from "@/lib/api";
 import { Header, Footer } from "@/components/Header";
 import ProviderModelTable from "@/components/ProviderModelTable";
 

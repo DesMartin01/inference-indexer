@@ -1,5 +1,7 @@
 # InferenceIndexer MCP Server
 
+<!-- mcp-name: io.github.DesMartin01/inferenceindexer-mcp -->
+
 Model Context Protocol server exposing InferenceIndexer's live + historical
 inference pricing as agent callable tools. Instead of an agent assembling
 inference pricing itself (slow, incomplete), it can call these tools to get
@@ -9,6 +11,8 @@ complete pricing, historical trends, provider comparison, and the SIT index.
 
 | Tool | Description |
 |---|---|
+| `recommend_models` | **Call this first**: rank models under your constraints (budget, context, ZDR, quality floor) with ready-to-call endpoint configs |
+| `explain_model` | Everything about one model in one call: pricing, trend, endpoints, privacy flags |
 | `search_models` | Search/list models with current pricing (by text, tier, sort) |
 | `get_model` | Full detail + current price for one model |
 | `get_model_history` | **Historical** price trends for one model (the differentiator) |
@@ -21,8 +25,8 @@ complete pricing, historical trends, provider comparison, and the SIT index.
 ## Config (env)
 
 - `II_API_BASE` - InferenceIndexer API base (default `https://api.inferenceindexer.ai`)
-- `II_API_KEY` - Optional `Bearer` key (use to raise rate limits)
-- `II_SSR_SECRET` - Optional first-party SSR secret (higher rate tier)
+- `II_API_KEY` - Optional bearer key (public server works without one; a key raises rate limits)
+- `II_SSR_SECRET` - Optional first-party secret for self-hosted/higher-tier use only. Not set on the public server.
 
 ## Run
 
@@ -32,9 +36,9 @@ uv sync
 uv run inferenceindexer-mcp
 ```
 
-Serve over HTTP/SSE (for remote clients, e.g. on the VPS):
+Serve over HTTP/SSE (for remote clients, e.g. the hosted endpoint at `https://api.inferenceindexer.ai/mcp`):
 ```bash
-II_SSR_SECRET=... uv run inferenceindexer-mcp --transport streamable-http --port 8899
+uv run inferenceindexer-mcp --transport streamable-http --port 8899
 ```
 
 ## Connect an agent / MCP client
@@ -51,4 +55,4 @@ Claude Desktop / generic MCP client (stdio):
 }
 ```
 
-Updated Aug 2026.
+Updated Oct 2026. Hosted (no install): https://api.inferenceindexer.ai/mcp - add `"url": "https://api.inferenceindexer.ai/mcp"` to mcpServers for streamable-http clients.

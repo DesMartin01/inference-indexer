@@ -81,9 +81,10 @@ export default function HarnessesPage() {
           Agent harnesses, ranked by category
         </h1>
         <p style={{ ...p, maxWidth: 780, marginBottom: 14 }}>
-          Ranked from the best-of-Agent-Harnesses list ({sm.project_count} harnesses, rescored weekly). Stars
-          and licenses are facts; fit-by-category is our rubric, not a verified benchmark. Pick the harness and
-          the model as a pair.{" "}
+          Ranked from the best-of-Agent-Harnesses list ({sm.project_count} harnesses, rescored weekly). Open-source
+          repositories only; managed vendor harnesses (Grok Bot, Muse Code, Meta Muse, Claude Managed Agents) are
+          tracked separately, and Grok Build is our editorial addition. Stars and licenses are facts; fit-by-category
+          is our rubric, not a verified benchmark. Pick the harness and the model as a pair.{" "}
           <Link href="/models" style={{ color: "#C4A038", textDecoration: "none" }}>
             We price the model side.
           </Link>

@@ -8,7 +8,7 @@ import {
   pctColor,
   providerInitials,
   providerFaviconUrl,
-} from "@/lib/api";
+} from "@/lib/format";
 
 // Format price to 3 decimal places
 function formatEmbedPrice(n: number): string {

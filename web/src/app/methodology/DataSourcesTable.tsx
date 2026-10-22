@@ -1,8 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getProviders, ProviderSummary } from "@/lib/api";
+import type { ProviderSummary } from "@/lib/api";
 import type React from "react";
+
+// Client-side fetch of the public provider list (B8: lib/api.ts is server-only,
+// so client components fetch the public API directly with NEXT_PUBLIC_API_URL).
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
+async function getProvidersClient(): Promise<ProviderListLite> {
+  const res = await fetch(`${API_URL}/v1/providers`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Provider list failed (${res.status})`);
+  return res.json();
+}
+type ProviderListLite = { providers: ProviderSummary[]; count?: number; total?: number };
+
 
 // Aggregator sources we pull price feeds from (price data aggregated from
 // multiple upstream providers). Everything else in the index is a direct
@@ -55,7 +66,7 @@ export default function DataSourcesTable() {
 
   useEffect(() => {
     let alive = true;
-    getProviders()
+    getProvidersClient()
       .then((d) => {
         if (alive) setProviders(d.providers);
       })

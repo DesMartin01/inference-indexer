@@ -3,6 +3,15 @@
 Fetches harnesses.json from best-of-Agent-Harnesses (CC-BY-SA-4.0), applies the
 II category rubrics, writes web/public/harnesses-data.json.
 
+Local entries: web/scripts/harness_local_entries.json holds II editorial
+additions (open-source repos the source has not added yet, e.g. Grok Build).
+They are merged into the project list before the rubrics run, so they flow
+through the same category tables. Stars for local entries are re-fetched from
+the GitHub API each refresh; on API failure the last known count is used and
+a warning is logged. Scope: open-source only. Managed vendor harnesses (Grok
+Bot, Muse Code, Meta Muse, Claude Managed Agents) are excluded: no public
+repo, and the source list ranks open repositories.
+
 Usage:
   python3 refresh_harnesses.py                 # live fetch + write
   python3 refresh_harnesses.py --source PATH   # read local file instead (tests)
@@ -21,7 +30,62 @@ from pathlib import Path
 SOURCE_URL = "https://ryanalberts.github.io/best-of-Agent-Harnesses/harnesses.json"
 OUT_PATH = Path(__file__).resolve().parent.parent / "public" / "harnesses-data.json"
 LOG_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "harnesses-refresh.log"
-ATTRIBUTION = "Data: best-of-Agent-Harnesses (https://ryanalberts.github.io/best-of-Agent-Harnesses/), CC-BY-SA-4.0"
+LOCAL_ENTRIES_PATH = Path(__file__).resolve().parent / "harness_local_entries.json"
+ATTRIBUTION = "Data: best-of-Agent-Harnesses (https://ryanalberts.github.io/best-of-Agent-Harnesses/), CC-BY-SA-4.0. Grok Build: II editorial addition (open-source repo, verified 2026-10-13)."
+
+
+def _fetch_stars(repo_full_name, fallback):
+    """Fetch live star count for 'org/repo' from the GitHub public API.
+
+    Returns (stars, note). On any failure returns the fallback count so a
+    GitHub outage never breaks the weekly refresh; the fallback is logged.
+    """
+    try:
+        url = f"https://api.github.com/repos/{repo_full_name}"
+        req = urllib.request.Request(url, headers={"User-Agent": "inferenceindexer-refresh", "Accept": "application/vnd.github+json"})
+        data = json.loads(urllib.request.urlopen(req, timeout=30).read().decode())
+        return data.get("stargazers_count"), None
+    except Exception as e:  # noqa: BLE001 - degrade gracefully, never break the refresh
+        return fallback, f"star fetch failed for {repo_full_name} ({e}); using last known {fallback}"
+
+
+def load_local_entries():
+    """II editorial additions, as source-shaped project dicts.
+
+    Stars are refreshed from the GitHub API at each run (fallback: last
+    stored count). Each entry records verified_facts with the evidence used
+    for its rubric fields, so any value can be audited back to source.
+    """
+    if not LOCAL_ENTRIES_PATH.exists():
+        return [], []
+    raw = json.loads(LOCAL_ENTRIES_PATH.read_text())
+    projects, notes = [], []
+    for e in raw.get("entries", []):
+        fields = e.get("fields", {})
+        stars, note = _fetch_stars(e["url"].rstrip("/").split("github.com/")[-1], fields.get("stars", 0))
+        if note:
+            notes.append(note)
+        projects.append({
+            "name": e["name"],
+            "url": e["url"],
+            "page_url": e.get("page_url"),
+            "description": e.get("description", ""),
+            "stars": stars,
+            "tier": fields.get("tier"),
+            "tier_rank": fields.get("tier_rank"),
+            "autonomy": fields.get("autonomy"),
+            "recovery": fields.get("recovery"),
+            "license_signal": e.get("license_signal"),
+            "category": e["category"],
+            "local_entry": True,
+            "verified_facts": e.get("verified_facts", {}),
+            # deep_dive-shaped stubs so the derived rubrics can read them
+            "deep_dive": {
+                "tooling_sandboxing": {"rank": {"strong": 3, "basic": 2, "none": 1, "unknown": 0}.get(fields.get("sandbox"), 0)},
+                "build_vs_buy": {"tier": {"managed": 3, "blueprint": 2, "build": 1, "unknown": 0}.get(fields.get("buy"), 0)},
+            },
+        })
+    return projects, notes
 
 SB_RUNTIME_CATS = {"personal-agent-runtimes", "coding-agent-products", "frameworks",
                    "multi-agent", "research-task", "libraries-sdks"}
@@ -80,7 +144,7 @@ def entry_to_row(p):
     d = p.get("deep_dive") or {}
     buy = d.get("build_vs_buy") or {}
     sand = d.get("tooling_sandboxing") or {}
-    return {
+    row = {
         "name": p.get("name"),
         "url": p.get("url"),
         "page_url": p.get("page_url"),
@@ -95,6 +159,10 @@ def entry_to_row(p):
         "sandbox": {3: "strong", 2: "basic", 1: "none", 0: "unknown"}.get(sand.get("rank"), "unknown"),
         "buy": {3: "managed", 2: "blueprint", 1: "build"}.get(buy.get("tier"), "unknown"),
     }
+    if p.get("local_entry"):
+        row["local_entry"] = True
+        row["verified_facts"] = p.get("verified_facts", {})
+    return row
 
 
 def build_payload(projects, meta_in, include_research=False):
@@ -109,7 +177,8 @@ def build_payload(projects, meta_in, include_research=False):
         "source_meta": {
             "project_count": meta_in.get("project_count"),
             "stars_captured": meta_in.get("stars_captured"),
-            "deep_dive_researched": sum(1 for p in projects if p.get("deep_dive")),
+            "deep_dive_researched": sum(1 for p in projects if p.get("deep_dive") and not p.get("local_entry")),
+            "local_entries": [r["name"] for r in personal + research + enterprise + small_business if r.get("local_entry")],
         },
         "tables": {
             "personal": {"title": "Personal agents", "rows": personal},
@@ -137,6 +206,14 @@ def main():
     else:
         src = json.loads(urllib.request.urlopen(SOURCE_URL, timeout=60).read().decode())
     projects = src["projects"]
+    local, notes = load_local_entries()
+    for n in notes:
+        log(f"WARNING: {n}")
+    have = {p.get("url") for p in projects}
+    added = [p for p in local if p["url"] not in have]  # skip if the source adds it upstream
+    if len(added) < len(local):
+        log(f"local entries already in source, skipped: {[p['name'] for p in local if p['url'] in have]}")
+    projects = projects + added
     payload = build_payload(projects, src.get("meta", {}), include_research)
     counts = {k: len(v["rows"]) for k, v in payload["tables"].items()}
 

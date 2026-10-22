@@ -1,7 +1,26 @@
 "use client";
 
 import { useState } from "react";
-import { submitProvider, ProviderSubmission, SubmissionResult } from "@/lib/api";
+import type { ProviderSubmission, SubmissionResult } from "@/lib/api";
+// B8 (2026-10-21): submitProvider moved here from lib/api.ts (server-only module).
+// This endpoint is public and takes no secret, so the browser can call it directly.
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
+async function submitProvider(
+  sub: ProviderSubmission
+): Promise<SubmissionResult> {
+  const res = await fetch(`${API_URL}/v1/providers/submit`, {
+    method: "POST",
+    cache: "no-store",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(sub),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { error?: string }).error || `Submission failed (${res.status})`);
+  }
+  return res.json();
+}
+
 
 const FIELD_STYLE: React.CSSProperties = {
   width: "100%",

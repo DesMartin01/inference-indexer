@@ -1,7 +1,17 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { getFeedStatus, FeedStatus } from "@/lib/admin-api";
+import type { FeedStatus } from "@/lib/admin-api";
+
+// B8 (2026-10-21): admin refreshes go through the server proxy at
+// /api/admin/*, which attaches the secret server-side. The browser never
+// sends X-SSR-Secret itself.
+async function adminFetch<T>(path: string): Promise<T> {
+  const res = await fetch(path, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Admin API error: ${res.status} on ${path}`);
+  return res.json();
+}
+
 
 const STATUS_COLOR: Record<string, string> = {
   ok: "var(--green)",
@@ -29,7 +39,7 @@ export function FeedClient({
 
   const load = useCallback(async () => {
     try {
-      const d = await getFeedStatus();
+      const d = await adminFetch<FeedStatus>("/api/admin/feeds");
       setData(d);
       setErr(null);
       setLastRefreshed(new Date());

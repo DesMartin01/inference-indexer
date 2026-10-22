@@ -362,7 +362,22 @@ def canonical_model_id(model_id: str) -> str:
     if "/" not in model_id:
         return model_id.lower()
     provider, _, model = model_id.partition("/")
-    return provider.lower() + "/" + model.lower()
+    # Org-alias consolidation (B2, 2026-10-21): several providers emit their
+    # own org prefix spellings (DeepInfra: deepseek-ai/*, meta/*; Venice:
+    # zai-org/*, moonshot/*; OpenRouter: x-ai/*; AI/ML: minimaxai/*,
+    # stepfun-ai/*). Canonical rows live under the OpenRouter org spelling,
+    # so remap BEFORE the lower() upsert. Prevents the 47 dup groups from
+    # being recreated every hourly ingest.
+    ORG_ALIASES = {
+        "deepseek-ai": "deepseek",
+        "meta": "meta-llama",
+        "zai-org": "z-ai",
+        "minimaxai": "minimax",
+        "stepfun-ai": "stepfun",
+        "moonshot": "moonshotai",
+        "x-ai": "xai",
+    }
+    return ORG_ALIASES.get(provider.lower(), provider.lower()) + "/" + model.lower()
 
 
 # Map Venice model IDs to our model IDs (provider/model format)

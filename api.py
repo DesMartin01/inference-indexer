@@ -1600,7 +1600,7 @@ def _resolve_model_id(model_id: str) -> tuple[str, str | None]:
         # 1. exact canonical
         cur2.execute("SELECT id FROM models WHERE id = %s AND is_active", (mid,))
         if cur2.fetchone():
-            return mid, None
+            return _prefer_better_covered(cur2, mid)
         # 2. exact alias (case-insensitive)
         cur2.execute("SELECT canonical_model_id FROM model_aliases WHERE lower(alias) = lower(%s)", (mid,))
         row = cur2.fetchone()

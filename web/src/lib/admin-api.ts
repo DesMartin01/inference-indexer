@@ -1,3 +1,4 @@
+import "server-only";  // B8: admin client sends X-SSR-Secret; never bundle client-side
 import { NextRequest } from "next/server";
 
 // Server-side admin API client. The backend admin endpoints are gated by the

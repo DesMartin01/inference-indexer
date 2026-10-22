@@ -1,11 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import {
-  getSubmissions,
-  reviewSubmission,
-  PendingSubmission,
-} from "@/lib/admin-api";
+import type { PendingSubmission } from "@/lib/admin-api";
+
+// B8 (2026-10-21): admin submission review goes through server proxy routes
+// (/api/providers/*) that attach the secret server-side; the browser never
+// sends X-SSR-Secret.
+async function adminFetch<T>(path: string): Promise<T> {
+  const res = await fetch(path, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Admin API error: ${res.status} on ${path}`);
+  return res.json();
+}
+type SubmissionList = { count: number; submissions: PendingSubmission[] };
+
 
 const STATUS_COLOR: Record<string, string> = {
   pending: "var(--accent)",
@@ -19,7 +26,7 @@ export function SubmissionsClient() {
 
   const load = useCallback(async () => {
     try {
-      const d = await getSubmissions();
+      const d = await adminFetch<SubmissionList>("/api/providers/submissions");
       setSubs(d.submissions);
       setErr(null);
     } catch (e) {
@@ -32,7 +39,11 @@ export function SubmissionsClient() {
   }, [load]);
 
   const decide = async (id: number, status: "approved" | "rejected") => {
-    await reviewSubmission(id, { status });
+    await fetch(`/api/providers/submissions/${id}/review`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
     await load();
   };
 

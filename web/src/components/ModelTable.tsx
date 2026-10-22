@@ -13,7 +13,7 @@ import {
   capitalizeTier,
   providerInitials,
   providerFaviconUrl,
-} from "@/lib/api";
+} from "@/lib/format";
 
 // ISO 3166-1 alpha-2 -> flag emoji and full name
 const COUNTRY_FLAG_EMOJI: Record<string, string> = {

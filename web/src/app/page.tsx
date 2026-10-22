@@ -2,14 +2,16 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import {
+  formatPrice,
+  formatPct,
+  pctColor,
+} from "@/lib/format";
+import {
   getCompositeLatest,
   getCompositeHistory,
   getModels,
   getModelCount,
   getProviderCount,
-  formatPrice,
-  formatPct,
-  pctColor,
 } from "@/lib/api";
 import { buildSparkPath } from "@/lib/charts";
 import { Header, Footer } from "@/components/Header";

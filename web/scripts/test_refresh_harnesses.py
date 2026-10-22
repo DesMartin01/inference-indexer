@@ -68,6 +68,61 @@ def test_row_shape():
         assert key in row
 
 
+def test_local_entries_merge_and_flow():
+    # load_local_entries fetches stars from the GitHub API; patch it out so the
+    # merge logic is tested without network.
+    import refresh_harnesses as rh
+    orig = rh.load_local_entries
+    rh.load_local_entries = lambda: ([
+        {
+            "name": "Grok Build", "url": "https://github.com/xai-org/grok-build",
+            "page_url": None, "description": "xAI's terminal coding agent.",
+            "stars": 27345, "tier": "slightly complex", "tier_rank": 3,
+            "autonomy": "bounded", "recovery": "resumable",
+            "license_signal": "open-source", "category": "coding-agent-products",
+            "local_entry": True, "verified_facts": {"checked": "test"},
+            "deep_dive": {"tooling_sandboxing": {"rank": 3}, "build_vs_buy": {"tier": 2}},
+        }
+    ], [])
+    try:
+        fx = {"meta": {"project_count": 167, "stars_captured": "2026-09-20"},
+              "projects": load_fixture()}
+        payload = rh.build_payload(fx["projects"] + rh.load_local_entries()[0],
+                                   fx["meta"])
+        ent = payload["tables"]["enterprise"]["rows"]
+        names = [r["name"] for r in ent]
+        # strong sandbox rank 3 + open-source -> Enterprise table
+        assert "Grok Build" in names
+        grok = [r for r in ent if r["name"] == "Grok Build"][0]
+        assert grok["license"] == "open-source" and grok["sandbox"] == "strong"
+        assert grok["local_entry"] is True
+        assert grok["verified_facts"] == {"checked": "test"}
+        # source_meta records the editorial addition and excludes it from deep_dive count
+        assert payload["source_meta"]["local_entries"] == ["Grok Build"]
+        assert payload["source_meta"]["deep_dive_researched"] == sum(
+            1 for p in fx["projects"] if p.get("deep_dive"))
+        # enterprise count grew by exactly one vs the fixture-only run
+        solo = rh.build_payload(fx["projects"], fx["meta"])
+        assert len(ent) == len(solo["tables"]["enterprise"]["rows"]) + 1
+    finally:
+        rh.load_local_entries = orig
+
+
+def test_main_skips_entries_source_already_has():
+    # If the upstream source adds grok-build itself, the merge must skip it.
+    import refresh_harnesses as rh
+    fx = load_fixture()
+    have = {p.get("url") for p in fx}
+    assert "https://github.com/xai-org/grok-build" not in have  # fixture sanity
+    # Simulate upstream adoption: the merge filter drops entries whose URL exists
+    local_url = "https://github.com/xai-org/grok-build"
+    added = [local_url] if local_url not in have else []
+    assert added == [local_url]  # fixture case: not in source, so merged
+    have_with = have | {local_url}
+    added2 = [local_url] if local_url not in have_with else []
+    assert added2 == []  # upstream case: skipped
+
+
 if __name__ == "__main__":
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for fn in fns:

@@ -5,7 +5,16 @@ export const fetchCache = 'force-cache';
 
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getModel, getModelHistory, getModelEndpoints, providerFaviconUrl, getModels, ModelNotFoundError } from "@/lib/api";
+import {
+  providerFaviconUrl,
+} from "@/lib/format";
+import type {
+  getModel,
+  getModelHistory,
+  getModelEndpoints,
+  getModels,
+  ModelNotFoundError,
+} from "@/lib/api";
 import { Sparkline } from "@/components/Sparkline";
 import { Header } from "@/components/Header";
 import { ProviderComparisonTable } from "@/components/ProviderComparisonTable";

@@ -1,7 +1,17 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { getPriceCompare, PriceCompare } from "@/lib/admin-api";
+import type { PriceCompare } from "@/lib/admin-api";
+
+// B8 (2026-10-21): admin refreshes go through the server proxy at
+// /api/admin/*, which attaches the secret server-side. The browser never
+// sends X-SSR-Secret itself.
+async function adminFetch<T>(path: string): Promise<T> {
+  const res = await fetch(path, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Admin API error: ${res.status} on ${path}`);
+  return res.json();
+}
+
 
 type SortKey = "abs_diff" | "direct" | "openrouter" | "model" | "provider" | "pct_diff";
 
@@ -32,7 +42,7 @@ export function PriceCompareClient({
     async (s: SortKey, o: "asc" | "desc", m: number) => {
       setLoading(true);
       try {
-        const d = await getPriceCompare(s, o, m);
+        const d = await adminFetch<PriceCompare>(`/api/admin/price-compare?sort=${encodeURIComponent(s)}&order=${encodeURIComponent(o)}&min_diff=${m}`);
         setData(d);
         setErr(null);
       } catch (e) {

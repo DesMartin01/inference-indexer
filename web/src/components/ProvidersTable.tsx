@@ -5,7 +5,9 @@ import Link from "next/link";
 import {
   providerFaviconUrl,
   providerInitials,
-  type ProviderSummary,
+} from "@/lib/format";
+import type {
+  ProviderSummary,
 } from "@/lib/api";
 
 type ColKey =

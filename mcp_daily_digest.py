@@ -20,25 +20,33 @@ def main() -> None:
     cur = conn.cursor()
 
     # --- MCP tool calls, last 24h (classified) ---
-    # probes: __verifymcp_auth_probe_* sent by registry scanners, never real tools
+    # probes: any tool_name starting with __ (verifymcp_auth_probe_*,
+    #         glintbase_probe_*, whatever comes next) = scanner fingerprints,
+    #         never real tools
     # client errors: failed calls with empty args = malformed request (API 400s it correctly)
     # server errors: everything else that errored
     cur.execute("""
         SELECT tool_name, count(*), count(*) FILTER (WHERE is_error),
                round(avg(duration_ms)), count(DISTINCT session_id),
-               count(*) FILTER (WHERE is_error AND tool_name LIKE '\\_\\_verifymcp_auth_probe%'),
-               count(*) FILTER (WHERE is_error AND tool_name NOT LIKE '\\_\\_verifymcp_auth_probe%' AND args_summary = '')
+               count(*) FILTER (WHERE is_error AND tool_name LIKE '\\_\\_%'),
+               count(*) FILTER (WHERE is_error AND tool_name NOT LIKE '\\_\\_%' AND args_summary = '')
         FROM mcp_call_log
         WHERE ts > now() - interval '24 hours'
         GROUP BY 1 ORDER BY 2 DESC
     """)
     mcp_rows = cur.fetchall()
 
-    # --- registered (free-plan) API keys usage, last 24h: provable 3rd parties ---
+    # --- registered API keys usage, last 24h: provable 3rd parties ---
+    # plan='free' includes auto-created anonymous identities (anon_*@ii.local),
+    # which our own infra (healthchecks, probes) can mint. Only real signed-up
+    # labels count: exclude anon_* so the headline cannot be inflated by
+    # first-party traffic. (See api-usage-accountability skill.)
     cur.execute("""
         SELECT count(*), count(DISTINCT user_label)
         FROM api_request_log
         WHERE ts > now() - interval '24 hours' AND plan = 'free'
+          AND user_label IS NOT NULL
+          AND user_label NOT LIKE 'anon\\_%%@%%'
     """)
     free_calls, free_users = cur.fetchone()
 
@@ -47,6 +55,9 @@ def main() -> None:
 
     if not mcp_rows and free_calls == 0:
         sys.exit(0)  # no traffic, cron sends nothing
+
+    def is_probe(name: str) -> bool:
+        return name.startswith("__")
 
     lines = ["**II MCP daily digest** (last 24h)", ""]
     total = sum(r[1] for r in mcp_rows)
@@ -71,7 +82,7 @@ def main() -> None:
             lines.append("| Tool | Calls | Avg ms |")
             lines.append("|------|-------|--------|")
             for name, calls, errs, avg_ms, _sess, p, ce in mcp_rows:
-                if name.startswith("__verifymcp_auth_probe"):
+                if is_probe(name):
                     continue
                 lines.append(f"| {name} | {calls - p} | {avg_ms} |")
     else:

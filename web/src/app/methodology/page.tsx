@@ -841,6 +841,14 @@ Retrieved from https://www.inferenceindexer.ai/methodology`}</pre>
               (CC-BY-SA-4.0) appear on the page itself.
             </p>
             <p style={p}>
+              <strong>Scope:</strong> the list and our page cover open-source repositories only. Managed vendor
+              harnesses with no public repo (Grok Bot, Muse Code, Meta Muse, Claude Managed Agents) are outside
+              scope and tracked separately. One entry is our editorial addition: Grok Build (xAI&apos;s open-source
+              terminal coding agent, Apache-2.0), which the source list has not added. Its stars refresh weekly
+              from the GitHub API, its rubric fields (sandboxing, autonomy, recovery) are assigned by us against
+              its own repository evidence, and the entry is marked as ours in the page data.
+            </p>
+            <p style={p}>
               <strong>What is fact and what is our judgment:</strong> stars, licenses, tiers, autonomy and
               recovery labels are the source&apos;s facts, republished with attribution. Category fit (which
               harness appears under Enterprise or Small business) is OUR rubric, not a verified benchmark. The
