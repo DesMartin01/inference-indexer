@@ -50,10 +50,18 @@ export interface PriceCompare {
   pairs: PricePair[];
 }
 
+// Browser detection: in the browser there is no II_ADMIN_TOKEN (server-only
+// env). Client components must go through the /admin/api proxy route, which
+// injects the token server-side after checking the admin session cookie.
+const IS_BROWSER = typeof window !== "undefined";
+
 async function getJson<T>(endpoint: string): Promise<T> {
-  const res = await fetch(`${API_URL}${endpoint}`, {
+  const url = IS_BROWSER
+    ? `/admin/api${endpoint}`
+    : `${API_URL}${endpoint}`;
+  const res = await fetch(url, {
     cache: "no-store",
-    headers: { "X-Admin-Token": ADMIN_TOKEN },
+    headers: IS_BROWSER ? {} : { "X-Admin-Token": ADMIN_TOKEN },
   });
   if (!res.ok) {
     throw new Error(`Admin API error: ${res.status} on ${endpoint}`);
@@ -111,13 +119,12 @@ export async function reviewSubmission(
   id: number,
   decision: { status: "approved" | "rejected"; is_zdr?: boolean; is_eu_sovereign?: boolean }
 ): Promise<{ id: number; status: string }> {
-  const res = await fetch(`${API_URL}/v1/providers/submissions/${id}/review`, {
+  const res = await fetch(`${IS_BROWSER ? "/admin/api" : API_URL}/v1/providers/submissions/${id}/review`, {
     method: "POST",
     cache: "no-store",
-    headers: {
-      "X-Admin-Token": ADMIN_TOKEN,
-      "Content-Type": "application/json",
-    },
+    headers: IS_BROWSER
+      ? { "Content-Type": "application/json" }
+      : { "X-Admin-Token": ADMIN_TOKEN, "Content-Type": "application/json" },
     body: JSON.stringify(decision),
   });
   if (!res.ok) throw new Error(`Review failed (${res.status})`);
