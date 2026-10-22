@@ -9,10 +9,7 @@ import {
   providerFaviconUrl,
   providerInitials,
 } from "@/lib/format";
-import type {
-  getProviderDetail,
-  getProviders,
-} from "@/lib/api";
+import { getProviderDetail, getProviders } from "@/lib/api";
 import { Header, Footer } from "@/components/Header";
 import ProviderModelTable from "@/components/ProviderModelTable";
 

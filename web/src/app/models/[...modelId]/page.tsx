@@ -8,7 +8,7 @@ import Link from "next/link";
 import {
   providerFaviconUrl,
 } from "@/lib/format";
-import type {
+import {
   getModel,
   getModelHistory,
   getModelEndpoints,

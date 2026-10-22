@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getModelCount, getProviderCount } from "./api";
+import { getModelCount, getProviderCount } from "./counts-fetch";
 
 // Count fetchers keyed by a stable string so the module cache is shared per
 // metric across every caller (Header search, Footer, etc.) in a browser
