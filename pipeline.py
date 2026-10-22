@@ -334,16 +334,98 @@ def normalize_endpoints(model_id, raw_endpoints):
         # Clean up provider name (take first part before |)
         if "|" in provider_name:
             provider_name = provider_name.split("|")[0].strip()
-        
+
+        # OpenRouter tags tier variants of the same provider as suffixed tags
+        # ('fireworks/spot', 'fireworks/fast', 'fireworks/us',
+        # 'openai/flex', 'deepinfra/fp8/priority', 'azure/us'). Map the suffix
+        # into service_tier ONLY for known tier tokens, so the read path's
+        # tier filter can exclude non-Standard rows (Oct 22: the 'spot' tag at
+        # 0.7x Standard was winning reads and showing wrong Fireworks prices;
+        # Fireworks has no 0.7x tier). Everything else (fp8, global) is a
+        # variant qualifier, not a tier, and stays untagged.
+        tag = ep.get("tag") or ""
+        suffix = tag.partition("/")[2] if "/" in tag else ""
+        TIERS = {"spot", "fast", "us", "flex", "priority", "ultrafast", "batch"}
+        QUANT_RE = re.compile(r"^(fp\d|int\d|nvfp\d|awq|gptq)$", re.I)
+        parts = [p for p in suffix.split("/") if p]
+        tier = next((p for p in parts if p in TIERS), None)
+        quant = next((p for p in parts if QUANT_RE.match(p)), None)
+
+        raw = dict(ep)
+        if tier and not raw.get("service_tier"):
+            raw["service_tier"] = tier
+        if quant and not raw.get("quantization"):
+            raw["quantization"] = quant
+
         results.append({
             "endpoint_provider": provider_name,
             "input_price_per_m": input_price,
             "output_price_per_m": output_price,
             "blended_price_per_m": blended,
             "context_length": ep.get("context_length"),
-            "raw_data": ep,
+            "raw_data": raw,
         })
     return results
+
+
+# Org-prefix twins (2026-10-22): consolidation AND the hourly ingest must agree
+# on one canonical prefix per org, or duplicates come straight back (the Oct-22
+# incident: x-ai/* vs xai/*). Canonical = the prefix OpenRouter itself emits;
+# a feed that disagrees with its own consolidation undoes the fix every run.
+# Consults model_aliases in the DB first (migration-written), falls back to
+# this static map. Any id on a non-canonical org prefix remaps onto an ACTIVE
+# canonical twin.
+ORG_CANONICAL = {
+    "deepseek-ai": "deepseek",
+    "zai-org": "z-ai",
+    "minimaxai": "minimax",
+    "stepfun-ai": "stepfun",
+    "moonshot": "moonshotai",
+    "meta": "meta-llama",
+    "xai": "x-ai",
+}
+
+
+def org_canonical_id(model_id: str, cur=None) -> str:
+    """Resolve a model id onto its org-canonical form if an active twin exists.
+
+    Two lookup layers:
+      1. model_aliases (alias -> canonical_model_id), the DB's own record of
+         what the consolidation did;
+      2. ORG_CANONICAL static map, for ids the alias table doesn't cover.
+    Returns the input unchanged when there is no active canonical twin (or no
+    cur), so callers can use it in both connected and standalone contexts.
+    """
+    if "/" not in model_id:
+        return model_id
+    org, _, slug = model_id.partition("/")
+    target = None
+    if cur is not None:
+        try:
+            cur.execute(
+                "SELECT canonical_model_id FROM model_aliases WHERE alias = %s",
+                (model_id,),
+            )
+            row = cur.fetchone()
+            if row:
+                target = row[0]
+        except Exception:
+            conn = None  # alias lookup is best-effort; fall through to static map
+    if target is None:
+        canon_org = ORG_CANONICAL.get(org)
+        if canon_org:
+            target = canon_org + "/" + slug
+    if not target or target == model_id:
+        return model_id
+    if cur is None:
+        return model_id  # cannot verify activity without a cursor
+    try:
+        cur.execute("SELECT 1 FROM models WHERE id = %s AND is_active", (target,))
+        if cur.fetchone():
+            return target
+    except Exception:
+        pass
+    return model_id
 
 
 # ============================================
@@ -617,6 +699,15 @@ def upsert_venice_models(conn, new_models, existing_priced):
     for m in new_models:
         mid = m["model_id"]
         if "/" in mid:
+            # Org-prefix twin guard (2026-10-22): if this id sits on a
+            # non-canonical org prefix (xai/ vs x-ai/, deepseek-ai/ vs
+            # deepseek/ ...) and an active canonical twin exists, remap onto
+            # it. Consults model_aliases first, then ORG_CANONICAL.
+            resolved = org_canonical_id(mid, cur)
+            if resolved != mid and resolved in existing_ids and mid not in existing_ids:
+                m["model_id"] = resolved
+                remapped += 1
+                continue
             prov, _, slug = mid.partition("/")
             if "-" in slug:
                 # Dot ONLY digit-hyphen-digit version boundaries (4-8 -> 4.8).
@@ -2084,7 +2175,7 @@ def apply_median_pricing(models, fetch_endpoints=False):
                         endpoint_provider, input_price_per_m, output_price_per_m, blended_price_per_m, source
                     FROM model_endpoints
                     WHERE model_id = %s AND fetched_at >= NOW() - INTERVAL '24 hours'
-                      AND COALESCE(raw_data->>'service_tier','') NOT IN ('flex','priority','ultrafast')
+                      AND COALESCE(raw_data->>'service_tier','') NOT IN ('flex','priority','ultrafast','spot','fast','us')
                     ORDER BY endpoint_provider, fetched_at DESC, blended_price_per_m ASC
                 """, (m["model_id"],))
                 rows = cur.fetchall()
@@ -2159,7 +2250,7 @@ def apply_median_pricing(models, fetch_endpoints=False):
         _fp_rows = [ep for ep in normalized_eps
                     if fp and ep["endpoint_provider"] == fp and ep["blended_price_per_m"] > 0]
         fp_ep = next((ep for ep in _fp_rows
-                      if (ep.get("raw_data") or {}).get("service_tier") not in ("flex", "priority", "ultrafast")),
+                      if (ep.get("raw_data") or {}).get("service_tier") not in ("flex", "priority", "ultrafast", "spot", "fast", "us")),
                      None)
         if fp_ep is None and _fp_rows:
             fp_ep = _fp_rows[0]
@@ -2176,7 +2267,7 @@ def apply_median_pricing(models, fetch_endpoints=False):
             # Standard-only median: exclude flex/priority/ultrafast service
             # tiers (Batch/Fast/Priority) before computing the headline.
             std_eps = [ep for ep in normalized_eps
-                       if (ep.get("raw_data") or {}).get("service_tier") not in ("flex", "priority", "ultrafast")]
+                       if (ep.get("raw_data") or {}).get("service_tier") not in ("flex", "priority", "ultrafast", "spot", "fast", "us")]
             use_eps = std_eps or normalized_eps
             blended_prices = [ep["blended_price_per_m"] for ep in use_eps if ep["blended_price_per_m"] > 0]
             input_prices = [ep["input_price_per_m"] for ep in use_eps if ep["input_price_per_m"] > 0]
@@ -3219,7 +3310,7 @@ def build_orphan_snapshots(conn, priced_models):
         WHERE model_id = ANY(%s)
           AND blended_price_per_m > 0
           AND fetched_at >= NOW() - INTERVAL '24 hours'
-          AND COALESCE(raw_data->>'service_tier','') NOT IN ('flex','priority','ultrafast')
+          AND COALESCE(raw_data->>'service_tier','') NOT IN ('flex','priority','ultrafast','spot','fast','us')
         ORDER BY model_id, endpoint_provider, fetched_at DESC, blended_price_per_m ASC
     """, (list(orphan_ids),))
 
@@ -3836,6 +3927,7 @@ def main():
             hyphen_ids = sorted({e["model_id"] for e in endpoint_data
                                  if "/" in e["model_id"] and "-" in e["model_id"].split("/", 1)[1]})
             remap = {}
+            cur2 = conn.cursor()
             for hid in hyphen_ids:
                 prov, _, slug = hid.partition("/")
                 # Dot ONLY digit-hyphen-digit version boundaries (4-8 -> 4.8).
@@ -3843,11 +3935,38 @@ def main():
                 dotted = prov + "/" + re.sub(r"(\d)-(\d)", lambda x: x.group(1) + "." + x.group(2), slug)
                 if dotted == hid:
                     continue
-                cur2 = conn.cursor()
                 cur2.execute("SELECT 1 FROM models WHERE id = %s AND is_active", (dotted,))
                 if cur2.fetchone():
                     remap[hid] = dotted
-                cur2.close()
+            # Org-prefix twin remap (2026-10-22): endpoints on non-canonical
+            # org prefixes (xai/ vs x-ai/, deepseek-ai/ vs deepseek/) remap
+            # onto the active canonical twin so the hourly OpenRouter ingest
+            # stops re-attaching prices to retired rows. Alias map loaded once
+            # (single query), not per-id.
+            org_ids = sorted({e["model_id"] for e in endpoint_data})
+            cur2.execute("""
+                SELECT alias, canonical_model_id FROM model_aliases
+                WHERE alias LIKE '%/%'
+            """)
+            alias_map = dict(cur2.fetchall())
+            active_cache = {}
+            for oid in org_ids:
+                if oid in remap:
+                    continue
+                target = alias_map.get(oid)
+                if target is None:
+                    org, _, slug = oid.partition("/")
+                    canon_org = ORG_CANONICAL.get(org)
+                    if canon_org:
+                        target = canon_org + "/" + slug
+                if not target or target == oid:
+                    continue
+                if target not in active_cache:
+                    cur2.execute("SELECT 1 FROM models WHERE id = %s AND is_active", (target,))
+                    active_cache[target] = bool(cur2.fetchone())
+                if active_cache[target]:
+                    remap[oid] = target
+            cur2.close()
             if remap:
                 for e in endpoint_data:
                     if e["model_id"] in remap:

@@ -1370,7 +1370,7 @@ def _compute_recommendation(body: "RecommendRequest") -> dict:
                 FROM model_endpoints
                 WHERE model_id = ANY(%s) AND endpoint_provider = ANY(%s)
                       AND blended_price_per_m IS NOT NULL
-                      AND COALESCE(raw_data->>'service_tier','') NOT IN ('flex','priority','ultrafast')
+                      AND COALESCE(raw_data->>'service_tier','') NOT IN ('flex','priority','ultrafast','spot','fast','us')
                 ORDER BY model_id, endpoint_provider, blended_price_per_m ASC
             """, (model_ids, endpoint_providers))
             for mid, prov, ip, op, bp in cur.fetchall():
@@ -1747,8 +1747,8 @@ async def explain(
                endpoint_provider, input_price_per_m, output_price_per_m, blended_price_per_m
         FROM model_endpoints
         WHERE model_id = %s AND blended_price_per_m IS NOT NULL
-          AND COALESCE(raw_data->>'service_tier','') NOT IN ('flex','priority','ultrafast')
-        ORDER BY endpoint_provider, fetched_at DESC, blended_price_per_m ASC
+          AND COALESCE(raw_data->>'service_tier','') NOT IN ('flex','priority','ultrafast','spot','fast','us')
+        ORDER BY endpoint_provider, (source = 'openrouter')::int ASC, fetched_at DESC, blended_price_per_m ASC
     """, (canonical_id,))
     eps_raw = cur.fetchall()
     eps = sorted(eps_raw, key=lambda r: r[3])
@@ -2407,17 +2407,21 @@ async def get_provider_detail(
     # in model_endpoints). We UNION those so the provider page isn't empty.
     cur.execute("""
         WITH hosted AS (
-            SELECT DISTINCT ON (me.model_id, quant_key)
+            -- One row per model_id (Oct 22 acceptance: provider listings have
+            -- no duplicate model_ids). DISTINCT ON order: newest first, then
+            -- direct feed over the OpenRouter aggregate, then cheapest blend.
+            -- quantization='unknown' is the OR feed's no-data value, treated
+            -- as noise (excluded from the quantization display field but not
+            -- from dedup: distinct rows are chosen per model_id anyway).
+            SELECT DISTINCT ON (me.model_id)
                 me.model_id, m.name, m.provider as model_owner, m.tier, m.context_length,
                 m.aa_index_score, m.modality, m.is_reasoning,
                 me.input_price_per_m, me.output_price_per_m, me.blended_price_per_m,
                 lp.sit_score, lp.sit_adjusted_price, me.fetched_at, me.source, me.raw_data,
-                COALESCE(
-                    NULLIF(me.raw_data->>'openrelay_id', ''),
-                    NULLIF(me.raw_data->>'quantization', ''),
-                    'default'
-                ) AS quant_key,
-                COALESCE(NULLIF(me.raw_data->>'quantization',''), '') AS quantization
+                COALESCE(NULLIF(me.raw_data->>'quantization',''), '') AS quantization,
+                CASE WHEN me.raw_data->>'quantization' = 'unknown' THEN '' 
+                     ELSE COALESCE(NULLIF(me.raw_data->>'quantization',''), '') END AS quant_display,
+                (me.source = 'openrouter')::int AS source_rank
             FROM model_endpoints me
             JOIN models m ON me.model_id = m.id
             LEFT JOIN latest_prices lp ON me.model_id = lp.model_id
@@ -2425,21 +2429,20 @@ async def get_provider_detail(
               AND m.is_active = TRUE
               AND me.blended_price_per_m > 0
               AND m.id NOT LIKE '%%:batch'
-              AND COALESCE(me.raw_data->>'service_tier','') NOT IN ('flex','priority','ultrafast')
-            ORDER BY me.model_id, quant_key, me.fetched_at DESC, me.blended_price_per_m ASC
+              AND COALESCE(me.raw_data->>'service_tier','') NOT IN ('flex','priority','ultrafast','spot','fast','us')
+            ORDER BY me.model_id, (me.source = 'openrouter')::int ASC, me.fetched_at DESC,
+                     me.blended_price_per_m ASC
         ),
         owned AS (
-            SELECT DISTINCT ON (me.model_id, quant_key)
+            SELECT DISTINCT ON (me.model_id)
                 me.model_id, m.name, m.provider as model_owner, m.tier, m.context_length,
                 m.aa_index_score, m.modality, m.is_reasoning,
                 me.input_price_per_m, me.output_price_per_m, me.blended_price_per_m,
                 lp.sit_score, lp.sit_adjusted_price, me.fetched_at, me.source, me.raw_data,
-                COALESCE(
-                    NULLIF(me.raw_data->>'openrelay_id', ''),
-                    NULLIF(me.raw_data->>'quantization', ''),
-                    'default'
-                ) AS quant_key,
-                COALESCE(NULLIF(me.raw_data->>'quantization',''), '') AS quantization
+                COALESCE(NULLIF(me.raw_data->>'quantization',''), '') AS quantization,
+                CASE WHEN me.raw_data->>'quantization' = 'unknown' THEN '' 
+                     ELSE COALESCE(NULLIF(me.raw_data->>'quantization',''), '') END AS quant_display,
+                (me.source = 'openrouter')::int AS source_rank
             FROM models m
             JOIN model_endpoints me ON m.id = me.model_id
             LEFT JOIN latest_prices lp ON m.id = lp.model_id
@@ -2448,20 +2451,22 @@ async def get_provider_detail(
               AND me.blended_price_per_m > 0
               AND m.id NOT LIKE '%%:batch'
               AND me.endpoint_provider != %s
-              AND COALESCE(me.raw_data->>'service_tier','') NOT IN ('flex','priority','ultrafast')
-            ORDER BY me.model_id, quant_key, me.fetched_at DESC, me.blended_price_per_m ASC
+              AND COALESCE(me.raw_data->>'service_tier','') NOT IN ('flex','priority','ultrafast','spot','fast','us')
+            ORDER BY me.model_id, (me.source = 'openrouter')::int ASC, me.fetched_at DESC,
+                     me.blended_price_per_m ASC
         )
-        SELECT DISTINCT ON (model_id, quant_key)
+        SELECT DISTINCT ON (model_id)
             model_id, name, model_owner, tier, context_length,
             aa_index_score, modality, is_reasoning,
             input_price_per_m, output_price_per_m, blended_price_per_m,
-            sit_score, sit_adjusted_price, fetched_at, source, raw_data, quantization
+            sit_score, sit_adjusted_price, fetched_at, source, raw_data,
+            quant_display AS quantization
         FROM (
             SELECT * FROM hosted
             UNION ALL
             SELECT * FROM owned
         ) combined
-        ORDER BY model_id, quant_key, fetched_at DESC, blended_price_per_m ASC
+        ORDER BY model_id, (source = 'openrouter')::int ASC, fetched_at DESC, blended_price_per_m ASC
     """, (provider_name, provider_name, provider_name))
 
     models = []
@@ -2628,7 +2633,10 @@ async def get_model_endpoints(
             }
         })
     
-    # Get latest endpoints (within 24h)
+    # Get latest endpoints (within 24h). source_rank breaks ties so a
+    # provider's own direct feed wins over the OpenRouter aggregate row for
+    # the same provider even when the OR row is newer (Oct 22: OR's 03:03Z
+    # view of DeepInfra's page-discount prices beat the API row).
     cur.execute("""
         SELECT DISTINCT ON (endpoint_provider)
             endpoint_provider,
@@ -2639,8 +2647,8 @@ async def get_model_endpoints(
             fetched_at
         FROM model_endpoints
         WHERE model_id = %s AND fetched_at >= NOW() - INTERVAL '24 hours'
-          AND COALESCE(raw_data->>'service_tier','') NOT IN ('flex','priority','ultrafast')
-        ORDER BY endpoint_provider, fetched_at DESC, blended_price_per_m ASC
+          AND COALESCE(raw_data->>'service_tier','') NOT IN ('flex','priority','ultrafast','spot','fast','us')
+        ORDER BY endpoint_provider, (source = 'openrouter')::int ASC, fetched_at DESC, blended_price_per_m ASC
     """, (model_id,))
     
     rows = cur.fetchall()

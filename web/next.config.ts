@@ -12,6 +12,8 @@ const nextConfig: NextConfig = {
       { source: "/models/pearl-ai/:model*", destination: "/models/google/:model*", permanent: true },
       { source: "/models/perceptron/:model*", destination: "/models/thinkingmachines/:model*", permanent: true },
       { source: "/models/stepfun-ai/:model*", destination: "/models/stepfun/:model*", permanent: true },
+      // xai -> x-ai (Oct 22 reversal): OpenRouter emits x-ai/*, so x-ai is
+      // canonical in the DB; xai/* rows were consolidated back onto x-ai/*
       { source: "/models/xai/:model*", destination: "/models/x-ai/:model*", permanent: true },
       // --- Exact renames where the source namespace still has live models ---
       // glm-5.3: 0 live, 1 dead; target ns live
@@ -44,6 +46,15 @@ const nextConfig: NextConfig = {
       // Handle un-encoded literal-space variants too (rare, but harmless)
       { source: "/providers/Zai Org", destination: "/providers/Z.AI", permanent: true },
       { source: "/providers/Z Ai", destination: "/providers/Z.AI", permanent: true },
+      // --- Retired model IDs (Oct 22 consolidation; pages 404 without these) ---
+      // (The five x-ai/grok-* entries are covered by the xai -> x-ai prefix
+      // redirect above, so only the non-xai renames need exact rules.)
+      { source: "/models/meta/llama-3.3-70b", destination: "/models/meta-llama/llama-3.3-70b", permanent: true },
+      { source: "/models/meta/llama-4-maverick", destination: "/models/meta-llama/llama-4-maverick", permanent: true },
+      { source: "/models/meta/llama-4-scout", destination: "/models/meta-llama/llama-4-scout", permanent: true },
+      { source: "/models/mistralai/mistral-medium-3-5", destination: "/models/mistralai/mistral-medium-3.5", permanent: true },
+      { source: "/models/bytedance-seed/seed-2-1-turbo", destination: "/models/bytedance-seed/seed-2.1-turbo", permanent: true },
+      { source: "/models/deepseek-ai/deepseek-v3-0324", destination: "/models/deepseek/deepseek-v3-0324", permanent: true },
     ];
   },
 };
