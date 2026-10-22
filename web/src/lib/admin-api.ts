@@ -1,10 +1,12 @@
-import "server-only";  // B8: admin client sends X-SSR-Secret; never bundle client-side
+import "server-only";  // B8: admin client sends X-Admin-Token; never bundle client-side
 import { NextRequest } from "next/server";
 
-// Server-side admin API client. The backend admin endpoints are gated by the
-// SSR secret, which this sends via header. This module only runs server-side.
+// Server-side admin API client. Admin endpoints are gated by the admin token
+// (II_ADMIN_TOKEN), sent via the X-Admin-Token header. Server-side only.
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-const SSR_SECRET = process.env.II_SSR_SECRET || "";  // server env only (N1)
+// N1 (2026-10-21): /v1/admin/* + submission review are gated by II_ADMIN_TOKEN
+// (X-Admin-Token), not the SSR secret. Missing token -> API returns 401.
+const ADMIN_TOKEN = process.env.II_ADMIN_TOKEN || "";
 
 export interface FeedSource {
   source: string;
@@ -52,7 +54,7 @@ export interface PriceCompare {
 async function getJson<T>(endpoint: string): Promise<T> {
   const res = await fetch(`${API_URL}${endpoint}`, {
     cache: "no-store",
-    headers: { "X-SSR-Secret": SSR_SECRET },
+    headers: { "X-Admin-Token": ADMIN_TOKEN },
   });
   if (!res.ok) {
     throw new Error(`Admin API error: ${res.status} on ${endpoint}`);
@@ -114,7 +116,7 @@ export async function reviewSubmission(
     method: "POST",
     cache: "no-store",
     headers: {
-      "X-SSR-Secret": SSR_SECRET,
+      "X-Admin-Token": ADMIN_TOKEN,
       "Content-Type": "application/json",
     },
     body: JSON.stringify(decision),
