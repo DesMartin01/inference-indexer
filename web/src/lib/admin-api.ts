@@ -1,9 +1,11 @@
 import { NextRequest } from "next/server";
 
-// Server-side admin API client. The backend admin endpoints are gated by the
-// SSR secret, which this sends via header. This module only runs server-side.
+// Server-side admin API client. Admin endpoints are gated by the admin token
+// (X-Admin-Token), NOT the SSR secret (Oct 22: sending X-SSR-Secret 401'd the
+// whole admin section after the N1 auth split). This module only runs
+// server-side.
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-const SSR_SECRET = process.env.II_SSR_SECRET || "";  // server env only (N1)
+const ADMIN_TOKEN = process.env.II_ADMIN_TOKEN || "";  // server env only (N1)
 
 export interface FeedSource {
   source: string;
@@ -51,7 +53,7 @@ export interface PriceCompare {
 async function getJson<T>(endpoint: string): Promise<T> {
   const res = await fetch(`${API_URL}${endpoint}`, {
     cache: "no-store",
-    headers: { "X-SSR-Secret": SSR_SECRET },
+    headers: { "X-Admin-Token": ADMIN_TOKEN },
   });
   if (!res.ok) {
     throw new Error(`Admin API error: ${res.status} on ${endpoint}`);
@@ -113,7 +115,7 @@ export async function reviewSubmission(
     method: "POST",
     cache: "no-store",
     headers: {
-      "X-SSR-Secret": SSR_SECRET,
+      "X-Admin-Token": ADMIN_TOKEN,
       "Content-Type": "application/json",
     },
     body: JSON.stringify(decision),
