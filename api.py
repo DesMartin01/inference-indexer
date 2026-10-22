@@ -1570,6 +1570,53 @@ def _aa_as_of():
     except Exception:
         return None
 
+def _prefer_better_covered(cur, model_id: str) -> tuple[str, str | None]:
+    """B3 (/explain fix): if the exact-id match is a BASE model with an
+    instruction-tuned twin under the SAME org that has >=1.5x endpoint
+    coverage, prefer the twin.
+
+    Root cause: 'llama 3.3 70b' resolved to meta-llama/llama-3.3-70b (fewer
+    endpoints) while meta-llama/llama-3.3-70b-instruct is what providers
+    actually host and what the request almost always means.
+
+    Scope guard: ONLY -instruct / -it suffixes, same org prefix, and only
+    base -> suffixed direction. Turbo/chat/fast/fp8 variants are genuinely
+    different products (and zhipu/glm-5 vs z-ai/glm-5-turbo are different
+    orgs); an explicitly-suffixed id is honoured as-is.
+    Coverage = DISTINCT endpoint_provider count over the same 7-day
+    standard-tier window as the read path (commit dc9150d). Row counts are
+    diluted by hourly snapshots; provider count is the honest measure.
+    """
+    org, sep, name = model_id.partition("/")
+    if not sep:
+        return model_id, None
+    lowered = name.lower()
+    if lowered.endswith("-instruct") or lowered.endswith("-it"):
+        return model_id, None  # suffixed form requested: honour it
+    for suffix in ("-instruct", "-it"):
+        twin = f"{org}/{name}{suffix}"
+        try:
+            cur.execute(
+                """
+                SELECT e.model_id, count(DISTINCT e.endpoint_provider)
+                FROM model_endpoints e
+                WHERE e.model_id IN (%s, %s)
+                  AND e.fetched_at > now() - interval '7 days'
+                  AND COALESCE(e.raw_data->>'service_tier','') NOT IN ('flex','priority','ultrafast')
+                GROUP BY e.model_id
+                """,
+                (model_id, twin),
+            )
+            counts = dict(cur.fetchall())
+        except Exception:
+            return model_id, None
+        self_eps = counts.get(model_id, 0)
+        twin_eps = counts.get(twin, 0)
+        if twin_eps >= 1.5 * max(self_eps, 1) and twin_eps >= 5:
+            return twin, f"coverage:{model_id}"
+    return model_id, None
+
+
 def _resolve_model_id(model_id: str) -> tuple[str, str | None]:
     """Resolve a possibly-dirty model id to canonical (PR-6).
 
