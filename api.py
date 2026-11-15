@@ -1682,6 +1682,12 @@ def _freshness_block(price_fetched_at, aa_as_of) -> dict:
     if aa_as_of:
         try:
             aa_dt = datetime.fromisoformat(aa_as_of)
+            # _aa_as_of returns a bare date (naive). now is tz-aware UTC.
+            # Attach UTC to the naive value; aware values are normalized.
+            if aa_dt.tzinfo is None:
+                aa_dt = aa_dt.replace(tzinfo=timezone.utc)
+            elif aa_dt.utcoffset() != timezone.utc.utcoffset(aa_dt):
+                aa_dt = aa_dt.astimezone(timezone.utc)
             aa_age_d = round((now - aa_dt).total_seconds() / 86400, 1)
             if aa_age_d > 7:
                 flags.append({"field": "aa_score", "age_days": aa_age_d, "sla_days": 7})
