@@ -1,7 +1,8 @@
 {
   "mcpServers": {
     "inferenceindexer": {
-      "url": "https://api.inferenceindexer.ai/mcp"
+      "url": "https://api.inferenceindexer.ai/mcp",
+      "transport": "streamable-http"
     }
   }
 }

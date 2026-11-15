@@ -11,14 +11,22 @@ import { Header } from "@/components/Header";
 import { ProviderComparisonTable } from "@/components/ProviderComparisonTable";
 import type { Metadata } from "next";
 
-// Pre-render all model pages at build time, ISR handles updates
+// Pre-render model pages at build time, ISR handles updates.
+// Build-time params are best-effort: the build environment shares the public
+// API rate limit with everyone, so a 429 mid-enumeration must not kill the
+// build. dynamicParams=true means any model not pre-rendered renders on
+// first request instead; missing pre-render is a slow first hit, not a
+// missing page.
 export async function generateStaticParams() {
-  // Throw on API failure: an empty params list at build time would generate
-  // a site with no model pages; dynamicParams covers runtime misses.
-  const data = await getModels(undefined, undefined, 500, 3600);
-  return data.models.map((m) => ({
-    modelId: m.model_id.split("/"),
-  }));
+  try {
+    const data = await getModels(undefined, undefined, 500, 3600);
+    return data.models.map((m) => ({
+      modelId: m.model_id.split("/"),
+    }));
+  } catch (err) {
+    console.error("generateStaticParams: API unavailable, rendering model pages on demand:", err);
+    return [];
+  }
 }
 
 const GREEN = "#22c55e";

@@ -264,7 +264,7 @@ export default async function ForAgentsPage() {
                       <p style={{ fontSize: 13, color: "#8a8a8a", marginBottom: 16 }}>
                         Then call the API with your key:
                       </p>
-                      <div style={codeStyle}>curl -H "Authorization: Bearer" YOUR_KEY https://api.inferenceindexer.ai/v1/models</div>
+                      <div style={codeStyle}>curl -H &quot;Authorization: Bearer YOUR_KEY&quot; https://api.inferenceindexer.ai/v1/models</div>
                     </div>
 
           {/* MCP */}

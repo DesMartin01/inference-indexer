@@ -371,7 +371,7 @@ export default function EmbeddingTable({ models, totalCount }: Props) {
                       fontFamily: "var(--font-jetbrains-mono), monospace",
                     }}
                   >
-                    {m.embedding_dimensions.toLocaleString()}
+                    {m.embedding_dimensions != null ? m.embedding_dimensions.toLocaleString() : "-"}
                   </div>
 
                   {/* Max Context */}
@@ -387,7 +387,7 @@ export default function EmbeddingTable({ models, totalCount }: Props) {
                       fontFamily: "var(--font-jetbrains-mono), monospace",
                     }}
                   >
-                    {m.context_length.toLocaleString()}
+                    {m.context_length != null ? m.context_length.toLocaleString() : "-"}
                   </div>
 
                   {/* $/M tokens (3 decimal places) */}

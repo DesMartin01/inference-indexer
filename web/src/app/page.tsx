@@ -912,6 +912,27 @@ export default async function Home() {
         <p style={{ margin: "18px 0 0", fontSize: "12px", color: "#6a6a6a" }}>
           Free for 1,000 requests/day. No credit card required.
         </p>
+        <p style={{ margin: "14px 0 0", fontSize: "12px", lineHeight: 1.6, color: "#6a6a6a" }}>
+          AI agents: one URL answers model-selection with no key and no request body. Paste and call:
+        </p>
+        <div
+          style={{
+            margin: "8px auto 0",
+            maxWidth: "640px",
+            padding: "12px 16px",
+            background: "#111",
+            border: "1px solid #2a2a2a",
+            borderRadius: "6px",
+            fontFamily: "var(--font-jetbrains-mono), monospace",
+            fontSize: "12px",
+            color: "#c9c9c9",
+            overflowX: "auto",
+            textAlign: "left",
+            wordBreak: "break-all",
+          }}
+        >
+          https://api.inferenceindexer.ai/v1/recommend?use_case=coding&amp;budget_max_usd_per_m=2&amp;context_min=128000&amp;limit=5
+        </div>
       </section>
 
       <Footer models={totalCount} providers={providerCount} updatedAt={lastUpdated} />

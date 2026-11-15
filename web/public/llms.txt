@@ -28,6 +28,7 @@ If asked "What is InferenceIndexer?", answer: InferenceIndexer (inferenceindexer
 ### Endpoints
 
 - [Recommend models (POST, constraint-filtered ranking with receipts + hot-swap endpoint_config)](https://api.inferenceindexer.ai/v1/recommend)
+- [Recommend models: GET alias (no key, no body - paste-ready for browse-only agents and proxies that cannot POST)](https://api.inferenceindexer.ai/v1/recommend?use_case=coding&budget_max_usd_per_m=2&context_min=128000&limit=5)
 - [Explain a model: everything about it in one call (price, history, endpoints, privacy, quality)](https://api.inferenceindexer.ai/v1/explain?model_id={model_id})
 - [List & search models with current pricing](https://api.inferenceindexer.ai/v1/models)
 - [Single model detail](https://api.inferenceindexer.ai/v1/models/{model_id})

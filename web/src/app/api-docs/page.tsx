@@ -305,11 +305,21 @@ function EndpointsSection() {
         anchor="ep-recommend"
         method="POST"
         path="/v1/recommend"
-        desc="Constraint-filtered model ranking with receipts. Ranks by Cost/IQ (blended price x 40/AA score, lower is better). Returns ranked models with a plain-English 'why', a hot-swap endpoint_config (provider base_url + native model id), per-field as-of timestamps, and runner-ups with reasons. Requires at least one constraint."
-        params={[]}
-        request={`$ curl -X POST -H "Authorization: Bearer ***" -H "Content-Type: application/json" \\\\
-     -d '{"budget_max_usd_per_m": 1, "context_min": 100000, "limit": 3}' \\\\
-     "https://api.inferenceindexer.ai/v1/recommend"`}
+        desc="Constraint-filtered model ranking with receipts. Ranks by Cost/IQ (blended price x 40/AA score, lower is better). Returns ranked models with a plain-English 'why', a hot-swap endpoint_config (provider base_url + native model id), per-field as-of timestamps, and runner-ups with reasons. Requires at least one constraint. Default quality gate AA >= 25 (set aa_min to override); prices older than the 6h SLA are excluded."
+        params={[
+          { name: "budget_max_usd_per_m", type: "number", required: false, desc: "Max blended price per million tokens, e.g. 2 means under $2/M" },
+          { name: "context_min", type: "integer", required: false, desc: "Minimum context window in tokens, e.g. 128000" },
+          { name: "modality", type: "string", required: false, desc: "Model modality (default 'text' = text and vision-capable: text->text, text+image->text, ...)" },
+          { name: "zdr", type: "boolean", required: false, desc: "true = only zero-data-retention providers" },
+          { name: "eu_sovereign", type: "boolean", required: false, desc: "true = only EU-sovereign providers" },
+          { name: "reasoning", type: "boolean", required: false, desc: "Filter by reasoning-model flag (unset = either)" },
+          { name: "providers", type: "array", required: false, desc: "Restrict to named endpoint providers, e.g. [\"DeepInfra\", \"Groq\"]" },
+          { name: "use_case", type: "string", required: false, desc: "Task profile re-ranking: support, volume, extraction, summarization, coding, or research" },
+          { name: "aa_min", type: "number", required: false, desc: "Minimum AA Intelligence score (0-100). Unset defaults to 25" },
+          { name: "limit", type: "integer", required: false, desc: "Max recommendations 1-20 (default 5)" },
+          { name: "prefer_callable", type: "boolean", required: false, desc: "Demote models without a verified call recipe below callable ones (default true)" },
+        ]}
+        request={`$ curl -X POST -H "Authorization: Bearer ***" -H "Content-Type: application/json" \\\\\n     -d '{"budget_max_usd_per_m": 1, "context_min": 100000, "limit": 3}' \\\\\n     "https://api.inferenceindexer.ai/v1/recommend"`}
         response={`{
   "query": { "budget_max_usd_per_m": 1, "context_min": 100000, "modality": "text" },
   "methodology_version": "0.2",
@@ -419,7 +429,7 @@ function EndpointsSection() {
         ]}
         request={`$ curl -H "Authorization: Bearer YOUR_API_KEY" \\\n     "https://api.inferenceindexer.ai/v1/models?tier=standard&sort=blended"`}
         response={`{
-  "count": 318,
+  "count": 727,
   "models": [
     {
       "model_id": "deepseek/deepseek-v4-reasoner",
@@ -673,7 +683,7 @@ function ResponseFormatSection() {
 
       <h3 style={{ ...subLabel, marginTop: 20 }}>Pagination (for list endpoints)</h3>
       <CodeBlock>{`{
-  "count": 318,
+  "count": 727,
   "page": 1,
   "per_page": 50,
   "total_pages": 7,
@@ -712,7 +722,7 @@ function ErrorsSection() {
   "error": {
     "code": "rate_limit_exceeded",
     "message": "Rate limit of 1000 requests/day exceeded. Resets at 2026-08-04T00:00:00Z.",
-    "documentation_url": "https://www.inferenceindexer.ai/api/docs#rate-limits"
+    "documentation_url": "https://www.inferenceindexer.ai/api-docs#rate-limits"
   }
 }`}</CodeBlock>
     </Section>

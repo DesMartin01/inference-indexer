@@ -1305,6 +1305,20 @@ def _compute_recommendation(body: "RecommendRequest") -> dict:
         query += " AND m.aa_index_score >= %s"
         params.append(body.aa_min)
 
+    # Default quality gate (Des, Nov 15): when the caller sets no aa_min, apply
+    # AA >= 25 rather than ranking raw. The methodology's ADVERTISED quality bar
+    # stays AA >= 35; models in the 25-34.9 band pass the gate but carry an
+    # explicit "below advertised quality bar" caveat on every entry.
+    aa_min_effective = body.aa_min if body.aa_min is not None else 25.0
+    if body.aa_min is None:
+        query += " AND m.aa_index_score >= %s"
+        params.append(aa_min_effective)
+
+    # Freshness SLA (6h): a stale price must be EXCLUDED, not merely flagged.
+    # Before Nov 15 a 67-day-old price could rank #1; the freshness block only
+    # labelled it stale after the fact.
+    query += " AND lp.fetched_at > NOW() - INTERVAL '6 hours'"
+
     # provider restriction: model must have an endpoint at one of the named providers
     if body.providers:
         query += """
@@ -1418,7 +1432,10 @@ def _compute_recommendation(body: "RecommendRequest") -> dict:
                 "output_price_per_m": float(op) if op is not None else None,
                 "zdr_at_this_host": host_privacy["zdr"],
                 "eu_sovereign_at_this_host": host_privacy["eu"],
-                "auth_scheme": "bearer",
+                # Anthropic's Messages API is not OpenAI-compatible: different
+                # path, request shape and model-id format. Flag it so an agent
+                # doesn't fire an OpenAI-style chat.completions call at it.
+                "auth_scheme": "anthropic-messages" if prov == "Anthropic" else "bearer",
             }
 
         caveats = []
@@ -1427,6 +1444,11 @@ def _compute_recommendation(body: "RecommendRequest") -> dict:
             caveats.append("reasoning model: thinking tokens not reflected in output price; effective cost per useful token is higher")
         if endpoint_config is None:
             caveats.append("no hand-verified endpoint base_url for this model yet; see /v1/models/{id}/endpoints for provider pricing")
+        # Advertised quality bar (Des, Nov 15): the methodology says results meet
+        # AA >= 35; anything the default gate (25) lets through below that gets
+        # an explicit caveat so agents can act on the shortfall.
+        if aa is None or aa < 35:
+            caveats.append("below advertised quality bar: methodology's quality gate is AA >= 35; this model scored below it")
 
         # deterministic `why` string
         bits = []
@@ -1527,9 +1549,10 @@ def _compute_recommendation(body: "RecommendRequest") -> dict:
         "ranking_basis": {
             "method": "cost_per_iq_ascending" if not body.use_case else f"cost_per_iq_task_adjusted_{body.use_case}",
             "description": "Blended price x (40 / AA Intelligence score). Lower is better; this is a PRICE-EFFICIENCY sort, not a task-fitness score.",
-            "aa_gate_note": "The AA >= 35 quality gate applies to whether a model HAS a Cost/IQ at all (sit_adjusted_price is only computed for AA >= 35 by the pipeline). Within results, low-AA models can outrank high-AA ones because Cost/IQ divides by AA. Check aa_index_score per model; low AA + very low price can mean 'cheap because limited'.",
+            "aa_gate_note": "Default quality gate: AA >= 25 (explicit aa_min overrides). The ADVERTISED quality bar in the methodology is AA >= 35; models scoring below it still rank but carry a 'below advertised quality bar' caveat on every entry. Models without any AA score are excluded. Within results, low-AA models can outrank high-AA ones because Cost/IQ divides by AA. Check aa_index_score per model; low AA + very low price can mean 'cheap because limited'.",
+            "freshness_note": "Prices older than the 6h SLA are EXCLUDED from recommendations, not merely flagged.",
             "use_case_adjustment": (f"Task profile '{body.use_case}': {profile['note']}. Adjusted Cost/IQ = raw Cost/IQ x task penalty (reasoning preference, AA floor {profile['aa_floor']}). Heuristics pending bake-off validation." if body.use_case else None),
-            "excludes": "Models without AA scores; batch variants. 'text' modality includes vision-capable models (text+image->text).",
+            "excludes": "Models without AA scores; models with no price fetched in the last 6 hours; batch variants. 'text' modality includes vision-capable models (text+image->text).",
             "quality_latency_data": "Not used in v1 ranking: provider probe coverage is too thin. Will be added per FR-15.",
         },
         "disclaimer": "Estimates based on aggregated public pricing. Verify with the provider before committing spend.",
@@ -1541,6 +1564,9 @@ def _provider_model_id(model_id: str, provider: str) -> str:
 
     Verified conventions (checked against live provider APIs):
     - Mistral: 'mistralai/codestral-2508' -> 'codestral-2508' (verified live)
+    - Anthropic: 'anthropic/claude-haiku-5.5' -> 'claude-haiku-5.5' (bare slug,
+      no creator prefix; note the Messages API request shape differs from
+      OpenAI-compatible providers, hence auth_scheme in endpoint_config)
     - DeepInfra/Together/Novita/SiliconFlow/Groq/SambaNova/OpenAI: creator prefix
       stripped where the canonical prefix differs from the provider's namespace.
     - Others: canonical id returned as-is; the caveat tells agents to check
@@ -1555,14 +1581,24 @@ def _provider_model_id(model_id: str, provider: str) -> str:
         # but only when the creator prefix isn't the provider's own namespace
         # (e.g. DeepInfra hosts 'deepseek-ai/DeepSeek-V4-Flash' WITH a namespace)
         return slug
+    if provider == "Anthropic":
+        return slug
     return model_id
 
 
 def _aa_as_of():
+    """AA Intelligence Index as-of date.
+
+    AA scores live on `models` (written by the AA rescore pass alongside
+    aa_score_version), NOT on price_snapshots. The old query selected
+    price_snapshots.aa_index_score, a column that doesn't exist, which threw
+    inside the try/except and returned None: every recommend entry then showed
+    aa_age_days null while carrying a score (caught by agent audit, Nov 15).
+    """
     try:
         conn2 = get_db()
         cur2 = conn2.cursor()
-        cur2.execute("SELECT max(fetched_at)::date FROM price_snapshots WHERE aa_index_score IS NOT NULL")
+        cur2.execute("SELECT max(updated_at)::date FROM models WHERE aa_index_score IS NOT NULL")
         row = cur2.fetchone()
         cur2.close()
         conn2.close()
